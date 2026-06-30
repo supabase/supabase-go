@@ -97,6 +97,19 @@ Go has no rich exception hierarchy, so these two shapes span the spectrum: ident
 Value comparison of the const sentinels is safe because the error type is unexported and package-local, so the type itself acts as a namespace - errors from different packages can never compare equal even with identical messages, and same-package clashes are avoided by keeping messages distinct and package-prefixed (e.g. `core: ...`).
 Sentinel immutability is covered by the separate "sentinel errors are compile-time constants" decision.
 
+### Error messages carry a package prefix, applied once in `Error()`
+
+**What**:
+Every error message from a package is prefixed with that package's name (`core: project URL is required`), and the prefix is the importable package name, never a sub-concept or type within it (not `configuration:`).
+The prefix is written once, in the string-backed type's `Error()` method (`return "core: " + string(e)`), so each sentinel definition carries only its own distinct message text rather than repeating the prefix on every declaration.
+
+**Why**:
+Naming the originating package is the dominant Go convention - the standard library does it everywhere (`json:`, `http:`, `os:`) - and it preserves provenance once an error is wrapped, logged or surfaced far from where it was created.
+The package is the unit a consumer imports and reasons about, so it is the right granularity for provenance. Finer-grained "which kind of failure" information is carried by the error's identifier and type (`ErrMissingURL`, `configurationError`) and its message text, not duplicated into the prefix.
+Package granularity also stays consistent as a package grows more error sources (for example `transport` alongside `configuration` in `core`), so every error from the package reads with the same token regardless of which file or type produced it.
+Centralising the literal in `Error()` rather than baking `core: ` into each sentinel removes the repetition. Our single string-backed error type gives us one render chokepoint that the scattered `errors.New` calls in the standard library do not have.
+The rendered prefix does not affect `errors.Is`, which compares the underlying sentinel values (the unprefixed message strings). The prefix is purely for the human reading the message.
+
 ## Everything executed from outside the repo is digest-pinned (Actions and tooling)
 
 **What**:
