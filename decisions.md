@@ -141,3 +141,22 @@ The repository carries no `.gitignore` yet.
 The build emits no build artifacts, coverage output or environment files, so nothing has yet been demonstrated to need ignoring, and an empty-of-purpose ignore file is configuration without a need - the same reasoning that keeps `.editorconfig` out.
 A repo-local `.gitignore` earns its place in the change that first produces an artifact worth tracking, and not before.
 `go.work.sum` is consequently neither committed nor ignored, so its first appearance once an external dependency lands shows up in `git status` for a considered call then.
+
+## Public API doc comments use the Go doc-comment syntax (links, lists, prose)
+
+**What**:
+Doc comments on exported identifiers use the Go 1.19+ "Go Doc Comments" syntax, not plain prose alone.
+The features we rely on:
+
+- Doc links - `[Name]`, `[pkg.Name]` and `[pkg.Type.Method]` - to cross-reference other identifiers and packages.
+- Bullet or numbered lists for enumerable behaviour, such as the set of sentinel errors a constructor returns.
+- Parameters and return values referenced by name in running prose (Go has no `@param` or `@return` tags; the rendered signature supplies the parameter list).
+- Runnable `ExampleXxx` functions as executable usage documentation.
+
+We do not use Markdown in doc comments. Bold, italics and inline backtick code spans are unsupported, so backticks never appear in doc comments because they would render literally.
+
+**Why**:
+This is the one syntax that `gofmt` canonicalises and that every Go documentation consumer renders identically: `go doc` at the command line, pkg.go.dev on the web and gopls on editor hover.
+One comment therefore serves all three without divergence.
+Doc links become navigable cross-links on the rendered page, lists make conditions like the error-return set scannable, and runnable examples cannot drift from the code because `go test` executes them.
+Holding to the standard syntax lets `gofmt` keep formatting consistent and stops contributors inventing ad hoc conventions.

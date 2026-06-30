@@ -16,7 +16,7 @@ type configurationError string
 
 func (e configurationError) Error() string { return "core: " + string(e) }
 
-// Sentinel errors returned by NewConfiguration. Match them with errors.Is.
+// Sentinel errors returned by [NewConfiguration]. Match them with [errors.Is].
 const (
 	// ErrMissingURL is returned when an empty project URL is supplied.
 	ErrMissingURL = configurationError("project URL is required")
@@ -26,7 +26,7 @@ const (
 
 	// ErrInvalidURL is returned when the project URL cannot be used as an
 	// absolute HTTP or HTTPS base URL. The underlying parse error, when there is
-	// one, is wrapped and recoverable with errors.Unwrap.
+	// one, is wrapped and recoverable with [errors.Unwrap].
 	ErrInvalidURL = configurationError("project URL is invalid")
 )
 
@@ -34,9 +34,9 @@ const (
 // base URL, the API key and the HTTP client whose transport injects
 // authentication and global headers on every request.
 //
-// A Configuration is created with NewConfiguration and is safe for concurrent
-// use by multiple goroutines once constructed. Its zero value is not usable;
-// always build it through NewConfiguration.
+// A Configuration is created with [NewConfiguration] and is safe for concurrent
+// use by multiple goroutines once constructed. Its zero value is not usable, so
+// always build it through [NewConfiguration].
 type Configuration struct {
 	baseURL    *url.URL
 	apiKey     string
@@ -44,14 +44,14 @@ type Configuration struct {
 	headers    http.Header
 }
 
-// Option configures a Configuration. Options are applied by NewConfiguration in
-// the order they are supplied. This is the SDK's single functional-option type,
-// shared by the root supabase package and every domain module.
+// Option configures a [Configuration]. Options are applied by [NewConfiguration]
+// in the order they are supplied. This is the SDK's single functional-option
+// type, shared by the root supabase package and every domain module.
 type Option func(*Configuration)
 
 // WithHTTPClient sets the HTTP client used for all requests. The SDK never
 // mutates the supplied client: it is cloned and its transport is wrapped, so the
-// caller's client (including the shared http.DefaultClient) is left untouched.
+// caller's client (including the shared [http.DefaultClient]) is left untouched.
 // Use this to control timeouts or proxies, or to inject an instrumented
 // transport such as otelhttp.NewTransport for tracing. A nil client is ignored.
 //
@@ -77,9 +77,17 @@ func WithHeaders(headers map[string]string) Option {
 	}
 }
 
-// NewConfiguration validates the project URL and API key, applies the supplied
-// options and returns a ready-to-use Configuration. It returns ErrMissingURL,
-// ErrMissingKey or (wrapped) ErrInvalidURL when its inputs are unusable.
+// NewConfiguration validates rawURL and apiKey, applies the supplied options in
+// order, and returns a ready-to-use [Configuration].
+//
+// It returns one of these sentinel errors, each matchable with [errors.Is], when
+// its inputs are unusable:
+//   - [ErrMissingURL] when rawURL is empty.
+//   - [ErrMissingKey] when apiKey is empty.
+//   - [ErrInvalidURL] when rawURL is not an absolute http or https URL. The
+//     underlying parse failure, when there is one, is wrapped.
+//
+// See [WithHTTPClient] and [WithHeaders] for the available options.
 func NewConfiguration(rawURL, apiKey string, options ...Option) (*Configuration, error) {
 	if rawURL == "" {
 		return nil, ErrMissingURL
@@ -112,13 +120,15 @@ func NewConfiguration(rawURL, apiKey string, options ...Option) (*Configuration,
 
 // Client returns the HTTP client configured for this project. Its transport
 // injects the apikey header, a default Bearer Authorization header and any
-// configured global headers. The returned client is safe for concurrent use.
+// configured global headers. The returned [http.Client] is safe for concurrent
+// use.
 func (c *Configuration) Client() *http.Client {
 	return c.httpClient
 }
 
 // BaseURL returns a copy of the project base URL. Callers may mutate the result
-// freely (for example with JoinPath) without affecting the Configuration.
+// freely (for example with [url.URL.JoinPath]) without affecting the
+// [Configuration].
 func (c *Configuration) BaseURL() *url.URL {
 	clone := *c.baseURL
 	return &clone

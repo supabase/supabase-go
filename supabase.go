@@ -7,31 +7,39 @@ import (
 	"github.com/supabase/supabase-go/postgrest"
 )
 
-// Option configures a Client. It is an alias for core.Option, so the convenience
-// options below and any option from the core module are interchangeable.
+// Option configures a [Client]. It is an alias for [core.Option], so the
+// convenience options below and any option from the [core] package are
+// interchangeable.
 type Option = core.Option
 
 // WithHTTPClient sets the HTTP client used for all requests. See
-// core.WithHTTPClient for the precise semantics.
+// [core.WithHTTPClient] for the precise semantics.
 func WithHTTPClient(client *http.Client) Option {
 	return core.WithHTTPClient(client)
 }
 
-// WithHeaders registers headers sent on every request. See core.WithHeaders.
+// WithHeaders registers headers sent on every request. See [core.WithHeaders].
 func WithHeaders(headers map[string]string) Option {
 	return core.WithHeaders(headers)
 }
 
 // Client is the composed Supabase client. It is safe for concurrent use by
-// multiple goroutines. Construct it with NewClient; the zero value is not usable.
+// multiple goroutines. Construct it with [NewClient]. The zero value is not
+// usable.
 type Client struct {
 	configuration *core.Configuration
 	postgrest     *postgrest.Client
 }
 
 // NewClient constructs a Supabase client for the given project URL and API key.
-// It returns an error if the URL or key is missing, or if the URL is not a valid
-// absolute http(s) URL (see the core package's sentinel errors).
+//
+// Validation is delegated to [core.NewConfiguration], so NewClient returns its
+// sentinel errors unchanged, each matchable with [errors.Is]:
+//   - [core.ErrMissingURL] when projectURL is empty.
+//   - [core.ErrMissingKey] when apiKey is empty.
+//   - [core.ErrInvalidURL] when projectURL is not an absolute http or https URL.
+//
+// See [WithHTTPClient] and [WithHeaders] for the available options.
 func NewClient(projectURL, apiKey string, options ...Option) (*Client, error) {
 	configuration, err := core.NewConfiguration(projectURL, apiKey, options...)
 	if err != nil {
