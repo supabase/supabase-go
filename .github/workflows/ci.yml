@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [core, postgrest, "."]
+        go: ["1.22", "stable"]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: ${{ matrix.go }}
+      # No `go mod tidy` gate yet: with zero external dependencies the go.mod
+      # files only carry the sibling `require` lines (set via `go mod edit`), and
+      # `go mod tidy` does not use the workspace, so it would try to resolve the
+      # unpublished siblings from the module proxy and fail. The tidy + diff gate
+      # is added in the block that introduces the first external dependency, once
+      # its interaction with the workspace is validated.
+      - name: Build
+        working-directory: ${{ matrix.module }}
+        run: go build ./...
+      - name: Test (race, shuffled)
+        working-directory: ${{ matrix.module }}
+        run: go test -race -shuffle=on ./...
+
+  # Lint and vuln are deliberately separate jobs so a vulnerability finding fails
+  # on its own, clearly distinct from a lint failure. Each calls a single script
+  # that is also what developers run locally (identical command in both places).
+  # Tool versions are checksum-pinned in tools/go.mod + tools/go.sum.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: stable
+      - run: ./scripts/lint.sh
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: stable
+      - run: ./scripts/vulncheck.sh
+
+  repository-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      # CONTRIBUTING and SECURITY are delegated to the org-level supabase/.github
+      # repository; a repo-local copy would silently override the org default, so
+      # we assert their absence rather than ignore them. The check covers the
+      # locations GitHub recognises (repo root, .github/, docs/).
+      - name: Assert org-delegated files are absent
+        run: |
+          offenders=$(git ls-files \
+            | grep -iE '^((\.github|docs)/)?(CONTRIBUTING|SECURITY)(\.[a-z]+)?$' || true)
+          if [ -n "$offenders" ]; then
+            echo "These files are provided org-wide by supabase/.github and must not exist in this repository:"
+            echo "$offenders"
+            echo "Put repo-specific guidance in DEVELOPMENT.md instead."
+            exit 1
+          fi
