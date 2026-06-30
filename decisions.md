@@ -118,3 +118,13 @@ Dependabot security updates stay enabled via repo settings so advisories still r
 **Why**:
 During early development on this codebase it's going to be actively iterated upon by a single developer and so is not likely to be left idle for long periods of time with no activity.
 This means that the benefits of regular (weekly) dependabot PRs are less obvious, and perhaps might even turn into a distraction or nuisance to that singular development flow.
+
+## No `.gitignore` yet
+
+**What**:
+The repository carries no `.gitignore` yet.
+
+**Why**:
+The build emits no build artifacts, coverage output or environment files, so nothing has yet been demonstrated to need ignoring, and an empty-of-purpose ignore file is configuration without a need - the same reasoning that keeps `.editorconfig` out.
+A repo-local `.gitignore` earns its place in the change that first produces an artifact worth tracking, and not before.
+`go.work.sum` is consequently neither committed nor ignored, so its first appearance once an external dependency lands shows up in `git status` for a considered call then.
