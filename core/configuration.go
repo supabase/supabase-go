@@ -14,20 +14,20 @@ import (
 // of it.
 type configurationError string
 
-func (e configurationError) Error() string { return string(e) }
+func (e configurationError) Error() string { return "core: " + string(e) }
 
 // Sentinel errors returned by NewConfiguration. Match them with errors.Is.
 const (
 	// ErrMissingURL is returned when an empty project URL is supplied.
-	ErrMissingURL = configurationError("core: project URL is required")
+	ErrMissingURL = configurationError("project URL is required")
 
 	// ErrMissingKey is returned when an empty API key is supplied.
-	ErrMissingKey = configurationError("core: API key is required")
+	ErrMissingKey = configurationError("API key is required")
 
 	// ErrInvalidURL is returned when the project URL cannot be used as an
 	// absolute HTTP or HTTPS base URL. The underlying parse error, when there is
 	// one, is wrapped and recoverable with errors.Unwrap.
-	ErrInvalidURL = configurationError("core: project URL is invalid")
+	ErrInvalidURL = configurationError("project URL is invalid")
 )
 
 // Configuration holds the resolved settings shared across the SDK: the project
