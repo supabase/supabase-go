@@ -6,28 +6,28 @@ import (
 	"net/url"
 )
 
-// configurationError is a string-backed error type whose values can be declared
+// coreError is a string-backed error type whose values can be declared
 // as compile-time constants. The sentinels below are therefore immutable: unlike
 // package-level error variables (which any importing package can reassign), these
 // cannot be replaced - the compiler rejects any attempt. The type is unexported,
 // so consumers can match the sentinels with errors.Is but cannot mint new values
 // of it.
-type configurationError string
+type coreError string
 
-func (e configurationError) Error() string { return "core: " + string(e) }
+func (e coreError) Error() string { return "core: " + string(e) }
 
 // Sentinel errors returned by [NewConfiguration]. Match them with [errors.Is].
 const (
 	// ErrMissingURL is returned when an empty project URL is supplied.
-	ErrMissingURL = configurationError("project URL is required")
+	ErrMissingURL = coreError("project URL is required")
 
 	// ErrMissingKey is returned when an empty API key is supplied.
-	ErrMissingKey = configurationError("API key is required")
+	ErrMissingKey = coreError("API key is required")
 
 	// ErrInvalidURL is returned when the project URL cannot be used as an
 	// absolute HTTP or HTTPS base URL. The underlying parse error, when there is
 	// one, is wrapped and recoverable with [errors.Unwrap].
-	ErrInvalidURL = configurationError("project URL is invalid")
+	ErrInvalidURL = coreError("project URL is invalid")
 )
 
 // Configuration holds the resolved settings shared across the SDK: the project
