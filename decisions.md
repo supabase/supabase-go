@@ -160,3 +160,62 @@ This is the one syntax that `gofmt` canonicalises and that every Go documentatio
 One comment therefore serves all three without divergence.
 Doc links become navigable cross-links on the rendered page, lists make conditions like the error-return set scannable, and runnable examples cannot drift from the code because `go test` executes them.
 Holding to the standard syntax lets `gofmt` keep formatting consistent and stops contributors inventing ad hoc conventions.
+
+## Domain clients are reached through context-free accessor methods
+
+**What**:  
+`NewClient` constructs every domain client up front, and the root client exposes each through an accessor method that returns the concrete handle (`Database() *postgrest.Client`, later `Auth() *auth.Client`).
+The accessors take no `context.Context` and return no error.
+`context.Context` is taken only by the terminal methods that perform I/O, such as the database `Execute`.
+
+**Why**:  
+Accessor methods keep the handle fields unexported, so the client stays immutable and safe for concurrent use, which an exported field would not be - a public field is reassignable and races if written while read.
+Construction does no I/O - `NewClient` parses the project URL and wraps the HTTP transport, with no network call - so there is nothing at access time for a context to bound or cancel, and nothing that can fail.
+Google's SDKs are the cautionary contrast. Firebase's `app.Auth(ctx)` and `app.Firestore(ctx)` take a context and return an error because they lazily construct clients that resolve credentials and dial connections, and the context is then kept for the client's life: the `cloud.google.com/go` docs warn "Do not set a timeout on the context passed to NewClient: dialing happens asynchronously, and the context is used to refresh credentials in the background", and `golang.org/x/oauth2` states its client "is not valid beyond the lifetime of the context".
+That shape only earns its place when the returned client owns background work bound to the context, and it carries a footgun when it does not: a request-scoped context passed to such a constructor and then cached breaks the client's background refresh once the request ends.
+Our handles own no background work, so a context parameter would import that footgun for no gain.
+
+## One HTTP customisation seam, and a sealed HTTPClient across modules
+
+**What**:  
+The only way a caller customises outbound HTTP is `WithHTTPClient`: they supply an `*http.Client` whose `Transport` is any `http.RoundTripper` chain they want, and `core` wraps its own auth `RoundTripper` (apikey and Authorization injection) in front of it.
+There is deliberately no `WithRoundTripper` or middleware option.
+Internally, `core` hands each domain module a one-method `HTTPClient` interface (`Do(*http.Request) (*http.Response, error)`), never the concrete `*http.Client`.
+
+**Why**:  
+The single seam matches the dominant Go convention. Google's API libraries and Stripe expose only a whole-client seam, and Google's own docs tell callers to add behaviour "via RoundTripper middleware" on their own client rather than through an SDK option. AWS SDK v2 is the exception, but its extra knob is a bespoke Smithy middleware stack, not an `http.RoundTripper` shortcut, so it is no precedent for one. A `WithRoundTripper` convenience can be added additively later if demand appears, so nothing is foreclosed.
+Handing out the interface rather than the `*http.Client` stops the configured transport being swapped out through the accessor - a caller holding the concrete client could set `Transport = nil` and silently disable auth, or race on it - and it keeps the `core` public surface small, which is part of the `v1` promise.
+The interface is named `HTTPClient` with a single `Do` method, following AWS SDK v2's interface of the same name and shape. `Do` is chosen because `*http.Client` already has that method, so the standard client satisfies the interface with no adapter, and the same one-method contract appears as the `HttpRequestDoer` that `oapi-codegen` generates in Supabase's own Auth code.
+
+## supabase.Option is an alias of core.Option
+
+**What**:  
+The root package's `Option` type is a type alias for `core.Option`, so a setting written for either works for both, and the root's convenience options (`WithHTTPClient`, `WithHeaders`) are the `core` options.
+
+**Why**:  
+Every option the plan gives the root client - custom HTTP client, global headers, the `slog` logger and tracing context - configures the shared `core` plumbing, so a shared type is enough and a second parallel option type would be waste.
+The alias would only need to break if the root ever had to carry a setting `core` does not own, for example tuning one domain's behaviour from the root, which the plan does not call for.
+Any such need would surface during the Alpha or Beta pre-releases, where changing the type is still free, so keeping the alias bakes in no known breaking change.
+
+## The postgrest module is Supabase-agnostic in code but not a supported general-purpose client
+
+**What**:  
+The `postgrest` module carries no Supabase-specific behaviour - the `apikey` header, the `/rest/v1` base path and token handling live in `core` and the root - so its code could in principle talk to any PostgREST server.
+It is not, however, a tested or supported general-purpose PostgREST client. It is documented as the Supabase Database client, and standalone use against a non-Supabase server is not promised.
+
+**Why**:  
+The agnostic-code claim is asserted cheaply, by the module boundary: `postgrest` imports and names none of the Supabase-specific pieces, which review and the build enforce, with no extra test infrastructure.
+A supported general-purpose promise would cost far more - a bare PostgREST server stood up in CI, a way to build `postgrest` without the base URL and apikey it is handed today, and testing across PostgREST versions - none of which is planned for the first releases.
+Keeping the promise narrow now forecloses nothing: promotion to a supported general-purpose client is additive (add the harness and a Supabase-free constructor) and breaks no existing Supabase user, mirroring how the JS SDK ships a standalone `@supabase/postgrest-js`.
+
+## `SECURITY.md` and `CONTRIBUTING.md` are org-delegated, not repo-local
+
+**What**:  
+The repository carries no `SECURITY.md` or `CONTRIBUTING.md`.
+Both are provided org-wide by `supabase/.github`, and a CI check asserts their absence here (covering the repo root, `.github/` and `docs/`).
+`CODEOWNERS` stays repo-local.
+
+**Why**:  
+GitHub falls back to the organisation's `supabase/.github` files for any repository that lacks its own, so an org-level `SECURITY.md` and `CONTRIBUTING.md` already apply.
+A repo-local copy would silently shadow the org default and drift from it, so asserting absence beats maintaining a duplicate.
+The one posture that does not belong at org level - that external code contributions are not accepted before the first GA release - lives in `DEVELOPMENT.md` instead.
