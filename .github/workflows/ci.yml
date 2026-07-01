@@ -15,7 +15,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sdk-module: [core, postgrest, "."]
         go-version: ["1.22", "stable"]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -28,12 +27,7 @@ jobs:
       # unpublished siblings from the module proxy and fail. The tidy + diff gate
       # is added in the block that introduces the first external dependency, once
       # its interaction with the workspace is validated.
-      - name: Build
-        working-directory: ${{ matrix.sdk-module }}
-        run: go build ./...
-      - name: Test (race, shuffled)
-        working-directory: ${{ matrix.sdk-module }}
-        run: go test -race -shuffle=on ./...
+      - run: ./scripts/build-and-test.sh
 
   # Lint and vuln are deliberately separate jobs so a vulnerability finding fails
   # on its own, clearly distinct from a lint failure. Each calls a single script
