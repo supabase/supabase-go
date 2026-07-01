@@ -11,6 +11,6 @@ func TestNewClientWiresHandles(t *testing.T) {
 		t.Error("configuration was not wired")
 	}
 	if client.database == nil {
-		t.Error("postgrest handle was not wired")
+		t.Error("database handle was not wired")
 	}
 }
