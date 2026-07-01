@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -21,4 +22,17 @@ func ExampleNewConfiguration() {
 	}
 	fmt.Println(configuration.BaseURL())
 	// Output: https://project.supabase.co
+}
+
+// ExampleNewConfiguration_invalidInput tells the validation failures apart with
+// errors.Is against the exported sentinels.
+func ExampleNewConfiguration_invalidInput() {
+	_, err := core.NewConfiguration("", "anon-key")
+	fmt.Println(errors.Is(err, core.ErrMissingURL))
+
+	_, err = core.NewConfiguration("ftp://example.com", "anon-key")
+	fmt.Println(errors.Is(err, core.ErrInvalidURL))
+	// Output:
+	// true
+	// true
 }
