@@ -34,8 +34,8 @@ func TestNewConfigurationValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewConfiguration returned error: %v", err)
 	}
-	if configuration.Client() == nil {
-		t.Fatal("Client() returned nil")
+	if configuration.HTTPClient() == nil {
+		t.Fatal("HTTPClient() returned nil")
 	}
 	if got, want := configuration.BaseURL().String(), "https://project.supabase.co"; got != want {
 		t.Fatalf("BaseURL() = %q, want %q", got, want)

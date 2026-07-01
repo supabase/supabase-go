@@ -118,11 +118,16 @@ func NewConfiguration(rawURL, apiKey string, options ...Option) (*Configuration,
 	return configuration, nil
 }
 
-// Client returns the HTTP client configured for this project. Its transport
-// injects the apikey header, a default Bearer Authorization header and any
-// configured global headers. The returned [http.Client] is safe for concurrent
-// use.
-func (c *Configuration) Client() *http.Client {
+// HTTPClient performs an HTTP request. The standard library's [*http.Client] satisfies it.
+type HTTPClient interface {
+	Do(request *http.Request) (*http.Response, error)
+}
+
+// HTTPClient returns the [HTTPClient] configured for this project. Its transport
+// injects the API key header, a default Bearer Authorization header and any
+// configured global headers. The result is safe for concurrent use by multiple
+// goroutines.
+func (c *Configuration) HTTPClient() HTTPClient {
 	return c.httpClient
 }
 
