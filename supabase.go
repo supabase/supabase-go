@@ -28,7 +28,7 @@ func WithHeaders(headers map[string]string) Option {
 // usable.
 type Client struct {
 	configuration *core.Configuration
-	postgrest     *postgrest.Client
+	database      *postgrest.Client
 }
 
 // NewClient constructs a Supabase client for the given project URL and API key.
@@ -47,6 +47,12 @@ func NewClient(projectURL, apiKey string, options ...Option) (*Client, error) {
 	}
 	return &Client{
 		configuration: configuration,
-		postgrest:     postgrest.New(configuration),
+		database:      postgrest.New(configuration),
 	}, nil
+}
+
+// Database returns the client for the Supabase Database (PostgREST) surface. The
+// returned [postgrest.Client] is safe for concurrent use by multiple goroutines.
+func (c *Client) Database() *postgrest.Client {
+	return c.database
 }
