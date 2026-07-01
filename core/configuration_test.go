@@ -41,3 +41,18 @@ func TestNewConfigurationValid(t *testing.T) {
 		t.Fatalf("BaseURL() = %q, want %q", got, want)
 	}
 }
+
+func TestConfiguration_BaseURLReturnsCopy(t *testing.T) {
+	configuration, err := core.NewConfiguration("https://project.supabase.co", "anon-key")
+	if err != nil {
+		t.Fatalf("NewConfiguration: %v", err)
+	}
+
+	// Mutating the returned URL must not reach back into the Configuration.
+	returned := configuration.BaseURL()
+	returned.Path = "/mutated"
+
+	if got := configuration.BaseURL().Path; got != "" {
+		t.Errorf("BaseURL mutation leaked into the Configuration: Path = %q, want empty", got)
+	}
+}

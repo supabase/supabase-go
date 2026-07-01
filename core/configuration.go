@@ -132,8 +132,7 @@ func (c *Configuration) HTTPClient() HTTPClient {
 }
 
 // BaseURL returns a copy of the project base URL. Callers may mutate the result
-// freely (for example with [url.URL.JoinPath]) without affecting the
-// [Configuration].
+// freely (for example by setting a field on it) without affecting the [Configuration].
 func (c *Configuration) BaseURL() *url.URL {
 	clone := *c.baseURL
 	return &clone
