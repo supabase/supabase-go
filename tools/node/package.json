@@ -1,0 +1,9 @@
+{
+  "name": "supabase-go-node-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pins dependencies like cspell. Never published.",
+  "devDependencies": {
+    "cspell": "10.0.1"
+  }
+}
