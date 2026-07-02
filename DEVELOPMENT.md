@@ -38,6 +38,32 @@ Lint and vulnerability scanning run via two scripts that are *exactly* what CI r
 ./scripts/vulncheck.sh  # govulncheck - all modules
 ```
 
+### Previewing the rendered docs
+
+`pkg.go.dev` is where consumers read our doc comments and runnable examples. To preview that rendering for your local working tree, run [`pkgsite`](https://pkg.go.dev/golang.org/x/pkgsite/cmd/pkgsite). It reads the [`go.work` workspace file](./go.work), so one run from the repository root serves all three modules on a local HTTP server (it prints the address, by default http://localhost:8080).
+
+First you'll need to install it for your user-local environment if you've not done that before:
+
+```bash
+go install golang.org/x/pkgsite/cmd/pkgsite@latest
+```
+
+After that you can launch it with:
+
+```bash
+pkgsite
+```
+
+If the shell then reports `pkgsite: command not found`, the installer's target directory - `$(go env GOPATH)/bin`, usually `~/go/bin` - is not on your `PATH`. Note that this is a different directory from the Go toolchain's own `/usr/local/go/bin`, where `go` lives. You can add it to your `PATH` by adding `export PATH="$PATH:$(go env GOPATH)/bin"` to your shell profile (`~/.zshrc` for zsh).
+
+If you don't want to modify your `PATH` then you can launch it directly with:
+
+```bash
+"$(go env GOPATH)/bin/pkgsite"
+```
+
+`pkgsite` is a personal, read-only previewer, not project tooling: nothing in the repo or CI invokes it and it never ships. So it sits outside the supply-chain pinning below, which covers what our build, test and release pipeline executes. Install the latest when you want to preview.
+
 ## Supply-chain pinning
 
 Everything we execute from outside the repository is pinned to an immutable digest, and that applies to **both** GitHub Actions and our Go tooling - first-party included, with no exemption.
