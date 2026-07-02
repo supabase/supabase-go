@@ -115,6 +115,7 @@ The rendered prefix does not affect `errors.Is`, which compares the underlying s
 **What**:  
 Every GitHub Actions `uses:` is pinned to a full 40-character commit SHA with a trailing version comment - first-party `actions/*` included, no exemption.
 The Go tooling (linters, govulncheck) is pinned by checksum in a dedicated `tools/go/go.mod` + committed `tools/go/go.sum`.
+The spell checker (cspell) is pinned the same way one ecosystem over: its full dependency tree is locked by integrity hash in a committed [`tools/node/package-lock.json`](tools/node/package-lock.json), installed via `npm ci`.
 GitHub's "require SHA-pinned actions" setting is enabled for this repository.
 
 **Why**:  
