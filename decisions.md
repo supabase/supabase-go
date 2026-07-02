@@ -132,15 +132,17 @@ Dependabot security updates stay enabled via repo settings so advisories still r
 During early development on this codebase it's going to be actively iterated upon by a single developer and so is not likely to be left idle for long periods of time with no activity.
 This means that the benefits of regular (weekly) dependabot PRs are less obvious, and perhaps might even turn into a distraction or nuisance to that singular development flow.
 
-## No `.gitignore` yet
+## No root `.gitignore`
 
 **What**:  
-The repository carries no `.gitignore` yet.
+The repository carries no root `.gitignore`.
+An exception is [`tools/node/.gitignore`](tools/node/.gitignore), scoped to the npm tooling folder so we ignore the `node_modules` folder that `npm ci` materializes there.
 
 **Why**:  
-The build emits no build artifacts, coverage output or environment files, so nothing has yet been demonstrated to need ignoring, and an empty-of-purpose ignore file is configuration without a need - the same reasoning that keeps `.editorconfig` out.
-A repo-local `.gitignore` earns its place in the change that first produces an artifact worth tracking, and not before.
-`go.work.sum` is consequently neither committed nor ignored, so its first appearance once an external dependency lands shows up in `git status` for a considered call then.
+An empty-of-purpose ignore file is configuration without a need - the same reasoning that keeps `.editorconfig` out - so a `.gitignore` earns its place only in the change that first produces an artifact worth ignoring, scoped to where that artifact appears, and not before.
+The Go build still emits no artifacts, coverage output or environment files, so the tree needs no root ignore file.
+The spell-check tooling is the first thing to produce an ignore-worthy artifact - `npm ci` populating `node_modules/` - so an ignore file earns its place there and then, scoped to `tools/node/` rather than a catch-all at the root.
+`go.work.sum` remains neither committed nor ignored, so its first appearance once an external dependency lands still shows up in `git status` for a considered call then.
 
 ## Public API doc comments use the Go doc-comment syntax (links, lists, prose)
 
