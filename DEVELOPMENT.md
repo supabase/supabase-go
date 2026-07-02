@@ -28,7 +28,7 @@ go test -race -shuffle=on ./...
 Or, for all:
 
 ```bash
-for m in . core postgrest; do (cd "$m" && go build ./... && go test -race -shuffle=on ./...); done
+./scripts/build-and-test.sh
 ```
 
 Lint and vulnerability scanning run via two scripts that are *exactly* what CI runs - same commands, same checksum-pinned tool versions (from `tools/go.mod` + `tools/go.sum`):
