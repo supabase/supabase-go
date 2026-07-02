@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json
+
+# The version of the configuration file format.
+version: "0.2"
+
+readonly: true
+language: en-US
+caseSensitive: true
+
+ignorePaths:
+  - node_modules/
+
+dictionaryDefinitions:
+  - name: local-codebase
+    path: dictionary.txt
+
+dictionaries: [local-codebase]
+
+patterns:
+
+  # GitHub is a proper noun, written "GitHub" in prose (which caseSensitive
+  # enforces). Its host in a URL or Go module path is correctly lowercase, so
+  # this pattern captures the "github.com" host wherever it appears.
+  - name: github-url-host
+    pattern: /github\.com/g
+
+  # Supabase is a proper noun ("Supabase" in prose), but the name is legitimately
+  # lowercase in code-shaped contexts: qualified identifiers (supabase.NewClient,
+  # supabase.Option), org and repository paths (supabase/.github), project domains
+  # (supabase.co), the module's hyphenated name (supabase-go), the Go import alias
+  # (supabase "github.com/...) and doc-comment prose naming the root package ("the
+  # root supabase package", "the root supabase client"). A bare mis-cased
+  # "supabase" in prose matches no branch and is still flagged.
+  - name: supabase-prefix
+    pattern: /supabase(\.\w+|\/[\w.-]+|-go\b| package\b| client\b| "github\.com)/g
+  - name: supabase-suffix
+    pattern: /(Package |package |\/)supabase/g
+
+ignoreRegExpList:
+  - github-url-host
+  - supabase-prefix
+  - supabase-suffix

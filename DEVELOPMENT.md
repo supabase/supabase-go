@@ -103,7 +103,7 @@ If you are newer to Go, a few conventions are worth knowing - they are stricter 
 
 A Go test file in a package directory can declare one of two packages, and both are allowed to sit side by side in the same directory:
 
-- `package foo_test` - an **external test package**. It can only see `foo`'s exported (public) API, exactly as a real consumer would. This is sometimes called *black-box* (or *behavioural* / *clear-from-the-outside*) testing.
+- `package foo_test` - an **external test package**. It can only see `foo`'s exported (public) API, exactly as a real consumer would. This is sometimes called *black-box* (or *behavioral* / *clear-from-the-outside*) testing.
 - `package foo` - an **in-package test**. It compiles as part of `foo`, so it can reach unexported (private) identifiers. This is sometimes called *white-box* (or *structural*) testing.
 
 **Our default is the external test package (`foo_test`).** Testing through the public API tests what consumers actually use, keeps tests decoupled from internal details so refactoring internals does not spuriously break tests, and applies healthy pressure to keep the exported surface usable. Reach for an in-package test (`foo`) only when you genuinely need to exercise internals that are not observable through the public API, and prefer to keep such tests few and clearly named (for example `something_internal_test.go`).
