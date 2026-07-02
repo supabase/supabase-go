@@ -114,7 +114,7 @@ The rendered prefix does not affect `errors.Is`, which compares the underlying s
 
 **What**:  
 Every GitHub Actions `uses:` is pinned to a full 40-character commit SHA with a trailing version comment - first-party `actions/*` included, no exemption.
-The Go tooling (linters, govulncheck) is pinned by checksum in a dedicated `tools/go.mod` + committed `tools/go.sum`.
+The Go tooling (linters, govulncheck) is pinned by checksum in a dedicated `tools/go/go.mod` + committed `tools/go/go.sum`.
 GitHub's "require SHA-pinned actions" setting is enabled for this repository.
 
 **Why**:  

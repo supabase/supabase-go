@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # Static-analysis suite across every module. Run by CI and locally, identically.
-# Tool versions are checksum-pinned in tools/go.mod + tools/go.sum; we build those
+# Tool versions are checksum-pinned in tools/go/go.mod + tools/go/go.sum; we build those
 # pinned tools once, then run the binaries against each module.
 set -euo pipefail
 
 modules=(. core postgrest)
 
 # Build the pinned tools standalone - GOWORK=off so the 1.22 workspace does not
-# interfere with the 1.24 tools module - into a throwaway bin directory.
+# interfere with the 1.24 tools/go module - into a throwaway bin directory.
 toolbin="$(mktemp -d)"
 trap 'rm -rf "${toolbin}"' EXIT
 (
-  cd tools
+  cd tools/go
   GOWORK=off GOBIN="${toolbin}" go install \
     mvdan.cc/gofumpt \
     honnef.co/go/tools/cmd/staticcheck \

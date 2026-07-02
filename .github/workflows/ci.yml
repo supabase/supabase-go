@@ -32,7 +32,7 @@ jobs:
   # Lint and vuln are deliberately separate jobs so a vulnerability finding fails
   # on its own, clearly distinct from a lint failure. Each calls a single script
   # that is also what developers run locally (identical command in both places).
-  # Tool versions are checksum-pinned in tools/go.mod + tools/go.sum.
+  # Tool versions are checksum-pinned in tools/go/go.mod + tools/go/go.sum.
   lint:
     runs-on: ubuntu-latest
     steps:

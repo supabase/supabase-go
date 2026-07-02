@@ -31,7 +31,7 @@ Or, for all:
 ./scripts/build-and-test.sh
 ```
 
-Lint and vulnerability scanning run via two scripts that are *exactly* what CI runs - same commands, same checksum-pinned tool versions (from `tools/go.mod` + `tools/go.sum`):
+Lint and vulnerability scanning run via two scripts that are *exactly* what CI runs - same commands, same checksum-pinned tool versions (from `tools/go/go.mod` + `tools/go/go.sum`):
 
 ```bash
 ./scripts/lint.sh       # gofumpt, go vet, staticcheck, errcheck, revive - all modules
@@ -69,7 +69,7 @@ If you don't want to modify your `PATH` then you can launch it directly with:
 Everything we execute from outside the repository is pinned to an immutable digest, and that applies to **both** GitHub Actions and our Go tooling - first-party included, with no exemption.
 
 - **GitHub Actions:** every `uses:` is pinned to a full-length 40-character commit SHA, with the human-readable version in a trailing comment - for example `uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0`. A version tag like `@v7` is a *movable* git pointer: whoever controls it (or compromises the publisher) can re-point it at malicious code that then runs with the workflow's token and secrets. Actions have no lockfile, so the SHA is the only immutable reference. This is GitHub's own [security-hardening guidance](https://docs.github.com/en/actions/security-for-github-actions/security-guidance/security-hardening-for-github-actions) and is now enforceable as a [repository policy](https://github.blog/changelog/2025-08-15-github-actions-policy-now-supports-blocking-and-sha-pinning-actions/) (which this repo has enabled); it aligns with [SLSA](https://slsa.dev/spec/). Tools like [`pinact`](https://github.com/suzuki-shunsuke/pinact) can help you resolve tags to SHAs.
-- **Go tooling:** the linters and vuln scanner live in a separate, non-published [`tools` module](tools/) and are pinned by checksum in [that module's `go.sum`](tools/go.sum) - the Go-native equivalent of a commit-SHA pin. The scripts build those exact, verified versions; nothing floats.
+- **Go tooling:** the linters and vuln scanner live in a separate, non-published [`tools` module](tools/go/) and are pinned by checksum in [that module's `go.sum`](tools/go/go.sum) - the Go-native equivalent of a commit-SHA pin. The scripts build those exact, verified versions; nothing floats.
 - **Companion control:** do not use `pull_request_target` in any workflow with access to secrets (see the [pwn-requests advisory](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/)).
 
 ## Naming
