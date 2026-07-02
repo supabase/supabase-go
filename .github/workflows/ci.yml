@@ -51,6 +51,17 @@ jobs:
           go-version: stable
       - run: ./scripts/vulncheck.sh
 
+  # cSpell runs on Node, which the ubuntu-latest image already provides, so this
+  # job needs no setup-go and no setup-node - the runner's Node is part of the
+  # trusted image baseline, the same category as the OS and `ubuntu-latest`
+  # itself.
+  spell-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - run: npm ci --prefix tools/node
+      - run: ./scripts/spell-check.sh
+
   repository-structure:
     runs-on: ubuntu-latest
     steps:
