@@ -71,7 +71,7 @@ If you are newer to Go, a few conventions are worth knowing - they are stricter 
 - **Tests are discovered by convention, not registration.** `go test` runs every function whose name and signature match a known shape - `func TestXxx(t *testing.T)`, `func BenchmarkXxx(b *testing.B)`, `func ExampleXxx()`, `func FuzzXxx(f *testing.F)`. No attributes, no suite registry, no config.
 - **Prefer the standard library.** We write tests with the standard `testing` package and explicit checks (`if got != want { t.Errorf(...) }`), usually as table-driven tests with a subtest per case via `t.Run`. We are not (yet) using an assertion or mocking library; keep new tests stdlib-only unless a change is discussed first.
 - **Runnable examples are documentation.** `ExampleXxx` functions are compiled and executed by `go test` and rendered on pkg.go.dev, so our usage docs cannot drift from reality. Add an example for notable exported API.
-- **In a test helper, call `t.Helper()` first.** That makes a failure point at the line that called the helper rather than at a line inside it, which keeps failures readable as helpers accumulate.
+- **In a test helper, call [`t.Helper()`](https://pkg.go.dev/testing#T.Helper) first.** That makes a failure point at the line that called the helper rather than at a line inside it, which keeps failures readable as helpers accumulate. It's acceptable to skip the `t.Helper()` call in a helper method implementation that only does setup and [`t.Cleanup`](https://pkg.go.dev/testing#T.Cleanup) but never calls [`t.Error`](https://pkg.go.dev/testing#T.Error) or [`t.Fatal`](https://pkg.go.dev/testing#T.Fatal), since it has no failure line to relocate.
 
 ### Test from the outside in: prefer the external test package
 
