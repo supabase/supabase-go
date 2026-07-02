@@ -45,6 +45,12 @@ npm ci --prefix tools/node   # one-time setup (re-run only when the tools/node/p
 ./scripts/spell-check.sh     # cspell - Go and Markdown sources
 ```
 
+To run the whole suite before pushing - build and test plus lint, vulnerabilities and spelling - use the aggregate:
+
+```bash
+./scripts/check-all.sh
+```
+
 ### Previewing the rendered docs
 
 `pkg.go.dev` is where consumers read our doc comments and runnable examples. To preview that rendering for your local working tree, run [`pkgsite`](https://pkg.go.dev/golang.org/x/pkgsite/cmd/pkgsite). It reads the [`go.work` workspace file](./go.work), so one run from the repository root serves all three modules on a local HTTP server (it prints the address, by default http://localhost:8080).
