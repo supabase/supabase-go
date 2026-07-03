@@ -28,7 +28,7 @@ func ExampleNewClient_options() {
 		"https://project.supabase.co",
 		"anon-key",
 		configuration.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
-		configuration.WithHeaders(map[string]string{"X-Client-Info": "supabase-go/0.1"}),
+		configuration.WithHeader("X-Client-Info", "supabase-go/0.1"),
 	)
 	if err != nil {
 		fmt.Println(err)

@@ -200,7 +200,7 @@ Its constructor is `New` (reading as `configuration.New`), the central type stay
 
 **Why**:  
 In Go the package name is part of every exported identifier a caller reads, so it must describe what the package provides to its caller, not the package's position in our layering ("name your package for what it provides, not what it contains" - Dave Cheney's Practical Go).
-`core` named the layering, read as noise at the call site (`core.WithHeaders`) and belongs to the family of meaning-free names (`util`, `common`, `base`) that Practical Go and the Go blog's [Package names](https://go.dev/blog/package-names) post warn against.
+`core` named the layering, read as noise at the call site (`core.WithHeader`) and belongs to the family of meaning-free names (`util`, `common`, `base`) that Practical Go and the Go blog's [Package names](https://go.dev/blog/package-names) post warn against.
 Google's Go API client solves the same problem by naming its shared options package `option` so call sites read as phrases (`option.WithHTTPClient`), and our phrase-forming name is `configuration` because options are a minority of this package's surface, which also owns `Configuration`, `HTTPClient` and the sentinel errors.
 The full word beats `config` under the naming policy in `DEVELOPMENT.md` (whole words, no contracted abbreviations), `configuration.Configuration` follows the accepted `context.Context` shape and `New` follows the convention that `pkg.New` returns the package's central type.
 
@@ -212,7 +212,7 @@ This replaces the earlier decision that aliased `supabase.Option` to the shared 
 
 **Why**:  
 The alias and wrappers added no capability - the alias already made the shared options valid arguments to `NewClient` - so they were a second public spelling of the same surface, forking user code and documentation into two dialects.
-The options configure the shared configuration, not the composed client, so the qualifier that names what they act on is the natural reading: `configuration.WithHeaders(...)` says what is being configured, where `supabase.WithHeaders(...)` implied the client owned the setting.
+The options configure the shared configuration, not the composed client, so the qualifier that names what they act on is the natural reading: `configuration.WithHeader(...)` says what is being configured, where `supabase.WithHeader(...)` implied the client owned the setting.
 The two-import call shape is the ecosystem norm for this design: Google's API packages take options from a separate `option` package without re-exporting them, and the Anthropic and OpenAI Go SDKs do the same.
 Zero-configuration callers still import only the root, and every option the roadmap gives the root client (custom HTTP client, global headers, the `slog` logger and tracing context) configures the shared plumbing, so nothing root-only is foreclosed: if such a setting ever appears, a root-owned option type can be introduced then, pre-`v1` at no cost.
 
