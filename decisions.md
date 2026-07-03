@@ -238,3 +238,36 @@ Both are provided org-wide by `supabase/.github`, and a CI check asserts their a
 GitHub falls back to the organization's `supabase/.github` files for any repository that lacks its own, so an org-level `SECURITY.md` and `CONTRIBUTING.md` already apply.
 A repo-local copy would silently shadow the org default and drift from it, so asserting absence beats maintaining a duplicate.
 The one posture that does not belong at org level - that external code contributions are not accepted before the first GA release - lives in `DEVELOPMENT.md` instead.
+
+## Merge strategy and commit conventions during incubation
+
+Both decisions below deliberately diverge from apparent Supabase house defaults (squash-only merging, Conventional Commit PR titles).
+Those defaults serve downstream release automation, which wants exactly one conventional commit per PR from which to infer changelogs and version bumps.
+This repository is incubating - private, unreleased, no consumers, no release pipeline - so the constraint that motivates the defaults does not yet apply, and both decisions are revisited as a pair alongside the release-tooling choice ahead of the first release.
+
+### PRs land as merge commits, not squashes
+
+**What**:  
+Repository merge settings enable only "Allow merge commits"; squash and rebase merging are disabled.
+Every PR lands with its individual commits as ancestors of `main`, under a merge commit recording the PR boundary.
+
+**Why**:  
+A squash merge keeps the granular history only as GitHub platform metadata (the PR's Commits tab, backed by hidden `refs/pull/N/head` refs), not in the repository: a fresh clone sees one commit per PR, and `git log`, `git blame` and `git bisect` cannot reach the individual steps.
+Merge commits keep that history in Git itself, portable to any clone or mirror and addressable by every Git tool, while GitHub-side PR metadata (review threads, per-commit checks) is identical under either strategy - so nothing is given up in exchange.
+The standard objection to merge commits - that intermediate commits are WIP noise which pollutes `main` and defeats `bisect` - does not apply under the working discipline here: every commit moves the codebase from one working state to another, so per-commit `bisect` and `blame` are strictly more capable, never noisier.
+The one-entry-per-PR reading that squash exists to provide also remains available on demand, as `git log --first-parent main` collapses the history to PR boundaries; squash has no inverse operation, since discarded ancestry cannot be recovered from the repository afterwards.
+Merge commits are therefore the superset while a single disciplined committer is the only author.
+The trade-off accepted: the full log of `main` is busier than a squash log, and the clean-history guarantee rests on solo discipline rather than enforcement.
+When the repo opens to external contributions that guarantee weakens and the balance shifts, so this is revisited then; the change is cheap, as enabling squash is a repository setting that applies only to future merges and rewrites nothing.
+
+### No Conventional Commits in commit messages or PR titles
+
+**What**:  
+Commit messages and PR titles are ordinary well-formed Git messages - an imperative summary line, with a body explaining why where needed - carrying no `type(scope):` grammar and no `BREAKING CHANGE` footers.
+
+**Why**:  
+Conventional Commits is a machine-facing grammar whose purpose is to let release tooling infer version bumps and generate changelogs; with nothing released, no consumers and no release automation, no machine reads the prefixes and the grammar is pure ceremony.
+Its vocabulary is also semantically empty pre-release: a `BREAKING CHANGE` marker on a library nobody has ever depended on breaks no one, and SemVer itself defines major version zero as initial development in which anything may change at any time.
+Adopting the grammar now would also quietly pre-commit the release-tooling decision, which is deliberately open: progressive changelog updates curated as part of each PR remain on the table alongside commit-parsing tools like release-please, and the curated-changelog path needs no commit grammar at all.
+Waiting forecloses nothing, because commit-parsing tools read history forward from a configurable starting point (the last release tag, or a bootstrap SHA), so the convention can be adopted at the moment it gains a consumer without the pre-adoption history ever needing to conform.
+And if the house squash style is adopted at the same time, the convention collapses to well-formed PR titles alone - cheap to start paying then, pointless to pay now.
