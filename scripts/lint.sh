@@ -4,7 +4,7 @@
 # pinned tools once, then run the binaries against each module.
 set -euo pipefail
 
-modules=(. core postgrest)
+modules=(. configuration postgrest)
 
 # Build the pinned tools standalone - GOWORK=off so the 1.22 workspace does not
 # interfere with the 1.24 tools/go module - into a throwaway bin directory.

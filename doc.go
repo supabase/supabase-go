@@ -5,5 +5,5 @@
 // Two doors are supported. Importing this package is the convenience path: it
 // wires the shared transport, API key and options through one place. Callers who
 // need only one domain may instead import that module directly (for example
-// [github.com/supabase/supabase-go/postgrest]) and pull in only it and core.
+// [github.com/supabase/supabase-go/postgrest]) and pull in only it and configuration.
 package supabase

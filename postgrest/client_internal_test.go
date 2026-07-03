@@ -3,16 +3,16 @@ package postgrest
 import (
 	"testing"
 
-	"github.com/supabase/supabase-go/core"
+	"github.com/supabase/supabase-go/configuration"
 )
 
 func TestNewWiresConfiguration(t *testing.T) {
-	configuration, err := core.NewConfiguration("https://project.supabase.co", "anon-key")
+	projectConfiguration, err := configuration.New("https://project.supabase.co", "anon-key")
 	if err != nil {
-		t.Fatalf("NewConfiguration: %v", err)
+		t.Fatalf("configuration.New: %v", err)
 	}
 
-	client := New(configuration)
+	client := New(projectConfiguration)
 	if client.httpClient == nil {
 		t.Error("httpClient was not wired")
 	}

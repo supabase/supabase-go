@@ -1,4 +1,4 @@
-module github.com/supabase/supabase-go/core
+module github.com/supabase/supabase-go/configuration
 
 // 1.22.0 is this module's consumer compatibility floor - the minimum Go version
 // required to use it. It is a minimum, not the toolchain we build with, held
