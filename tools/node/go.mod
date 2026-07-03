@@ -6,4 +6,4 @@
 // module. No Go code lives here and nothing builds this module.
 module github.com/supabase/supabase-go/tools/node
 
-go 1.22.0
+go 1.22

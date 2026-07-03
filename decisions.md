@@ -53,7 +53,7 @@ The guiding test is whether a check helps avoid mistakes that would later force 
 ## The two Go-version environments are kept discrete
 
 **What**:  
-The `go` directive in published modules (`1.22.0`) is separate from, and unaffected by, the toolchain CI and tooling run on (latest stable).
+The `go` directive in published modules (`1.22`) is separate from, and unaffected by, the toolchain CI and tooling run on (latest stable).
 
 **Why**:  
 They are different concerns: the published `go` directive is a compatibility contract for the consumer's unknown environment (conservative floor), while the CI/lint toolchain is our own deterministic environment (latest, our choice).
@@ -66,7 +66,7 @@ Tool-pinning machinery (e.g. Go 1.24 tool directives) must never live in the pub
 The multi-module repository (`root`, `configuration`, `postgrest`, and future domain modules) wires its internal cross-module dependencies through a single `go.work` file committed at the repository root, rather than through replace directives in each `go.mod` file.
 Each module's `go.mod` file declares its sibling dependencies with ordinary require lines carrying the zero pseudo-version (`v0.0.0-00010101000000-000000000000`) until real tags exist.
 The workspace's use directives supply the actual source for every in-repo build, locally and in CI.
-The published `go` directive stays at the conservative consumer floor (`1.22.0`) independently of the toolchain version CI runs.
+The published `go` directive stays at the conservative consumer floor (`1.22`) independently of the toolchain version CI runs.
 
 **Why**:  
 Pre-tag, a module that imports an unpublished sibling cannot resolve it without either `replace` directives or a workspace.
