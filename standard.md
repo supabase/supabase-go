@@ -66,7 +66,7 @@ Alongside the above there are things we should ensure we do in order to be good 
 
 Plus, there's the behind-the-scenes hygiene in terms of quality assurance:
 
-- **Unit Testing** - probably alongside [`testify`](https://pkg.go.dev/github.com/stretchr/testify) (assertions) and [`mockery`](https://github.com/vektra/mockery) (mock code generator).
+- **Unit Testing**: Comprehensive unit tests MUST accompany our code. Assertion and mocking libraries (for example [`testify`](https://pkg.go.dev/github.com/stretchr/testify) and [`mockery`](https://github.com/vektra/mockery)) MAY be adopted later if deemed necessary, but the default preference should be to keep tests standard-library-only.
 - **Integration Testing** (local stack and remote stack, if possible).
 - **`go vet` as a baseline**: `go vet`, run automatically by `go test`, is the standard library's correctness checker, catching bugs that formatters and style linters do not.
 - **Deeper Formatting, Linting and Static Analysis**: Just adopt [gofumpt](https://github.com/mvdan/gofumpt) or go *all in* with [golangci-lint](https://github.com/golangci/golangci-lint), including:
