@@ -2,10 +2,6 @@
 
 ## Introduction
 
-This document has been authored by [@QuintinWillison](https://github.com/QuintinWillison) in order to snapshot the current state of the art in terms of best practice and "what good looks like" in 2026 when it comes to SDK development for users of the Go programming language.
-
-AI (a mix of Google's Gemini and Anthropic's Claude) has been used to research what went into this document as well as review this document prior to sharing with the wider team. Otherwise this document is entirely written by a human for consumption by other humans. It should also be useful as input for AIs downstream as work embarks on Go SDK development at Supabase.
-
 Go was designed at Google for:
 
 - Simplicity, reducing "paradigm complexity".
@@ -25,8 +21,7 @@ Goals we should aim for as Go SDK developers, all of which hold true for other S
     - unexported (private) fields, constructors, getters (read-only access)
 - Package-oriented design, keeping it simple (that is, domain packages reside at the repository root for immediate discoverability).
 - Mitigating supply chain vulnerabilities, including by taking on minimal dependencies.
-- Only using permissively licensed (MIT, Apache 2.0, BSD) dependencies to protect our SDK users. "Viral" copyleft licences like GPL cannot be allowed. Test-only dependencies and build-time generators do not ship to consumers, but should follow similar hygiene.
-- Delivering a frictionless developer experience.
+- Dependencies MUST be permissively licensed (MIT, Apache 2.0, BSD) to protect our SDK users. "Viral" copyleft licenses (the GPL family) MUST NOT be taken on. Test-only dependencies and build-time generators do not ship to consumers but SHOULD follow the same hygiene.
 
 ## The Good
 
@@ -91,19 +86,3 @@ These are things within the Go ecosystem that we should avoid, including classic
 - Forcing SDK users to use `reflect.DeepEqual`.
 - Using global loggers or `stdout` within the SDK implementation (see "Silent by Default" in [The Good](https://app.notion.com/p/Go-SDK-Development-What-Good-Looks-Like-3825004b775f803ab444e83c7a5ebc4b?pvs=21)).
 - Leaning on Runtime Reflection and "Magic": Reaching for the `reflect` package (for example, dynamic type inspection or `reflect.MakeFunc`) to build overly clever abstractions in our own code. "Reflection is never clear" is a Go proverb due to how it sacrifices static type safety and readability, defeating compiler optimisations and introducing unpredictable runtime panics. It's worth noting that the standard library does use reflection responsibly under the hood (for example, `encoding/json`) so relying on that is fine. If we need dynamic behaviour we should prefer implicit interfaces, and if we need to reduce boilerplate we should prefer build-time code generation (`go generate`) - for example generating a typed client and models from an OpenAPI document.
-
-## Glossary
-
-### Go
-
-This is the canonically correct name of the programming language.
-Unfortunately it's not a great word when it comes to indexing in search engines and LLMs, due to being so short and commonly used in everyday language. Hence [golang](https://app.notion.com/p/Go-SDK-Development-What-Good-Looks-Like-3825004b775f803ab444e83c7a5ebc4b?pvs=21) is often used instead.
-
-### Golang
-
-This is the term heavily adopted in the community, preferred over 'just' [go](https://app.notion.com/p/Go-SDK-Development-What-Good-Looks-Like-3825004b775f803ab444e83c7a5ebc4b?pvs=21) for disambiguation and SEO.
-
-### Gopher
-
-The official mascot of the Go programming language, appearing all over the place including official branding, merchandise and error pages.
-Also used as a term for a person who writes code in Go - for example, "I am a gopher".
