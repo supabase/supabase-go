@@ -69,11 +69,9 @@ Plus, there's the behind-the-scenes hygiene in terms of quality assurance:
 - **Unit Testing**: Comprehensive unit tests MUST accompany our code. Assertion and mocking libraries (for example [`testify`](https://pkg.go.dev/github.com/stretchr/testify) and [`mockery`](https://github.com/vektra/mockery)) MAY be adopted later if deemed necessary, but the default preference should be to keep tests standard-library-only.
 - **Integration Testing** (local stack and remote stack, if possible).
 - **`go vet` as a baseline**: `go vet`, run automatically by `go test`, is the standard library's correctness checker, catching bugs that formatters and style linters do not.
-- **Deeper Formatting, Linting and Static Analysis**: Just adopt [gofumpt](https://github.com/mvdan/gofumpt) or go *all in* with [golangci-lint](https://github.com/golangci/golangci-lint), including:
+- **Deeper Formatting, Linting and Static Analysis**: Static analysis beyond `go vet` MUST run in CI, with commands reproducible at a developer's workstation. Baseline SHOULD include [gofumpt](https://github.com/mvdan/gofumpt) plus:
     - `staticcheck`: Detects unused unexported declarations and struct fields, suspicious constructs, incorrect `context` usage and inefficient allocations.
     - `errcheck`: Enforces that errors aren't silently ignored, instead that they are explicitly handled or intentionally suppressed.
-    - `cyclop`: Cyclomatic complexity limits.
-    - `exhaustruct`: Enforces that all fields are set in `struct` literals, so a field added later is not silently left at its zero value.
     - `revive`: Idiomatic naming conventions, exported comment structures and coding standards.
 - **Generate for a typed REST surface** (do not reflect!): Where the API is described by an OpenAPI document we should prefer generating the typed client and models at build time via `go generate` over runtime reflection. A spec-first language such as [TypeSpec](https://typespec.io/) can serve as the single source of truth that emits that OpenAPI document. To-be-confirmed as this depends on what is available elsewhere at Supabase or what might be created now to enable this.
 - **Automated API Compatibility Checking**: We do not rely on humans to catch breaking changes to our SDK APIs. We use [`gorelease`](https://pkg.go.dev/golang.org/x/exp/cmd/gorelease) (or [`apidiff`](https://pkg.go.dev/golang.org/x/exp/cmd/apidiff)) in CI to mechanically verify our API surface against the previous release. This strictly enforces SIV.
