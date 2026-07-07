@@ -1,5 +1,13 @@
 # Go SDK Development: What Good Looks Like
 
+This document is the authoritative form of "the standard" for this repository, stating what must hold for the SDK we ship.
+
+How to build and work here is documented in [`DEVELOPMENT.md`](DEVELOPMENT.md), and the reasons why things are the way they are is documented in [`decisions.md`](decisions.md).
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [BCP 14](https://www.rfc-editor.org/info/bcp14) ([RFC 2119](https://www.rfc-editor.org/rfc/rfc2119), [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174)) when, and only when, they appear in all capitals, as shown here.
+
+A deviation from a SHOULD in this document are recorded in [`decisions.md`](decisions.md) with its justification.
+
 ## Introduction
 
 Go was designed at Google for:
