@@ -75,12 +75,12 @@ Plus, there's the behind-the-scenes hygiene in terms of quality assurance:
     - `revive`: Idiomatic naming conventions, exported comment structures and coding standards.
 - **Generate for a typed REST surface** (do not reflect!): Where the API is described by an OpenAPI document we should prefer generating the typed client and models at build time via `go generate` over runtime reflection. A spec-first language such as [TypeSpec](https://typespec.io/) can serve as the single source of truth that emits that OpenAPI document. To-be-confirmed as this depends on what is available elsewhere at Supabase or what might be created now to enable this.
 - **Automated API Compatibility Checking**: We MUST NOT rely on humans alone to catch breaking changes to our SDK APIs. Once there is a previous release to compare against, [`gorelease`](https://pkg.go.dev/golang.org/x/exp/cmd/gorelease) (or [`apidiff`](https://pkg.go.dev/golang.org/x/exp/cmd/apidiff)) MUST gate CI, mechanically verifying the API surface against it and strictly enforcing SIV.
-- **Race Detection**: Ideally we should run the test suite under the race detector (`go test -race`) in CI. For an SDK that does anything concurrent this is considered essential and costs us only in CI minutes.
+- **Race Detection**: The test suite MUST run under the race detector (`go test -race`) in CI. For an SDK that does anything concurrent this is essential and costs only CI minutes.
+- **Vulnerability Auditing**: [`govulncheck`](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) MUST run in CI.
 
 And there are other things that we may or may not choose to embrace and use from the outset:
 
 - A defined approach to including critical upstream security patches (`go get -u`).
-- Regular vulnerability auditing (`govulncheck`).
 - **Future-Proofing for `encoding/json/v2`**: Go is currently testing a massive, stricter revamp of the JSON standard library (available via `GOEXPERIMENT=jsonv2` since Go 1.25 and still experimental as of Go 1.26, so stabilisation will be Go 1.27 at the earliest). Because JSON I/O will be a backbone of our SDK, we must design our data models defensively today. This means making deliberate choices around `struct` tags (explicitly using `omitempty` or the newer `omitzero`) and strictly defining our stance on unknown JSON fields, ensuring our eventual migration to v2 is as friction-free as we can possibly make it for our SDK users.
 
 ## The Bad
