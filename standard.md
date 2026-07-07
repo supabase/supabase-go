@@ -35,7 +35,7 @@ Goals we should aim for as Go SDK developers, all of which hold true for other S
 
 These are things within the Go ecosystem that we should embrace closely:
 
-- **gofmt**: Opinionated Go source code formatting, to which we must adhere.
+- **gofmt**: Opinionated Go source code formatting. Code MUST be gofmt-clean.
 - **stdlib**: Go's standard library is famously capable and robust, including built-in support for common primitives that most SDKs will need such as cryptography, HTTP transport and JSON parsing.
 - **Minimal Version Selection (MVS)**: Guarantees deterministic builds for our users.
 - **Semantic Import Versioning (SIV)**: Supports breaking changes when they are unavoidable. However, it's imperative that we aim to design our APIs carefully and with flexibility at their core from the outset to avoid the need to make breaking changes later on.
