@@ -68,7 +68,7 @@ Plus, there's the behind-the-scenes hygiene in terms of quality assurance:
 
 - **Unit Testing**: Comprehensive unit tests MUST accompany our code. Assertion and mocking libraries (for example [`testify`](https://pkg.go.dev/github.com/stretchr/testify) and [`mockery`](https://github.com/vektra/mockery)) MAY be adopted later if deemed necessary, but the default preference should be to keep tests standard-library-only.
 - **Integration Testing**: Integration tests SHOULD exercise the SDK against real services, either local-stack or remote-stack, ideally both.
-- **`go vet` as a baseline**: `go vet`, run automatically by `go test`, is the standard library's correctness checker, catching bugs that formatters and style linters do not.
+- **`go vet` as a baseline**: `go vet` is the Go toolchain's correctness checker, catching bugs that formatters and style linters do not. `go test` runs a high-confidence subset of its checks automatically, and the full suite MUST run in CI.
 - **Deeper Formatting, Linting and Static Analysis**: Static analysis beyond `go vet` MUST run in CI, with commands reproducible at a developer's workstation. Baseline SHOULD include [gofumpt](https://github.com/mvdan/gofumpt) plus:
     - `staticcheck`: Detects unused unexported declarations and struct fields, suspicious constructs, incorrect `context` usage and inefficient allocations.
     - `errcheck`: Enforces that errors aren't silently ignored, instead that they are explicitly handled or intentionally suppressed.
