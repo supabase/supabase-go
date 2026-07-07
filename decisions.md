@@ -1,5 +1,7 @@
 # Development Decisions for `supabase-go`
 
+<!-- cSpell:ignore footgun -->
+
 This document has been created to capture decisions that have been made during development on this SDK which felt like worth recording for future reference.
 It's designed to be quick and friction-less to populate, a friction log inspired micro decisions list, often expected to be imperfect but with the ethos of "something is better than nothing" in terms of what we capture.
 
@@ -83,12 +85,12 @@ Exported sentinel errors (e.g. `core.ErrMissingURL`) are declared as `const` val
 **Why**:  
 An exported package-level `var` is writable by any importing package (`core.ErrMissingKey = nil` compiles), so the standard `var = errors.New(...)` idiom leaves a public SDK's sentinels reassignable - protected only by convention.
 A string-backed error type can be `const`, which the compiler enforces as immutable, removing that footgun entirely.
-Consumers use the sentinels identically (`errors.Is`); the only behavioural change is value- rather than pointer-identity comparison, which is safe for distinct messages.
+Consumers use the sentinels identically (`errors.Is`); the only behavioral change is value- rather than pointer-identity comparison, which is safe for distinct messages.
 
 ### const sentinels for kinds, struct types for data
 
 **What**:  
-Dataless "which kind of failure" errors are exported `const` sentinels (a string-backed error type), matched with `errors.Is`.
+Data-less "which kind of failure" errors are exported `const` sentinels (a string-backed error type), matched with `errors.Is`.
 Failures that carry data a caller may need are struct error types with typed fields, read back with `errors.As`, optionally wrapping a sentinel via `Unwrap`.
 Dynamic context is added by wrapping (`fmt.Errorf("...: %w", value, err)`) - that is, we do not capture stack traces as Go's idiom is wrapped context, not stack frames.
 
@@ -107,14 +109,15 @@ The prefix is written once, in the string-backed type's `Error()` method (`retur
 Naming the originating package is the dominant Go convention - the standard library does it everywhere (`json:`, `http:`, `os:`) - and it preserves provenance once an error is wrapped, logged or surfaced far from where it was created.
 The package is the unit a consumer imports and reasons about, so it is the right granularity for provenance. Finer-grained "which kind of failure" information is carried by the error's identifier and type (`ErrMissingURL`, `configurationError`) and its message text, not duplicated into the prefix.
 Package granularity also stays consistent as a package grows more error sources (for example `transport` alongside `configuration` in `core`), so every error from the package reads with the same token regardless of which file or type produced it.
-Centralising the literal in `Error()` rather than baking `core: ` into each sentinel removes the repetition. Our single string-backed error type gives us one render chokepoint that the scattered `errors.New` calls in the standard library do not have.
+Centralizing the literal in `Error()` rather than baking `core: ` into each sentinel removes the repetition. Our single string-backed error type gives us one render choke point that the scattered `errors.New` calls in the standard library do not have.
 The rendered prefix does not affect `errors.Is`, which compares the underlying sentinel values (the unprefixed message strings). The prefix is purely for the human reading the message.
 
 ## Everything executed from outside the repo is digest-pinned (Actions and tooling)
 
 **What**:  
 Every GitHub Actions `uses:` is pinned to a full 40-character commit SHA with a trailing version comment - first-party `actions/*` included, no exemption.
-The Go tooling (linters, govulncheck) is pinned by checksum in a dedicated `tools/go.mod` + committed `tools/go.sum`.
+The Go tooling (linters, govulncheck) is pinned by checksum in a dedicated `tools/go/go.mod` + committed `tools/go/go.sum`.
+The spell checker (cspell) is pinned the same way one ecosystem over: its full dependency tree is locked by integrity hash in a committed [`tools/node/package-lock.json`](tools/node/package-lock.json), installed via `npm ci`.
 GitHub's "require SHA-pinned actions" setting is enabled for this repository.
 
 **Why**:  
@@ -132,15 +135,17 @@ Dependabot security updates stay enabled via repo settings so advisories still r
 During early development on this codebase it's going to be actively iterated upon by a single developer and so is not likely to be left idle for long periods of time with no activity.
 This means that the benefits of regular (weekly) dependabot PRs are less obvious, and perhaps might even turn into a distraction or nuisance to that singular development flow.
 
-## No `.gitignore` yet
+## No root `.gitignore`
 
 **What**:  
-The repository carries no `.gitignore` yet.
+The repository carries no root `.gitignore`.
+An exception is [`tools/node/.gitignore`](tools/node/.gitignore), scoped to the npm tooling folder so we ignore the `node_modules` folder that `npm ci` materializes there.
 
 **Why**:  
-The build emits no build artifacts, coverage output or environment files, so nothing has yet been demonstrated to need ignoring, and an empty-of-purpose ignore file is configuration without a need - the same reasoning that keeps `.editorconfig` out.
-A repo-local `.gitignore` earns its place in the change that first produces an artifact worth tracking, and not before.
-`go.work.sum` is consequently neither committed nor ignored, so its first appearance once an external dependency lands shows up in `git status` for a considered call then.
+An empty-of-purpose ignore file is configuration without a need - the same reasoning that keeps `.editorconfig` out - so a `.gitignore` earns its place only in the change that first produces an artifact worth ignoring, scoped to where that artifact appears, and not before.
+The Go build still emits no artifacts, coverage output or environment files, so the tree needs no root ignore file.
+The spell-check tooling is the first thing to produce an ignore-worthy artifact - `npm ci` populating `node_modules/` - so an ignore file earns its place there and then, scoped to `tools/node/` rather than a catch-all at the root.
+`go.work.sum` remains neither committed nor ignored, so its first appearance once an external dependency lands still shows up in `git status` for a considered call then.
 
 ## Public API doc comments use the Go doc-comment syntax (links, lists, prose)
 
@@ -149,14 +154,14 @@ Doc comments on exported identifiers use the Go 1.19+ "Go Doc Comments" syntax, 
 The features we rely on:
 
 - Doc links - `[Name]`, `[pkg.Name]` and `[pkg.Type.Method]` - to cross-reference other identifiers and packages.
-- Bullet or numbered lists for enumerable behaviour, such as the set of sentinel errors a constructor returns.
+- Bullet or numbered lists for enumerable behavior, such as the set of sentinel errors a constructor returns.
 - Parameters and return values referenced by name in running prose (Go has no `@param` or `@return` tags; the rendered signature supplies the parameter list).
 - Runnable `ExampleXxx` functions as executable usage documentation.
 
 We do not use Markdown in doc comments. Bold, italics and inline backtick code spans are unsupported, so backticks never appear in doc comments because they would render literally.
 
 **Why**:  
-This is the one syntax that `gofmt` canonicalises and that every Go documentation consumer renders identically: `go doc` at the command line, pkg.go.dev on the web and gopls on editor hover.
+This is the one syntax that `gofmt` canonicalizes and that every Go documentation consumer renders identically: `go doc` at the command line, pkg.go.dev on the web and gopls on editor hover.
 One comment therefore serves all three without divergence.
 Doc links become navigable cross-links on the rendered page, lists make conditions like the error-return set scannable, and runnable examples cannot drift from the code because `go test` executes them.
 Holding to the standard syntax lets `gofmt` keep formatting consistent and stops contributors inventing ad hoc conventions.
@@ -175,15 +180,15 @@ Google's SDKs are the cautionary contrast. Firebase's `app.Auth(ctx)` and `app.F
 That shape only earns its place when the returned client owns background work bound to the context, and it carries a footgun when it does not: a request-scoped context passed to such a constructor and then cached breaks the client's background refresh once the request ends.
 Our handles own no background work, so a context parameter would import that footgun for no gain.
 
-## One HTTP customisation seam, and a sealed HTTPClient across modules
+## One HTTP customization seam, and a sealed HTTPClient across modules
 
 **What**:  
-The only way a caller customises outbound HTTP is `WithHTTPClient`: they supply an `*http.Client` whose `Transport` is any `http.RoundTripper` chain they want, and `core` wraps its own auth `RoundTripper` (apikey and Authorization injection) in front of it.
+The only way a caller customizes outbound HTTP is `WithHTTPClient`: they supply an `*http.Client` whose `Transport` is any `http.RoundTripper` chain they want, and `core` wraps its own auth `RoundTripper` (apikey and Authorization injection) in front of it.
 There is deliberately no `WithRoundTripper` or middleware option.
 Internally, `core` hands each domain module a one-method `HTTPClient` interface (`Do(*http.Request) (*http.Response, error)`), never the concrete `*http.Client`.
 
 **Why**:  
-The single seam matches the dominant Go convention. Google's API libraries and Stripe expose only a whole-client seam, and Google's own docs tell callers to add behaviour "via RoundTripper middleware" on their own client rather than through an SDK option. AWS SDK v2 is the exception, but its extra knob is a bespoke Smithy middleware stack, not an `http.RoundTripper` shortcut, so it is no precedent for one. A `WithRoundTripper` convenience can be added additively later if demand appears, so nothing is foreclosed.
+The single seam matches the dominant Go convention. Google's API libraries and Stripe expose only a whole-client seam, and Google's own docs tell callers to add behavior "via RoundTripper middleware" on their own client rather than through an SDK option. AWS SDK v2 is the exception, but its extra knob is a bespoke Smithy middleware stack, not an `http.RoundTripper` shortcut, so it is no precedent for one. A `WithRoundTripper` convenience can be added additively later if demand appears, so nothing is foreclosed.
 Handing out the interface rather than the `*http.Client` stops the configured transport being swapped out through the accessor - a caller holding the concrete client could set `Transport = nil` and silently disable auth, or race on it - and it keeps the `core` public surface small, which is part of the `v1` promise.
 The interface is named `HTTPClient` with a single `Do` method, following AWS SDK v2's interface of the same name and shape. `Do` is chosen because `*http.Client` already has that method, so the standard client satisfies the interface with no adapter, and the same one-method contract appears as the `HttpRequestDoer` that `oapi-codegen` generates in Supabase's own Auth code.
 
@@ -194,13 +199,13 @@ The root package's `Option` type is a type alias for `core.Option`, so a setting
 
 **Why**:  
 Every option the plan gives the root client - custom HTTP client, global headers, the `slog` logger and tracing context - configures the shared `core` plumbing, so a shared type is enough and a second parallel option type would be waste.
-The alias would only need to break if the root ever had to carry a setting `core` does not own, for example tuning one domain's behaviour from the root, which the plan does not call for.
+The alias would only need to break if the root ever had to carry a setting `core` does not own, for example tuning one domain's behavior from the root, which the plan does not call for.
 Any such need would surface during the Alpha or Beta pre-releases, where changing the type is still free, so keeping the alias bakes in no known breaking change.
 
 ## The postgrest module is Supabase-agnostic in code but not a supported general-purpose client
 
 **What**:  
-The `postgrest` module carries no Supabase-specific behaviour - the `apikey` header, the `/rest/v1` base path and token handling live in `core` and the root - so its code could in principle talk to any PostgREST server.
+The `postgrest` module carries no Supabase-specific behavior - the `apikey` header, the `/rest/v1` base path and token handling live in `core` and the root - so its code could in principle talk to any PostgREST server.
 It is not, however, a tested or supported general-purpose PostgREST client. It is documented as the Supabase Database client, and standalone use against a non-Supabase server is not promised.
 
 **Why**:  
@@ -216,6 +221,6 @@ Both are provided org-wide by `supabase/.github`, and a CI check asserts their a
 `CODEOWNERS` stays repo-local.
 
 **Why**:  
-GitHub falls back to the organisation's `supabase/.github` files for any repository that lacks its own, so an org-level `SECURITY.md` and `CONTRIBUTING.md` already apply.
+GitHub falls back to the organization's `supabase/.github` files for any repository that lacks its own, so an org-level `SECURITY.md` and `CONTRIBUTING.md` already apply.
 A repo-local copy would silently shadow the org default and drift from it, so asserting absence beats maintaining a duplicate.
 The one posture that does not belong at org level - that external code contributions are not accepted before the first GA release - lives in `DEVELOPMENT.md` instead.

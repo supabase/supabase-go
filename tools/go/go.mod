@@ -1,4 +1,4 @@
-module github.com/supabase/supabase-go/tools
+module github.com/supabase/supabase-go/tools/go
 
 go 1.25.0
 
