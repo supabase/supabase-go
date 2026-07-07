@@ -1,4 +1,4 @@
-package core_test
+package configuration_test
 
 import (
 	"io"
@@ -6,17 +6,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/supabase/supabase-go/core"
+	configuration "github.com/supabase/supabase-go/configuration"
 )
 
 func TestTransportInjectsHeaders(t *testing.T) {
 	server, received := recordingServer(t)
-	configuration, err := core.NewConfiguration(server.URL, "test-key",
-		core.WithHeaders(map[string]string{"X-Client-Info": "supabase-go/test"}))
+	projectConfiguration, err := configuration.New(server.URL, "test-key",
+		configuration.WithHeaders(map[string]string{"X-Client-Info": "supabase-go/test"}))
 	if err != nil {
-		t.Fatalf("NewConfiguration: %v", err)
+		t.Fatalf("configuration.New: %v", err)
 	}
-	sendGet(t, configuration.HTTPClient(), server.URL, nil)
+	sendGet(t, projectConfiguration.HTTPClient(), server.URL, nil)
 
 	if received.Get("apikey") != "test-key" {
 		t.Errorf("apikey = %q, want %q", received.Get("apikey"), "test-key")
@@ -31,26 +31,26 @@ func TestTransportInjectsHeaders(t *testing.T) {
 
 func TestWithHTTPClientDoesNotMutateInput(t *testing.T) {
 	custom := &http.Client{}
-	configuration, err := core.NewConfiguration("https://project.supabase.co", "k", core.WithHTTPClient(custom))
+	projectConfiguration, err := configuration.New("https://project.supabase.co", "k", configuration.WithHTTPClient(custom))
 	if err != nil {
-		t.Fatalf("NewConfiguration: %v", err)
+		t.Fatalf("configuration.New: %v", err)
 	}
 	if custom.Transport != nil {
 		t.Error("input client's Transport was mutated")
 	}
-	if configuration.HTTPClient() == custom {
+	if projectConfiguration.HTTPClient() == custom {
 		t.Error("Configuration reused the caller's client instead of cloning it")
 	}
 }
 
 func TestTransportHeaderPrecedence(t *testing.T) {
 	server, received := recordingServer(t)
-	configuration, err := core.NewConfiguration(server.URL, "project-key",
-		core.WithHeaders(map[string]string{"X-Client-Info": "default"}))
+	projectConfiguration, err := configuration.New(server.URL, "project-key",
+		configuration.WithHeaders(map[string]string{"X-Client-Info": "default"}))
 	if err != nil {
-		t.Fatalf("NewConfiguration: %v", err)
+		t.Fatalf("configuration.New: %v", err)
 	}
-	sendGet(t, configuration.HTTPClient(), server.URL, func(request *http.Request) {
+	sendGet(t, projectConfiguration.HTTPClient(), server.URL, func(request *http.Request) {
 		request.Header.Set("Authorization", "Bearer user-token")
 		request.Header.Set("X-Client-Info", "per-request")
 		request.Header.Set("apikey", "attacker-key")
@@ -81,7 +81,7 @@ func recordingServer(t *testing.T) (*httptest.Server, *http.Header) {
 	return server, &received
 }
 
-func sendGet(t *testing.T, doer core.HTTPClient, url string, mutate func(*http.Request)) {
+func sendGet(t *testing.T, doer configuration.HTTPClient, url string, mutate func(*http.Request)) {
 	t.Helper()
 	request, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {

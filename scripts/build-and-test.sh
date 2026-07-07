@@ -5,7 +5,7 @@
 # root.
 set -euo pipefail
 
-modules=(. core postgrest)
+modules=(. configuration postgrest)
 
 for module in "${modules[@]}"; do
   echo "==> ${module}"

@@ -1,4 +1,4 @@
-package core
+package configuration
 
 import (
 	"fmt"
@@ -6,37 +6,37 @@ import (
 	"net/url"
 )
 
-// coreError is a string-backed error type whose values can be declared
+// configurationError is a string-backed error type whose values can be declared
 // as compile-time constants. The sentinels below are therefore immutable: unlike
 // package-level error variables (which any importing package can reassign), these
 // cannot be replaced - the compiler rejects any attempt. The type is unexported,
 // so consumers can match the sentinels with errors.Is but cannot mint new values
 // of it.
-type coreError string
+type configurationError string
 
-func (e coreError) Error() string { return "core: " + string(e) }
+func (e configurationError) Error() string { return "configuration: " + string(e) }
 
-// Sentinel errors returned by [NewConfiguration]. Match them with [errors.Is].
+// Sentinel errors returned by [New]. Match them with [errors.Is].
 const (
 	// ErrMissingURL is returned when an empty project URL is supplied.
-	ErrMissingURL = coreError("project URL is required")
+	ErrMissingURL = configurationError("project URL is required")
 
 	// ErrMissingKey is returned when an empty API key is supplied.
-	ErrMissingKey = coreError("API key is required")
+	ErrMissingKey = configurationError("API key is required")
 
 	// ErrInvalidURL is returned when the project URL cannot be used as an
 	// absolute HTTP or HTTPS base URL. The underlying parse error, when there is
 	// one, is wrapped and recoverable with [errors.Unwrap].
-	ErrInvalidURL = coreError("project URL is invalid")
+	ErrInvalidURL = configurationError("project URL is invalid")
 )
 
 // Configuration holds the resolved settings shared across the SDK: the project
 // base URL, the API key and the HTTP client whose transport injects
 // authentication and global headers on every request.
 //
-// A Configuration is created with [NewConfiguration] and is safe for concurrent
+// A Configuration is created with [New] and is safe for concurrent
 // use by multiple goroutines once constructed. Its zero value is not usable, so
-// always build it through [NewConfiguration].
+// always build it through [New].
 type Configuration struct {
 	baseURL    *url.URL
 	apiKey     string
@@ -44,7 +44,7 @@ type Configuration struct {
 	headers    http.Header
 }
 
-// Option configures a [Configuration]. Options are applied by [NewConfiguration]
+// Option configures a [Configuration]. Options are applied by [New]
 // in the order they are supplied. This is the SDK's single functional-option
 // type, shared by the root supabase package and every domain module.
 type Option func(*Configuration)
@@ -77,7 +77,7 @@ func WithHeaders(headers map[string]string) Option {
 	}
 }
 
-// NewConfiguration validates rawURL and apiKey, applies the supplied options in
+// New validates rawURL and apiKey, applies the supplied options in
 // order, and returns a ready-to-use [Configuration].
 //
 // It returns one of these sentinel errors, each matchable with [errors.Is], when
@@ -88,7 +88,7 @@ func WithHeaders(headers map[string]string) Option {
 //     underlying parse failure, when there is one, is wrapped.
 //
 // See [WithHTTPClient] and [WithHeaders] for the available options.
-func NewConfiguration(rawURL, apiKey string, options ...Option) (*Configuration, error) {
+func New(rawURL, apiKey string, options ...Option) (*Configuration, error) {
 	if rawURL == "" {
 		return nil, ErrMissingURL
 	}

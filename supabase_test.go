@@ -5,14 +5,14 @@ import (
 	"testing"
 
 	supabase "github.com/supabase/supabase-go"
-	"github.com/supabase/supabase-go/core"
+	configuration "github.com/supabase/supabase-go/configuration"
 )
 
 func TestNewClientValidationPropagates(t *testing.T) {
-	if _, err := supabase.NewClient("", "k"); !errors.Is(err, core.ErrMissingURL) {
+	if _, err := supabase.NewClient("", "k"); !errors.Is(err, configuration.ErrMissingURL) {
 		t.Fatalf("want ErrMissingURL, got %v", err)
 	}
-	if _, err := supabase.NewClient("https://project.supabase.co", ""); !errors.Is(err, core.ErrMissingKey) {
+	if _, err := supabase.NewClient("https://project.supabase.co", ""); !errors.Is(err, configuration.ErrMissingKey) {
 		t.Fatalf("want ErrMissingKey, got %v", err)
 	}
 }

@@ -3,9 +3,11 @@ package supabase_test
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"time"
 
 	supabase "github.com/supabase/supabase-go"
-	"github.com/supabase/supabase-go/core"
+	"github.com/supabase/supabase-go/configuration"
 )
 
 func ExampleNewClient() {
@@ -18,10 +20,29 @@ func ExampleNewClient() {
 	// Output: true
 }
 
-// ExampleNewClient_invalidInput shows that NewClient surfaces the core package's
-// sentinel errors unchanged, so a caller can match them with errors.Is.
+// ExampleNewClient_options customizes the client with the shared functional
+// options from the configuration package: a caller-supplied HTTP client and
+// global headers sent on every request.
+func ExampleNewClient_options() {
+	client, err := supabase.NewClient(
+		"https://project.supabase.co",
+		"anon-key",
+		configuration.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
+		configuration.WithHeaders(map[string]string{"X-Client-Info": "supabase-go/0.1"}),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(client != nil)
+	// Output: true
+}
+
+// ExampleNewClient_invalidInput shows that NewClient surfaces the configuration
+// package's sentinel errors unchanged, so a caller can match them with
+// errors.Is.
 func ExampleNewClient_invalidInput() {
 	_, err := supabase.NewClient("https://project.supabase.co", "")
-	fmt.Println(errors.Is(err, core.ErrMissingKey))
+	fmt.Println(errors.Is(err, configuration.ErrMissingKey))
 	// Output: true
 }

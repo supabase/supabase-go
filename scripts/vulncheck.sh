@@ -3,7 +3,7 @@
 # fails its own job. govulncheck's version is checksum-pinned in tools/go/go.mod.
 set -euo pipefail
 
-modules=(. core postgrest)
+modules=(. configuration postgrest)
 
 toolbin="$(mktemp -d)"
 trap 'rm -rf "${toolbin}"' EXIT
