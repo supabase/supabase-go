@@ -12,7 +12,7 @@ import (
 func TestTransportInjectsHeaders(t *testing.T) {
 	server, received := recordingServer(t)
 	projectConfiguration, err := configuration.New(server.URL, "test-key",
-		configuration.WithHeaders(map[string]string{"X-Client-Info": "supabase-go/test"}))
+		configuration.WithHeader("X-Client-Info", "supabase-go/test"))
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestWithHTTPClientDoesNotMutateInput(t *testing.T) {
 func TestTransportHeaderPrecedence(t *testing.T) {
 	server, received := recordingServer(t)
 	projectConfiguration, err := configuration.New(server.URL, "project-key",
-		configuration.WithHeaders(map[string]string{"X-Client-Info": "default"}))
+		configuration.WithHeader("X-Client-Info", "default"))
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestTransportHeaderPrecedence(t *testing.T) {
 	if received.Get("Authorization") != "Bearer user-token" {
 		t.Errorf("Authorization = %q, want the per-request token preserved", received.Get("Authorization"))
 	}
-	// A per-request header beats the WithHeaders default.
+	// A per-request header beats the WithHeader default.
 	if received.Get("X-Client-Info") != "per-request" {
 		t.Errorf("X-Client-Info = %q, want the per-request value to win", received.Get("X-Client-Info"))
 	}

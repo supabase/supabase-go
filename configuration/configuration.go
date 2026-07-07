@@ -64,16 +64,16 @@ func WithHTTPClient(client *http.Client) Option {
 	}
 }
 
-// WithHeaders registers headers sent on every request. Per-request headers take
-// precedence over these defaults. The reserved apikey header is always set from
-// the API key and cannot be overridden here.
+// WithHeader registers a single header sent on every request. Call it once per
+// header to build up a set, and a later WithHeader for the same key replaces an
+// earlier one. Per-request headers take precedence over these defaults. The
+// reserved apikey header is always set from the API key and cannot be overridden
+// here.
 //
 // Implements client.request_configuration.global_headers.
-func WithHeaders(headers map[string]string) Option {
+func WithHeader(key, value string) Option {
 	return func(c *Configuration) {
-		for key, value := range headers {
-			c.headers.Set(key, value)
-		}
+		c.headers.Set(key, value)
 	}
 }
 
@@ -87,7 +87,7 @@ func WithHeaders(headers map[string]string) Option {
 //   - [ErrInvalidURL] when rawURL is not an absolute http or https URL. The
 //     underlying parse failure, when there is one, is wrapped.
 //
-// See [WithHTTPClient] and [WithHeaders] for the available options.
+// See [WithHTTPClient] and [WithHeader] for the available options.
 func New(rawURL, apiKey string, options ...Option) (*Configuration, error) {
 	if rawURL == "" {
 		return nil, ErrMissingURL

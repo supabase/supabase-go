@@ -22,7 +22,7 @@ type Client struct {
 //   - [configuration.ErrInvalidURL] when projectURL is not an absolute http or
 //     https URL.
 //
-// See [configuration.WithHTTPClient] and [configuration.WithHeaders] for the
+// See [configuration.WithHTTPClient] and [configuration.WithHeader] for the
 // available options.
 func NewClient(projectURL, apiKey string, options ...configuration.Option) (*Client, error) {
 	projectConfiguration, err := configuration.New(projectURL, apiKey, options...)
