@@ -12,5 +12,9 @@
 .windsurf/
 .windsurfrules
 copilot-instructions.*
-AGENTS.md
 CLAUDE.md
+
+# Our progressive disclosure strategy for agent skills means that content in this file
+# is "miscellaneous" at best, so unlikely to add focussed value.
+# see .agents/skills/README.md
+AGENTS.md
