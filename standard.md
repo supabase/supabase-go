@@ -6,7 +6,7 @@ How to build and work here is documented in [`DEVELOPMENT.md`](DEVELOPMENT.md), 
 
 The key words "must", "must not", "required", "shall", "shall not", "should", "should not", "recommended", "may" and "optional" in this document are to be interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119). For readability, these words do not appear in all uppercase letters in this document.
 
-A deviation from a "should" in this document are recorded in [`decisions.md`](decisions.md) with its justification.
+A deviation from a "should" in this document is recorded in [`decisions.md`](decisions.md) with its justification.
 
 ## Introduction
 
