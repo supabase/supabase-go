@@ -1,0 +1,16 @@
+# Our agent skills are intentionally vendor-agnostic.
+# see .agents/skills/README.md
+.aider*
+.claude/
+.cline/
+.clinerules
+.copilot/
+.cursor/
+.cursorrules
+.openai/
+.pi/
+.windsurf/
+.windsurfrules
+copilot-instructions.*
+AGENTS.md
+CLAUDE.md
