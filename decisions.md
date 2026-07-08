@@ -1,6 +1,6 @@
 # Development Decisions for `supabase-go`
 
-<!-- cSpell:ignore Cheney -->
+<!-- cSpell:ignore Cheney claude -->
 
 This document has been created to capture decisions that have been made during development on this SDK which felt like worth recording for future reference.
 It's designed to be quick and friction-less to populate, a friction log inspired micro decisions list, often expected to be imperfect but with the ethos of "something is better than nothing" in terms of what we capture.
@@ -259,3 +259,13 @@ Its vocabulary is also semantically empty pre-release: a `BREAKING CHANGE` marke
 Adopting the grammar now would also quietly pre-commit the release-tooling decision, which is deliberately open: progressive changelog updates curated as part of each PR remain on the table alongside commit-parsing tools like release-please, and the curated-changelog path needs no commit grammar at all.
 Waiting forecloses nothing, because commit-parsing tools read history forward from a configurable starting point (the last release tag, or a bootstrap SHA), so the convention can be adopted at the moment it gains a consumer without the pre-adoption history ever needing to conform.
 And if the house squash style is adopted at the same time, the convention collapses to well-formed PR titles alone - cheap to start paying then, pointless to pay now.
+
+## Agent guidance lives in `.agents/skills`, and a root `.gitignore` keeps other agent surfaces out
+
+**What**:  
+Direct AI guidance, where that guidance is designed primarily for consumption by agents, is contained within [`.agents/skills/`](.agents/skills/), whose [README](.agents/skills/README.md) states the full approach (progressive disclosure, routing, etc..).
+A root [`.gitignore`](.gitignore) aims to keep other agent entry points out, for cleanliness (for example, `.claude/` and `.cursor/`).
+
+**Why**:  
+How we equip AI coding agents is a concern about how this repository is worked on, not a decision about the SDK's code, so this decision record carries only the signpost and the reason the tree excludes what it does.
+The agent surface is deliberately singular: a second entry point, branded or neutral, would only duplicate the metadata the skill mechanism already loads at session start or drift from it over time (maintainability concern).
