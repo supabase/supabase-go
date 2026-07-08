@@ -16,6 +16,19 @@ dictionaryDefinitions:
 
 dictionaries: [local-codebase]
 
+# The en_US dictionary is built from the SCOWL size-70 "large" word list, which
+# accepts common British variants (favour, behaviours), so American-variant
+# consistency is enforced here rather than by the locale.
+flagWords:
+  - behaviour->behavior
+  - behaviours->behaviors
+  - decentralised->decentralized
+  - favour->favor
+  - focussing->focusing
+  - optimisations->optimizations
+  - stabilisation->stabilization
+  - synchronisation->synchronization
+
 patterns:
 
   # GitHub is a proper noun, written "GitHub" in prose (which caseSensitive

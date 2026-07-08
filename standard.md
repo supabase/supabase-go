@@ -21,9 +21,9 @@ Go was designed at Google for:
 
 Goals we should aim for as Go SDK developers, all of which hold true for other SDK languages too, include:
 
-- Designing for defensibility with a small, deliberate exported surface that we can keep stable and evolve without breaking consumers. We should favour opaque types and options over long positional parameter lists. We must not expose third-party types (permanent coupling).
-- Focussing on API stability.
-- Go-idiomatic behaviours, including intuitive synchronisation boundaries.
+- Designing for defensibility with a small, deliberate exported surface that we can keep stable and evolve without breaking consumers. We should favor opaque types and options over long positional parameter lists. We must not expose third-party types (permanent coupling).
+- Focusing on API stability.
+- Go-idiomatic behaviors, including intuitive synchronization boundaries.
 - Encapsulation and immutability:
     - `/internal`
     - unexported (private) fields, constructors, getters (read-only access)
@@ -81,7 +81,7 @@ Plus, there's the behind-the-scenes hygiene in terms of quality assurance:
 And there are other things that we may or may not choose to embrace and use from the outset:
 
 - A defined approach to including critical upstream security patches (`go get -u`).
-- **Future-Proofing for `encoding/json/v2`**: Go is currently testing a massive, stricter revamp of the JSON standard library (available via `GOEXPERIMENT=jsonv2` since Go 1.25 and still experimental as of Go 1.26, so stabilisation will be Go 1.27 at the earliest). Because JSON I/O will be a backbone of our SDK, we must design our data models defensively today. This means making deliberate choices around `struct` tags (explicitly using `omitempty` or the newer `omitzero`) and strictly defining our stance on unknown JSON fields, ensuring our eventual migration to v2 is as friction-free as we can possibly make it for our SDK users.
+- **Future-Proofing for `encoding/json/v2`**: Go is currently testing a massive, stricter revamp of the JSON standard library (available via `GOEXPERIMENT=jsonv2` since Go 1.25 and still experimental as of Go 1.26, so stabilization will be Go 1.27 at the earliest). Because JSON I/O will be a backbone of our SDK, we must design our data models defensively today. This means making deliberate choices around `struct` tags (explicitly using `omitempty` or the newer `omitzero`) and strictly defining our stance on unknown JSON fields, ensuring our eventual migration to v2 is as friction-free as we can possibly make it for our SDK users.
 
 ## The Bad
 
@@ -91,4 +91,4 @@ These are things within the Go ecosystem that we should avoid, including classic
 - Letting a `panic` cross our API boundary: "Don't panic" is a Go proverb. Expected failures must be returned as `error` values and any goroutine we spawn internally must `recover` so that a background panic can never take down the consumer's process.
 - We must not force SDK users to use `reflect.DeepEqual`.
 - We must not use global loggers or `stdout` within the SDK implementation (see "Silent by Default" in [The Good](#the-good)).
-- Leaning on Runtime Reflection and "Magic": Reaching for the `reflect` package (for example, dynamic type inspection or `reflect.MakeFunc`) to build overly clever abstractions in our own code. "Reflection is never clear" is a Go proverb due to how it sacrifices static type safety and readability, defeating compiler optimisations and introducing unpredictable runtime panics. It's worth noting that the standard library does use reflection responsibly under the hood (for example, `encoding/json`) so relying on that is fine. If we need dynamic behaviour we should prefer implicit interfaces, and if we need to reduce boilerplate we should prefer build-time code generation (`go generate`) - for example generating a typed client and models from an OpenAPI document.
+- Leaning on Runtime Reflection and "Magic": Reaching for the `reflect` package (for example, dynamic type inspection or `reflect.MakeFunc`) to build overly clever abstractions in our own code. "Reflection is never clear" is a Go proverb due to how it sacrifices static type safety and readability, defeating compiler optimizations and introducing unpredictable runtime panics. It's worth noting that the standard library does use reflection responsibly under the hood (for example, `encoding/json`) so relying on that is fine. If we need dynamic behavior we should prefer implicit interfaces, and if we need to reduce boilerplate we should prefer build-time code generation (`go generate`) - for example generating a typed client and models from an OpenAPI document.
