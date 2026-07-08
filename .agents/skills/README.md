@@ -33,13 +33,11 @@ Some repositories contain no Claude-branded files and no root `AGENTS.md` file.
 When a repository has a `.agents/skills/` directory, read the YAML frontmatter (`name` and `description`) of every `.agents/skills/*/SKILL.md` markdown file at the start of the session, then read a skill's full body before undertaking any work its description matches, exactly as native skill discovery would behave.
 ```
 
-or create symlinks, bearing in mind these will need to be recreated when skills are added or removed in future:
+or create a symlink:
 
 ```bash
-mkdir -p .claude/skills
-for skill in .agents/skills/*/; do
-  ln -s "../../${skill}" ".claude/skills/$(basename "${skill}")"
-done
+mkdir .claude
+ln -s ../.agents/skills .claude/skills
 ```
 
 ## Keep it DRY
