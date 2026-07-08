@@ -1,5 +1,7 @@
 # AI Agent Skills
 
+<!-- cSpell:ignore agentskills claude frontmatter -->
+
 ## Overview
 
 This folder holds the repository's guidance for AI coding agents as task-scoped skills.
