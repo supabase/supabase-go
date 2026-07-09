@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	supabase "github.com/supabase/supabase-go"
+	"github.com/supabase/supabase-go"
 	"github.com/supabase/supabase-go/configuration"
 )
 

@@ -3,7 +3,7 @@ package postgrest
 import (
 	"net/url"
 
-	configuration "github.com/supabase/supabase-go/configuration"
+	"github.com/supabase/supabase-go/configuration"
 )
 
 // Client is the entry point for Database queries against PostgREST. It is built
