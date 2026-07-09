@@ -6,6 +6,8 @@ set -euo pipefail
 
 modules=(. configuration postgrest)
 
+echo "Lint..."
+
 # Build the pinned tools standalone - GOWORK=off so the 1.22 workspace does not
 # interfere with the 1.24 tools/go module - into a throwaway bin directory.
 toolbin="$(mktemp -d)"
@@ -41,3 +43,5 @@ for module in "${modules[@]}"; do
     "${toolbin}/revive" -exclude ./tools/node/... -set_exit_status ./...
   )
 done
+
+echo "✅ Lint Passed."

@@ -5,6 +5,8 @@ set -euo pipefail
 
 modules=(. configuration postgrest)
 
+echo "Vulnerability Scan..."
+
 toolbin="$(mktemp -d)"
 trap 'rm -rf "${toolbin}"' EXIT
 (
@@ -16,3 +18,5 @@ for module in "${modules[@]}"; do
   echo "==> ${module}"
   ( cd "${module}" && "${toolbin}/govulncheck" ./... )
 done
+
+echo "✅ Vulnerability Scan Passed."
