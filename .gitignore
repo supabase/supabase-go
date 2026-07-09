@@ -1,0 +1,20 @@
+# Our agent skills are intentionally vendor-agnostic.
+# see .agents/skills/README.md
+.aider*
+.claude/
+.cline/
+.clinerules
+.copilot/
+.cursor/
+.cursorrules
+.openai/
+.pi/
+.windsurf/
+.windsurfrules
+copilot-instructions.*
+CLAUDE.md
+
+# Our progressive disclosure strategy for agent skills means that content in this file
+# is "miscellaneous" at best, so unlikely to add focussed value.
+# see .agents/skills/README.md
+AGENTS.md

@@ -1,6 +1,6 @@
 # Development Decisions for `supabase-go`
 
-<!-- cSpell:ignore footgun Cheney -->
+<!-- cSpell:ignore Cheney claude -->
 
 This document has been created to capture decisions that have been made during development on this SDK which felt like worth recording for future reference.
 It's designed to be quick and friction-less to populate, a friction log inspired micro decisions list, often expected to be imperfect but with the ethos of "something is better than nothing" in terms of what we capture.
@@ -135,18 +135,6 @@ Dependabot security updates stay enabled via repo settings so advisories still r
 During early development on this codebase it's going to be actively iterated upon by a single developer and so is not likely to be left idle for long periods of time with no activity.
 This means that the benefits of regular (weekly) dependabot PRs are less obvious, and perhaps might even turn into a distraction or nuisance to that singular development flow.
 
-## No root `.gitignore`
-
-**What**:  
-The repository carries no root `.gitignore`.
-An exception is [`tools/node/.gitignore`](tools/node/.gitignore), scoped to the npm tooling folder so we ignore the `node_modules` folder that `npm ci` materializes there.
-
-**Why**:  
-An empty-of-purpose ignore file is configuration without a need - the same reasoning that keeps `.editorconfig` out - so a `.gitignore` earns its place only in the change that first produces an artifact worth ignoring, scoped to where that artifact appears, and not before.
-The Go build still emits no artifacts, coverage output or environment files, so the tree needs no root ignore file.
-The spell-check tooling is the first thing to produce an ignore-worthy artifact - `npm ci` populating `node_modules/` - so an ignore file earns its place there and then, scoped to `tools/node/` rather than a catch-all at the root.
-`go.work.sum` remains neither committed nor ignored, so its first appearance once an external dependency lands still shows up in `git status` for a considered call then.
-
 ## Public API doc comments use the Go doc-comment syntax (links, lists, prose)
 
 **What**:  
@@ -271,3 +259,13 @@ Its vocabulary is also semantically empty pre-release: a `BREAKING CHANGE` marke
 Adopting the grammar now would also quietly pre-commit the release-tooling decision, which is deliberately open: progressive changelog updates curated as part of each PR remain on the table alongside commit-parsing tools like release-please, and the curated-changelog path needs no commit grammar at all.
 Waiting forecloses nothing, because commit-parsing tools read history forward from a configurable starting point (the last release tag, or a bootstrap SHA), so the convention can be adopted at the moment it gains a consumer without the pre-adoption history ever needing to conform.
 And if the house squash style is adopted at the same time, the convention collapses to well-formed PR titles alone - cheap to start paying then, pointless to pay now.
+
+## Agent guidance lives in `.agents/skills`, and a root `.gitignore` keeps other agent surfaces out
+
+**What**:  
+Direct AI guidance, where that guidance is designed primarily for consumption by agents, is contained within [`.agents/skills/`](.agents/skills/), whose [README](.agents/skills/README.md) states the full approach (progressive disclosure, routing, etc..).
+A root [`.gitignore`](.gitignore) aims to keep other agent entry points out, for cleanliness (for example, `.claude/` and `.cursor/`).
+
+**Why**:  
+How we equip AI coding agents is a concern about how this repository is worked on, not a decision about the SDK's code, so this decision record carries only the signpost and the reason the tree excludes what it does.
+The agent surface is deliberately singular: a second entry point, branded or neutral, would only duplicate the metadata the skill mechanism already loads at session start or drift from it over time (maintainability concern).
