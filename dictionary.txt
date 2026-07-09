@@ -9,7 +9,9 @@ exhaustruct
 Firestore
 footgun
 GOBIN
+GOENV
 GOEXPERIMENT
+GOTOOLCHAIN
 gofmt
 gofumpt
 goimports
