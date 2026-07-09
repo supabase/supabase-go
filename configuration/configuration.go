@@ -124,9 +124,8 @@ type HTTPClient interface {
 }
 
 // HTTPClient returns the [HTTPClient] configured for this project. Its transport
-// injects the API key header, a default Bearer Authorization header and any
-// configured global headers. The result is safe for concurrent use by multiple
-// goroutines.
+// injects the API key header and any configured global headers. The result is
+// safe for concurrent use by multiple goroutines.
 func (c *Configuration) HTTPClient() HTTPClient {
 	return c.httpClient
 }

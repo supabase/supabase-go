@@ -1,6 +1,6 @@
 # Development Decisions for `supabase-go`
 
-<!-- cSpell:ignore Cheney claude -->
+<!-- cSpell:ignore Cheney claude PGRST -->
 
 This document has been created to capture decisions that have been made during development on this SDK which felt like worth recording for future reference.
 It's designed to be quick and friction-less to populate, a friction log inspired micro decisions list, often expected to be imperfect but with the ethos of "something is better than nothing" in terms of what we capture.
@@ -171,7 +171,7 @@ Our handles own no background work, so a context parameter would import that foo
 ## One HTTP customization seam, and a sealed HTTPClient across modules
 
 **What**:  
-The only way a caller customizes outbound HTTP is `WithHTTPClient`: they supply an `*http.Client` whose `Transport` is any `http.RoundTripper` chain they want, and `configuration` wraps its own auth `RoundTripper` (apikey and Authorization injection) in front of it.
+The only way a caller customizes outbound HTTP is `WithHTTPClient`: they supply an `*http.Client` whose `Transport` is any `http.RoundTripper` chain they want, and `configuration` wraps its own auth `RoundTripper` (`apikey` injection) in front of it.
 There is deliberately no `WithRoundTripper` or middleware option.
 Internally, `configuration` hands each domain module a one-method `HTTPClient` interface (`Do(*http.Request) (*http.Response, error)`), never the concrete `*http.Client`.
 
@@ -225,6 +225,37 @@ A caller may pass any of the project's keys - a publishable key, a secret key or
 Go can run on both sides of the trust boundary.
 A backend may deliberately choose a publishable key to stay inside Row Level Security as a least-privilege posture rather than reach for the RLS-bypassing secret key ([Understanding API keys](https://supabase.com/docs/guides/getting-started/api-keys)), and a Go program compiled to WebAssembly is as public as any browser app, where only a publishable key is safe.
 Not inspecting the key also keeps the SDK forward-compatible as key formats evolve.
+
+## The transport injects only the `apikey` header, never `Authorization`
+
+**What**:  
+HTTP requests have the `apikey` header but do not set `Authorization`.
+
+An `Authorization: Bearer <jwt>` header is populated only by the application - per request or by an optional auth integration - when it acts for a signed-in end user.
+It is never copied or otherwise derived from the project key.
+A caller-supplied `Authorization` header should pass through untouched.
+
+**Why**:  
+Supabase's guidance is explicit - "Send publishable and secret keys on the `apikey` header only" ([Migrating to new API keys](https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys)) - the platform rejects the key on `Authorization: Bearer` unless its value exactly equals the `apikey` header ([Understanding API keys](https://supabase.com/docs/guides/getting-started/api-keys), known limitations).
+Mirroring the key onto both headers, as other SDKs do by default, is therefore correct only by landing inside that narrow exception - a coincidence, not a design.
+`apikey` alone produces the intended Postgres role with no precedence logic to reconcile (publishable is `anon`, publishable plus an end-user JWT on `Authorization` is `authenticated`, secret is `service_role`), and reserving `Authorization` for the end-user token draws the "what is calling" against "who is signed in" boundary cleanly at the transport, so a later per-request user token simply takes effect.
+
+This has been proven by probing against a live project, where the model held exactly: `apikey` alone drew ordinary PostgREST responses, the key on `Authorization` alone was reported as no API key at all and a non-JWT bearer beside a valid `apikey` was forwarded and rejected by PostgREST (`PGRST301`).
+The untested legacy-JWT path is a separately recorded accepted risk (see ["Legacy keys are not verified against the `apikey`-only transport, an accepted risk"](#legacy-keys-are-not-verified-against-the-apikey-only-transport-an-accepted-risk)).
+
+## Legacy keys are not verified against the `apikey`-only transport, an accepted risk
+
+**What**:  
+This SDK is not tested against a legacy `anon` or `service_role` key.
+The `apikey`-only transport (see ["The transport injects only the `apikey` header, never `Authorization`"](#the-transport-injects-only-the-apikey-header-never-authorization)) is validated only against the contemporary `sb_publishable_...` and `sb_secret_...` keys.
+Whether a legacy `anon` JWT sent on the `apikey` header alone, with no `Authorization`, resolves to the `anon` role is left unverified and not promised.
+
+**Why**:  
+The reward is focus and speed: contemporary keys are current best practice and the only keys new projects receive [since 1 November 2025](https://supabase.com/changelog/29260-upcoming-changes-to-supabase-api-keys), so building and testing solely against them concentrates effort where it matters for every new consumer.
+
+The cost is a bounded uncertainty rather than a known defect: the legacy path may well work, since a legacy key's role claim rode the `Authorization` header and PostgREST ["switches into the anonymous role"](https://docs.postgrest.org/en/stable/references/auth.html) when a request carries no JWT, but "may well work" is not the definitive clarity our tested paths carry and we state the gap openly rather than spend effort closing it.
+The exposure also shrinks on its own, because the same timeline deletes legacy keys at the end of 2026.
+Nothing is foreclosed: if a consumer need surfaces first, adding a legacy-key probe and verifying the path is a small, additive task.
 
 ## `SECURITY.md` and `CONTRIBUTING.md` are org-delegated, not repo-local
 
