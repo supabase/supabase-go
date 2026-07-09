@@ -15,9 +15,9 @@ func TestNewValidation(t *testing.T) {
 		wantError error
 	}{
 		{name: "missing url", url: "", key: "k", wantError: configuration.ErrMissingURL},
-		{name: "missing key", url: "https://project.supabase.co", key: "", wantError: configuration.ErrMissingKey},
+		{name: "missing key", url: "https://PROJECT_ID.supabase.co", key: "", wantError: configuration.ErrMissingKey},
 		{name: "relative url", url: "/no/scheme", key: "k", wantError: configuration.ErrInvalidURL},
-		{name: "non-http scheme", url: "ftp://project.supabase.co", key: "k", wantError: configuration.ErrInvalidURL},
+		{name: "non-http scheme", url: "ftp://PROJECT_ID.supabase.co", key: "k", wantError: configuration.ErrInvalidURL},
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -30,20 +30,20 @@ func TestNewValidation(t *testing.T) {
 }
 
 func TestNewValid(t *testing.T) {
-	projectConfiguration, err := configuration.New("https://project.supabase.co", "anon-key")
+	projectConfiguration, err := configuration.New("https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
 		t.Fatalf("configuration.New returned error: %v", err)
 	}
 	if projectConfiguration.HTTPClient() == nil {
 		t.Fatal("HTTPClient() returned nil")
 	}
-	if got, want := projectConfiguration.BaseURL().String(), "https://project.supabase.co"; got != want {
+	if got, want := projectConfiguration.BaseURL().String(), "https://PROJECT_ID.supabase.co"; got != want {
 		t.Fatalf("BaseURL() = %q, want %q", got, want)
 	}
 }
 
 func TestConfiguration_BaseURLReturnsCopy(t *testing.T) {
-	projectConfiguration, err := configuration.New("https://project.supabase.co", "anon-key")
+	projectConfiguration, err := configuration.New("https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}

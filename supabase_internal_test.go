@@ -3,7 +3,7 @@ package supabase
 import "testing"
 
 func TestNewClientWiresHandles(t *testing.T) {
-	client, err := NewClient("https://project.supabase.co", "anon-key")
+	client, err := NewClient("https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}

@@ -31,7 +31,7 @@ func TestTransportInjectsHeaders(t *testing.T) {
 
 func TestWithHTTPClientDoesNotMutateInput(t *testing.T) {
 	custom := &http.Client{}
-	projectConfiguration, err := configuration.New("https://project.supabase.co", "k", configuration.WithHTTPClient(custom))
+	projectConfiguration, err := configuration.New("https://PROJECT_ID.supabase.co", "k", configuration.WithHTTPClient(custom))
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}

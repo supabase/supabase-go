@@ -11,7 +11,7 @@ import (
 )
 
 func ExampleNewClient() {
-	client, err := supabase.NewClient("https://project.supabase.co", "anon-key")
+	client, err := supabase.NewClient("https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -25,8 +25,8 @@ func ExampleNewClient() {
 // global headers sent on every request.
 func ExampleNewClient_options() {
 	client, err := supabase.NewClient(
-		"https://project.supabase.co",
-		"anon-key",
+		"https://PROJECT_ID.supabase.co",
+		"API_KEY",
 		configuration.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
 		configuration.WithHeader("X-Client-Info", "supabase-go/0.1"),
 	)
@@ -42,7 +42,7 @@ func ExampleNewClient_options() {
 // package's sentinel errors unchanged, so a caller can match them with
 // errors.Is.
 func ExampleNewClient_invalidInput() {
-	_, err := supabase.NewClient("https://project.supabase.co", "")
+	_, err := supabase.NewClient("https://PROJECT_ID.supabase.co", "")
 	fmt.Println(errors.Is(err, configuration.ErrMissingKey))
 	// Output: true
 }

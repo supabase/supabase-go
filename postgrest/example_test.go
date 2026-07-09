@@ -8,7 +8,7 @@ import (
 )
 
 func ExampleNew() {
-	projectConfiguration, err := configuration.New("https://project.supabase.co", "anon-key")
+	projectConfiguration, err := configuration.New("https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
 		fmt.Println(err)
 		return

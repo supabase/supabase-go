@@ -215,6 +215,17 @@ The agnostic-code claim is asserted cheaply, by the module boundary: `postgrest`
 A supported general-purpose promise would cost far more - a bare PostgREST server stood up in CI, a way to build `postgrest` without the base URL and apikey it is handed today, and testing across PostgREST versions - none of which is planned for the first releases.
 Keeping the promise narrow now forecloses nothing: promotion to a supported general-purpose client is additive (add the harness and a Supabase-free constructor) and breaks no existing Supabase user, mirroring how the JS SDK ships a standalone `@supabase/postgrest-js`.
 
+## The client presumes neither a deployment runtime context nor an API/Supabase key type
+
+**What**:  
+The key parameter to `NewClient` (and `configuration.New`) is named neutrally as `apiKey`, never `publishableKey` or `secretKey`, and the SDK neither inspects the key nor assumes where the calling code runs.
+A caller may pass any of the project's keys - a publishable key, a secret key or, while they last, a legacy `anon`/`service_role` key - and the SDK carries it as an opaque credential.
+
+**Why**:  
+Go can run on both sides of the trust boundary.
+A backend may deliberately choose a publishable key to stay inside Row Level Security as a least-privilege posture rather than reach for the RLS-bypassing secret key ([Understanding API keys](https://supabase.com/docs/guides/getting-started/api-keys)), and a Go program compiled to WebAssembly is as public as any browser app, where only a publishable key is safe.
+Not inspecting the key also keeps the SDK forward-compatible as key formats evolve.
+
 ## `SECURITY.md` and `CONTRIBUTING.md` are org-delegated, not repo-local
 
 **What**:  
