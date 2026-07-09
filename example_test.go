@@ -12,11 +12,7 @@ import (
 
 func ExampleNewClient() {
 	supabase, err := supabase.NewClient("https://PROJECT_ID.supabase.co", "API_KEY")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println(supabase != nil)
+	fmt.Println(supabase != nil && err == nil)
 	// Output: true
 }
 
@@ -30,11 +26,7 @@ func ExampleNewClient_options() {
 		configuration.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
 		configuration.WithHeader("X-Client-Info", "supabase-go/0.1"),
 	)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println(supabase != nil)
+	fmt.Println(supabase != nil && err == nil)
 	// Output: true
 }
 
