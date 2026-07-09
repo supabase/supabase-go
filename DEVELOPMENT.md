@@ -1,5 +1,7 @@
 # Developing the Supabase Go SDK
 
+<!-- cSpell:ignore darwin -->
+
 This file holds the Go/SDK-specific guidance for working in this repository.
 General, organization-wide contribution policy lives in our [shared `.github` repository](https://github.com/supabase/.github)'s CONTRIBUTING.md file.
 
@@ -125,6 +127,21 @@ A Go test file in a package directory can declare one of two packages, and both 
 A note on terminology: the industry terms for these are "black-box" and "white-box" testing, and we mention them so the mapping is clear, but we prefer the precise, Go-native framing - *external test package* versus *in-package test* - which also sidesteps the loaded black/white metaphor. (Where a single word helps, the neutral synonyms *closed-box* and *clear-box* are also in common use.)
 
 ## Local development environment troubleshooting and tips
+
+### Upgrading Go from the terminal (CLI) on macOS
+
+Periodically required, often preferable in terms or predictability and control over downloading via browser and then running the installer interactively.
+For example, upgrading from version `1.26.4` to version `1.26.5` (in this case for an M5 MacBook Pro, thus Apple silicone).
+
+```bash
+curl -fsSLO https://go.dev/dl/go1.26.5.darwin-arm64.pkg
+shasum -a 256 go1.26.5.darwin-arm64.pkg
+# expect 4d9b592653239738896b302582f7c364265b6baa6e142c04731f15643b089c50 (published at https://go.dev/dl/)
+# installer(8) requires -target (it is not defaulted); / selects the booted volume
+sudo installer -pkg go1.26.5.darwin-arm64.pkg -target /
+go version             # expect go1.26.5 darwin/arm64
+./scripts/check-all.sh
+```
 
 ### When the vulnerability scan fails on the Go standard library
 

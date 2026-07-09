@@ -18,3 +18,7 @@ CLAUDE.md
 # is "miscellaneous" at best, so unlikely to add focussed value.
 # see .agents/skills/README.md
 AGENTS.md
+
+# Most likely a Go distribution (for example, `go1.26.5.darwin-arm64.pkg`), downloaded by the
+# local developer in order to upgrade their environment.
+*.pkg
