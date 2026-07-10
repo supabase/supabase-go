@@ -7,7 +7,7 @@ import (
 )
 
 func TestNewWiresConfiguration(t *testing.T) {
-	projectConfiguration, err := configuration.New("https://project.supabase.co", "anon-key")
+	projectConfiguration, err := configuration.New("https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}
@@ -16,7 +16,7 @@ func TestNewWiresConfiguration(t *testing.T) {
 	if client.httpClient == nil {
 		t.Error("httpClient was not wired")
 	}
-	if got, want := client.baseURL.String(), "https://project.supabase.co/rest/v1"; got != want {
+	if got, want := client.baseURL.String(), "https://PROJECT_ID.supabase.co/rest/v1"; got != want {
 		t.Errorf("baseURL = %q, want %q", got, want)
 	}
 }

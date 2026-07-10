@@ -7,6 +7,8 @@ set -euo pipefail
 
 modules=(. configuration postgrest)
 
+echo "Build and Test..."
+
 for module in "${modules[@]}"; do
   echo "==> ${module}"
   (
@@ -16,4 +18,4 @@ for module in "${modules[@]}"; do
   )
 done
 
-echo "All modules built and tested."
+echo "✅ Build and Test Passed."

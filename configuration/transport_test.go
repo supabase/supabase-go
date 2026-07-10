@@ -21,8 +21,8 @@ func TestTransportInjectsHeaders(t *testing.T) {
 	if received.Get("apikey") != "test-key" {
 		t.Errorf("apikey = %q, want %q", received.Get("apikey"), "test-key")
 	}
-	if received.Get("Authorization") != "Bearer test-key" {
-		t.Errorf("Authorization = %q, want %q", received.Get("Authorization"), "Bearer test-key")
+	if received.Get("Authorization") != "" {
+		t.Errorf("Authorization = %q, want it absent because the transport never sets it", received.Get("Authorization"))
 	}
 	if received.Get("X-Client-Info") != "supabase-go/test" {
 		t.Errorf("X-Client-Info = %q, want %q", received.Get("X-Client-Info"), "supabase-go/test")
@@ -31,7 +31,7 @@ func TestTransportInjectsHeaders(t *testing.T) {
 
 func TestWithHTTPClientDoesNotMutateInput(t *testing.T) {
 	custom := &http.Client{}
-	projectConfiguration, err := configuration.New("https://project.supabase.co", "k", configuration.WithHTTPClient(custom))
+	projectConfiguration, err := configuration.New("https://PROJECT_ID.supabase.co", "k", configuration.WithHTTPClient(custom))
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestTransportHeaderPrecedence(t *testing.T) {
 		request.Header.Set("apikey", "attacker-key")
 	})
 
-	// A per-request end-user token must survive, which is what makes RLS work later.
+	// A per-request end-user token passes through untouched, which is what makes RLS work.
 	if received.Get("Authorization") != "Bearer user-token" {
 		t.Errorf("Authorization = %q, want the per-request token preserved", received.Get("Authorization"))
 	}

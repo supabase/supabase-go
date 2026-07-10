@@ -11,9 +11,9 @@ type transport struct {
 	headers http.Header
 }
 
-// wrapClient returns a copy of client whose transport injects the apikey, a
-// default Authorization header and the supplied global headers. The input client
-// is never mutated, so sharing http.DefaultClient remains safe.
+// wrapClient returns a copy of client whose transport injects the project API key
+// header and the supplied global headers. The input client is never mutated, so
+// sharing http.DefaultClient remains safe.
 func wrapClient(client *http.Client, apiKey string, headers http.Header) *http.Client {
 	if client == nil {
 		client = http.DefaultClient
@@ -32,12 +32,12 @@ func wrapClient(client *http.Client, apiKey string, headers http.Header) *http.C
 	return &clone
 }
 
-// RoundTrip injects authentication and global headers, then delegates to the
-// wrapped transport. Precedence: existing request headers win over global
-// defaults; the apikey header is always the project key; Authorization defaults
-// to the API key only when the caller has not already set it, so a per-request
-// end-user token (added in a later block) takes precedence for row-level
-// security.
+// RoundTrip injects the project API key header and any global headers, then
+// delegates to the wrapped transport. Precedence: existing request headers win
+// over global defaults, and the API key header is always the project key. The
+// transport never sets Authorization - that header carries an end-user's JWT,
+// supplied by the application when acting for a signed-in user, so per Supabase
+// platform guidance the project key travels on the apikey header alone.
 func (tr *transport) RoundTrip(request *http.Request) (*http.Response, error) {
 	clone := request.Clone(request.Context())
 
@@ -51,9 +51,6 @@ func (tr *transport) RoundTrip(request *http.Request) (*http.Response, error) {
 	}
 
 	clone.Header.Set("apikey", tr.apiKey)
-	if clone.Header.Get("Authorization") == "" {
-		clone.Header.Set("Authorization", "Bearer "+tr.apiKey)
-	}
 
 	return tr.base.RoundTrip(clone)
 }

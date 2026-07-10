@@ -6,6 +6,8 @@
 # not reinstall each time.
 set -euo pipefail
 
+echo "Spell Check..."
+
 if [ ! -d tools/node/node_modules ]; then
   echo "tools/node dependencies are not installed. Run this once, then retry:" >&2
   echo "  npm ci --prefix tools/node" >&2
@@ -17,3 +19,5 @@ fi
 # root and passes the globs there, because cspell resolves CLI globs against the
 # current directory. This wrapper only enters tools/node so npm finds the package.
 ( cd tools/node && npm run spell-check )
+
+echo "✅ Spell Check Passed."

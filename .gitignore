@@ -22,3 +22,7 @@ AGENTS.md
 # Most likely a Go distribution (for example, `go1.26.5.darwin-arm64.pkg`), downloaded by the
 # local developer in order to upgrade their environment.
 *.pkg
+
+# Folders within this repository that support the local developer who wishes to locate
+# their own scripts, experiments and other transitory artifacts close to this codebase.
+user.transient/
