@@ -11,12 +11,8 @@ import (
 )
 
 func ExampleNewClient() {
-	client, err := supabase.NewClient("https://PROJECT_ID.supabase.co", "API_KEY")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println(client != nil)
+	supabase, err := supabase.NewClient("https://PROJECT_ID.supabase.co", "API_KEY")
+	fmt.Println(supabase != nil && err == nil)
 	// Output: true
 }
 
@@ -24,17 +20,13 @@ func ExampleNewClient() {
 // options from the configuration package: a caller-supplied HTTP client and
 // global headers sent on every request.
 func ExampleNewClient_options() {
-	client, err := supabase.NewClient(
+	supabase, err := supabase.NewClient(
 		"https://PROJECT_ID.supabase.co",
 		"API_KEY",
 		configuration.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
 		configuration.WithHeader("X-Client-Info", "supabase-go/0.1"),
 	)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println(client != nil)
+	fmt.Println(supabase != nil && err == nil)
 	// Output: true
 }
 
