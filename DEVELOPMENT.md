@@ -1,5 +1,7 @@
 # Developing the Supabase Go SDK
 
+<!-- cSpell:ignore darwin -->
+
 This file holds the Go/SDK-specific guidance for working in this repository.
 General, organization-wide contribution policy lives in our [shared `.github` repository](https://github.com/supabase/.github)'s CONTRIBUTING.md file.
 
@@ -53,7 +55,7 @@ To run the whole suite before pushing - build and test plus lint, vulnerabilitie
 
 ### Previewing the rendered docs
 
-`pkg.go.dev` is where consumers read our doc comments and runnable examples. To preview that rendering for your local working tree, run [`pkgsite`](https://pkg.go.dev/golang.org/x/pkgsite/cmd/pkgsite). It reads the [`go.work` workspace file](./go.work), so one run from the repository root serves all three modules on a local HTTP server (it prints the address, by default http://localhost:8080).
+`pkg.go.dev` is where consumers read our doc comments and runnable examples. To preview that rendering for your local working tree, run [`pkgsite`](https://pkg.go.dev/golang.org/x/pkgsite/cmd/pkgsite). It reads the [`go.work` workspace file](go.work), so one run from the repository root serves all three modules on a local HTTP server (it prints the address, by default http://localhost:8080).
 
 First you'll need to install it for your user-local environment if you've not done that before:
 
@@ -123,3 +125,34 @@ A Go test file in a package directory can declare one of two packages, and both 
 **Our default is the external test package (`foo_test`).** Testing through the public API tests what consumers actually use, keeps tests decoupled from internal details so refactoring internals does not spuriously break tests, and applies healthy pressure to keep the exported surface usable. Reach for an in-package test (`foo`) only when you genuinely need to exercise internals that are not observable through the public API, and prefer to keep such tests few and clearly named (for example `something_internal_test.go`).
 
 A note on terminology: the industry terms for these are "black-box" and "white-box" testing, and we mention them so the mapping is clear, but we prefer the precise, Go-native framing - *external test package* versus *in-package test* - which also sidesteps the loaded black/white metaphor. (Where a single word helps, the neutral synonyms *closed-box* and *clear-box* are also in common use.)
+
+## Local development environment troubleshooting and tips
+
+### Upgrading Go from the terminal (CLI) on macOS
+
+Periodically required, often preferable in terms or predictability and control over downloading via browser and then running the installer interactively.
+For example, upgrading from version `1.26.4` to version `1.26.5` (in this case for an M5 MacBook Pro, thus Apple silicone).
+
+```bash
+curl -fsSLO https://go.dev/dl/go1.26.5.darwin-arm64.pkg
+shasum -a 256 go1.26.5.darwin-arm64.pkg
+# expect 4d9b592653239738896b302582f7c364265b6baa6e142c04731f15643b089c50 (published at https://go.dev/dl/)
+# installer(8) requires -target (it is not defaulted); / selects the booted volume
+sudo installer -pkg go1.26.5.darwin-arm64.pkg -target /
+go version             # expect go1.26.5 darwin/arm64
+./scripts/check-all.sh
+```
+
+### When the vulnerability scan fails on the Go standard library
+
+`govulncheck` checks both the dependencies in our `go.mod` files and the standard library of whichever Go toolchain runs the scan. The `Found in:` line of a finding tells you which case you have. A module path such as `golang.org/x/crypto@v0.32.0` is a dependency, fixed in the affected module's `go.mod`. `Standard library` with a version like `crypto/tls@go1.26.4` means the flaw is in the machine's Go toolchain, which no repository file declares or can fix, and which never reaches consumers - the SDK ships as source, so their binaries carry their own toolchain's standard library. A concrete example of hitting this was [GO-2026-5856](https://pkg.go.dev/vuln/GO-2026-5856) ([CVE-2026-42505](https://www.cve.org/CVERecord?id=CVE-2026-42505)), where scans running with go1.26.4 failed until the machine's toolchain moved to go1.26.5 with no repository change needed.
+
+Nothing here pins a build toolchain (we have directives that set a consumer floor, in respect of what we publish to users - see [`decisions.md`](decisions.md)) and Go only [switches toolchains](https://go.dev/doc/toolchain) when a version is named explicitly, so the remedy is to name one, choosing how long it should stick:
+
+- **One run:** prefix the command, for example `GOTOOLCHAIN=go1.26.5 ./scripts/vulncheck.sh`. The toolchain is downloaded (checksum-verified) and used for that invocation only, with nothing persisted. Good for confirming a diagnosis, and later plain runs remain on the installed Go.
+- **Machine-wide until removed:** `go env -w "GOTOOLCHAIN=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -n 1)+auto"` resolves the newest release and writes it to your user-level Go environment file (located by `go env GOENV`), governing every go command you run anywhere. Remove it with `go env -u GOTOOLCHAIN` once you have done the actual upgrade below, as the setting outlives Go installations and would keep forcing the older version.
+- **The actual upgrade:** install a Go at or beyond the `Fixed in:` version via your original install channel. For the official distribution that means running the newest installer from [go.dev/dl](https://go.dev/dl/), which replaces `/usr/local/go` (Go has no self-update command).
+
+**CI needs no action**: the `vulnerabilities-check` job resolves `go-version: stable` against GitHub's [go-versions manifest](https://github.com/actions/go-versions/blob/main/versions-manifest.json) on every run, so it picks up a fixed release as soon as the manifest lists it, typically within a day or two.
+
+Do not commit a `toolchain` line to `go.work` or a `go.mod` in response: under the default `GOTOOLCHAIN=auto` it would hoist the CI matrix's consumer version floor leg onto the newer toolchain, ending the proof that the published floor still builds, and it would be a convention change requiring a [`decisions.md`](decisions.md) entry.

@@ -10,11 +10,11 @@ The official Supabase SDK for Go. This is a multi-module monorepo, currently in 
 | `github.com/supabase/supabase-go` module | Purpose |
 | ------ | ------- |
 | [Root](./) | Convenience root client composing the domains |
-| [`configuration`](./configuration/) | Shared configuration, functional options and the HTTP pipeline |
-| [`postgrest`](./postgrest/) | Database (PostgREST) client |
+| [`configuration`](configuration/) | Shared configuration, functional options and the HTTP pipeline |
+| [`postgrest`](postgrest/) | Database (PostgREST) client |
 
 ## Contributing and development
 
-This SDK is in pre-release and is not yet accepting external code contributions (see [`DEVELOPMENT.md`](./DEVELOPMENT.md)).
+This SDK is in pre-release and is not yet accepting external code contributions (see [`DEVELOPMENT.md`](DEVELOPMENT.md)).
 
 Also see [`standard.md`](standard.md) for our definition of "what good looks like" for a Go SDK.
