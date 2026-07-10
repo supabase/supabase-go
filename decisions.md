@@ -311,3 +311,18 @@ A root [`.gitignore`](.gitignore) aims to keep other agent entry points out, for
 **Why**:  
 How we equip AI coding agents is a concern about how this repository is worked on, not a decision about the SDK's code, so this decision record carries only the signpost and the reason the tree excludes what it does.
 The agent surface is deliberately singular: a second entry point, branded or neutral, would only duplicate the metadata the skill mechanism already loads at session start or drift from it over time (maintainability concern).
+
+## `sdk-compliance.yaml` is sparse, and has no CI gate yet
+
+**What**:  
+[`sdk-compliance.yaml`](sdk-compliance.yaml) declares only the canonical [`supabase/sdk`](https://github.com/supabase/sdk) capability ids this SDK actually implements, omitting those that would end up being listed as `not_implemented`.
+Unlike other SDK repositories, there is no `validate-capabilities.yml` in [`.github/workflows/`](.github/workflows/) calling a reusable compliance workflow.
+
+**Why**:  
+The canonical tooling in `supabase/sdk` treats a missing id as `not_implemented` everywhere it matters (parity scoring, site generation, the CLI's own informational-only "not declared" listing), and its README says the file is sparse by design.
+A full declaration would be over 200 lines of mostly ceremony, and would rot the way an explicit default always does: as `supabase/sdk` adds, renames or retires ids over the time it takes to build this SDK, an untouched `not_implemented` line for a since-renamed id becomes an "unknown feature id" CI failure that has nothing to do with any change we made.
+A sparse file only ever names ids we've verified against the live matrix at the moment we implement them, so it can't go stale that way.
+
+No CI gate exists yet because `supabase/sdk` only hosts reusable compliance workflows for Swift, JavaScript, Python and Dart, each paired with a language-specific public-symbol extractor (the JS side uses TypeDoc, Dart has its own small `package:analyzer` tool).
+No such workflow or extractor exists for Go, so there is nothing to call into from this repo's CI today.
+When this gets added is TBC, especially given that this SDK repository is not yet open for public visibility.

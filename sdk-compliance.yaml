@@ -1,0 +1,17 @@
+# Compliance with the canonical Supabase SDK capability matrix.
+# Spec: https://github.com/supabase/sdk
+#
+# Sparse by design, per the spec's own convention: unlisted ids default to not_implemented.
+# Only list an id here once this SDK actually implements it.
+
+sdk: go
+
+features:
+  client.request_configuration.custom_http_client:
+    status: implemented
+    symbols:
+      - configuration.WithHTTPClient
+  client.request_configuration.global_headers:
+    status: implemented
+    symbols:
+      - configuration.WithHeader
