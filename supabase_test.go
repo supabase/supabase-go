@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	supabase "github.com/supabase/supabase-go"
-	configuration "github.com/supabase/supabase-go/configuration"
+	"github.com/supabase/supabase-go"
+	"github.com/supabase/supabase-go/configuration"
 )
 
 func TestNewClientValidationPropagates(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	configuration "github.com/supabase/supabase-go/configuration"
+	"github.com/supabase/supabase-go/configuration"
 )
 
 func TestTransportInjectsHeaders(t *testing.T) {
