@@ -326,3 +326,14 @@ A sparse file only ever names ids we've verified against the live matrix at the 
 No CI gate exists yet because `supabase/sdk` only hosts reusable compliance workflows for Swift, JavaScript, Python and Dart, each paired with a language-specific public-symbol extractor (the JS side uses TypeDoc, Dart has its own small `package:analyzer` tool).
 No such workflow or extractor exists for Go, so there is nothing to call into from this repo's CI today.
 When this gets added is TBC, especially given that this SDK repository is not yet open for public visibility.
+
+## Compliance capability ids never appear in doc comments
+
+**What**:  
+[`sdk-compliance.yaml`](sdk-compliance.yaml)'s `symbols:` list is the only place a `supabase/sdk` capability id (for example `client.request_configuration.custom_http_client`) is tied to the Go symbol that implements it.
+Doc comments on the mapped symbol never restate the id.
+
+**Why**:  
+A capability id is internal `supabase/sdk` taxonomy: meaningless to someone reading the rendered comment on pkg.go.dev or via `go doc`, so putting it there is noise leaking into public documentation.
+`sdk-compliance.yaml` already names the symbol in its own `symbols:` list, so the mapping is fully discoverable from that one file already as the canonical source of truth.
+Also, a second copy in the doc comment is another place for it to go stale.

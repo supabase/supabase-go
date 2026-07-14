@@ -54,8 +54,6 @@ type Option func(*Configuration)
 // caller's client (including the shared [http.DefaultClient]) is left untouched.
 // Use this to control timeouts or proxies, or to inject an instrumented
 // transport such as otelhttp.NewTransport for tracing. A nil client is ignored.
-//
-// Implements client.request_configuration.custom_http_client.
 func WithHTTPClient(client *http.Client) Option {
 	return func(c *Configuration) {
 		if client != nil {
@@ -69,8 +67,6 @@ func WithHTTPClient(client *http.Client) Option {
 // earlier one. Per-request headers take precedence over these defaults. The
 // reserved apikey header is always set from the API key and cannot be overridden
 // here.
-//
-// Implements client.request_configuration.global_headers.
 func WithHeader(key, value string) Option {
 	return func(c *Configuration) {
 		c.headers.Set(key, value)
