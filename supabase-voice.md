@@ -1,6 +1,6 @@
 # Writing in the Supabase voice
 
-<!-- cSpell:ignore lede Zhang -->
+<!-- cSpell:ignore Zhang -->
 
 Write like a confident developer who respects the reader's time. Every sentence must earn its place.
 
@@ -68,14 +68,6 @@ These are fatal. Their presence means the text needs rewriting.
 - Trailing participle clauses: "making it easier than ever," "enabling developers to," "emphasizing the importance of"
 - False ranges: "from X to Y, from A to B"
 
-## Banned openers
-
-- "I've spent [number] years..."
-- "Everyone is talking about..."
-- "In today's [adjective] world/landscape/era..."
-- "Let me tell you a story..."
-- "What if I told you..."
-
 ## AI pattern detection
 
 Scan all output for these common AI writing tells and rewrite on sight:
@@ -97,7 +89,6 @@ Scan all output for these common AI writing tells and rewrite on sight:
 - **Product names capitalized:** Database, Auth, Storage, Edge Functions, Realtime, Vector
 - **Realtime** is the product name. Use "real-time" as an adjective ("real-time updates").
 - **Open source** as a noun. "Open-source" as an adjective.
-- **Plan names:** Free, Pro, Team, Enterprise
 
 ## Code formatting
 
@@ -113,46 +104,12 @@ Scan all output for these common AI writing tells and rewrite on sight:
 - Maximum 15 links per page
 - Do not link from headings
 
-## Tone calibration by content type
-
-### Documentation
+## Documentation tone
 
 - Start with what it does, then how to use it
 - Code examples for every concept, tested before publishing
 - Task completion over comprehension: "Set up authentication in three steps" beats "Understanding Supabase Auth architecture"
 - Include troubleshooting if common errors exist
-
-### Blog posts
-
-- Hook with a problem developers face
-- Show solution with code
-- Explain why it works (briefly)
-- End with a clear next action
-- Write in first person for insights ("I've noticed," "We found")
-- Conversational but authoritative
-
-### Product announcements
-
-- **Do not bury the lede.** First paragraph answers: What are you announcing? What is its name? What does it do? Who is it for?
-- Lead with the benefit, not the feature
-- One sentence summary at the top
-- Technical details in the middle
-- No hyperbole. Let the feature speak for itself
-- Clear call to action
-
-### Marketing pages
-
-- Headline states outcome: "Build faster" not "Fast development"
-- Three bullet points maximum per section
-- Code examples over feature lists
-- Social proof through specificity: "2.5 million databases" not "millions of developers"
-- Benefit-focused feature headings: "Never write an API again" not "Automatic API generation"
-
-### UI copy
-
-- Succinct and action-oriented page titles, sheet titles, and dialog titles
-- Same for button text
-- Use smart quotes, not straight quotes
 
 ## Self-check before publishing
 
@@ -176,6 +133,6 @@ Grammar serves clarity. If a rule makes writing less clear, break it.
 - Sentence fragments are fine if meaning is obvious
 - Starting with "and" or "but" is fine for emphasis
 - One-sentence paragraphs are fine for impact
-- Conversational asides are fine in blog posts, not in reference docs
+- No conversational asides in reference docs
 
 The goal is clarity and respect for developer time. Everything else is negotiable.
