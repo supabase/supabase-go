@@ -20,7 +20,7 @@ func ExampleNew() {
 	// Output: true
 }
 
-// ExampleClient_From demonstrates the a database read operation for
+// ExampleClient_From demonstrates a database read operation for
 // consumers who take only the Database module.
 func ExampleClient_From() {
 	type Instrument struct {

@@ -21,7 +21,7 @@ type QueryBuilder struct {
 }
 
 // FilterBuilder represents a fully-specified query awaiting execution.
-// A FilterBuilder it is an immutable value - every method that returns a builder
+// A FilterBuilder is an immutable value - every method that returns a builder
 // returns a new independent builder - so builders may be stored, forked into
 // divergent chains and used concurrently by multiple goroutines.
 type FilterBuilder struct {
