@@ -47,7 +47,7 @@ npm ci --prefix tools/node   # one-time setup (re-run only when the tools/node/p
 ./scripts/spell-check.sh     # cspell - Go and Markdown sources
 ```
 
-To run the whole fast tier before pushing - build and test plus lint, vulnerabilities and spelling - use the aggregate:
+To run the whole fast tier before pushing - build and unit test plus lint, vulnerabilities and spelling - use the aggregate:
 
 ```bash
 ./scripts/check-fast.sh
@@ -55,20 +55,18 @@ To run the whole fast tier before pushing - build and test plus lint, vulnerabil
 
 ### Integration tests
 
-The fast tier above needs only the repository's own toolchains (Go, plus Node for the spell check); treat it as the default gate before every push. The second tier exercises the SDK against a real local Supabase stack (Postgres + PostgREST) and has real prerequisites:
+The fast tier above needs only the repository's own toolchains (Go, plus Node for the spell check) so should be treated it as the default gate before every push. The second tier exercises the SDK against a local Supabase stack (Postgres + PostgREST), has prerequisites and takes longer to run. Prerequisites:
 
-- **Docker**, installed and running - the stack's services are containers.
-- **`curl`** - the script fetches the version-pinned Supabase CLI binary from its GitHub release on first run, verifies it against a committed SHA-256 and installs it into Go's own bin directory (`$(go env GOPATH)/bin`). No Node is needed for this tier.
-- **Network and disk on first run** - the CLI download and the stack's container images are fetched once and cached.
-- **Free default ports** - the stack binds the API on 54321 and Postgres on 54322 (pinned in `integration/supabase/config.toml`).
+- **Docker**: Installed and running - the stack's services are containers.
+- **`curl`**: The script fetches the version-pinned Supabase CLI binary from its GitHub release on first run, verifies it against a committed SHA-256 and installs it into Go's own bin directory (`$(go env GOPATH)/bin`).
+- **Network and disk on first run**: The CLI download and the stack's container images are fetched once and cached.
+- **Free default ports**: The stack binds the API on `54321` and Postgres on `54322`.
 
 ```bash
 ./scripts/integration-test.sh
 ```
 
-The script starts the stack against a disposable copy of `integration/` (the CLI writes scratch state into its project directory, and the copy keeps the committed tree pristine - a read-only checkout works too), seeds it, runs the `integration`-tagged tests under `-race` and always stops the stack on exit, including on failure. A plain `go test ./...` never runs these tests - they are build-tagged and environment-gated - so the fast tier stays Docker-free by construction.
-
-Run the integration tier before opening or updating a pull request whenever a change touches the HTTP path (anything under `postgrest/`, request serialization, error mapping) or the harness itself. Skipping it locally costs a CI round-trip, not correctness: CI runs both tiers on every push and pull request.
+The script starts the stack against a disposable copy of `integration/`, seeds it, runs the `integration`-tagged tests under `-race` and always stops the stack on exit, including on failure. A plain `go test ./...` never runs these tests - they are build-tagged and environment-gated - so the fast tier stays Docker-free by construction.
 
 ### Previewing the rendered docs
 

@@ -17,9 +17,9 @@ type parameter struct {
 }
 
 // Request describes a single PostgREST HTTP request. The zero value is not
-// useful; construct one with New. A Request is immutable: With* methods
-// return a new independent value and the receiver is never changed, so
-// Requests may be freely copied, forked and shared between goroutines.
+// useful so you must construct instances with New. A Request is immutable:
+// With* methods return a new independent value and the receiver is never
+// changed, so Requests may be freely copied, forked and shared between goroutines.
 type Request struct {
 	method     string
 	path       string
@@ -27,21 +27,22 @@ type Request struct {
 }
 
 // New returns a Request for the given HTTP method and relation path (a table
-// or view name). The path is escaped during assembly, not here.
+// or view name). The path is not escaped here, so it must be escaped on query
+// assembly.
 func New(method, path string) Request {
 	return Request{method: method, path: path}
 }
 
-// Path returns the relation path the Request targets.
+// Path returns the relation path the Request targets. It is not escaped, so
+// it must be escaped on query assembly.
 func (r Request) Path() string {
 	return r.path
 }
 
-// WithParameter returns a new Request with the query-string pair appended;
-// the receiver is unchanged. Keys may repeat, and insertion order is
-// preserved: a query string is an ordered multimap, and PostgREST assigns
-// meaning to repeated keys (age=gte.18&age=lte.65 filters one column twice,
-// combined with AND).
+// WithParameter returns a new Request with the given query-string pair appended.
+// Keys may repeat, and insertion order is preserved: a query string is an ordered
+// multimap. This is important because PostgREST assigns meaning to repeated keys
+// (age=gte.18&age=lte.65 filters one column twice, combined with AND).
 func (r Request) WithParameter(key, value string) Request {
 	clone := r
 	clone.parameters = append(slices.Clone(r.parameters), parameter{key: key, value: value})
@@ -50,8 +51,8 @@ func (r Request) WithParameter(key, value string) Request {
 
 // HTTPRequest assembles the Request into an *http.Request against the given
 // base URL, carrying ctx. The base is not mutated. The Accept header is set
-// for JSON; authentication headers are injected later by the configured
-// transport, not here.
+// for JSON. Authentication headers are not injected here (they are injected later
+// by the configured transport).
 func (r Request) HTTPRequest(ctx context.Context, base *url.URL) (*http.Request, error) {
 	target := base.JoinPath(r.path)
 

@@ -41,9 +41,8 @@ func ExampleNewClient_invalidInput() {
 	// Output: true
 }
 
-// ExampleClient_From runs the SDK's first real query: a typed SELECT decoded
-// into caller-defined structs, fluent from the root client. It requires a
-// reachable Supabase project, so it is compiled but not run by go test.
+// ExampleClient_From runs a basic database query.
+// It requires a reachable Supabase project, so it is compiled but not run by go test.
 func ExampleClient_From() {
 	type Instrument struct {
 		ID   int    `json:"id"`

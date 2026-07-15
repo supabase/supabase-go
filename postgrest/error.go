@@ -6,23 +6,17 @@ import (
 )
 
 // postgrestError is a string-backed error type whose values can be declared as
-// compile-time constants, following the same immutable-sentinel pattern as the
-// configuration package: the compiler rejects any attempt to reassign them.
+// compile-time constants.
 type postgrestError string
 
 func (e postgrestError) Error() string { return "postgrest: " + string(e) }
 
 // ErrMissingTable is reported by [FilterBuilder.Execute] when the builder was
-// created with an empty table name. Match it with [errors.Is].
+// created with an empty table name.
 const ErrMissingTable = postgrestError("table name is required")
 
 // Error is the typed failure returned when PostgREST answers a query with a
-// non-2xx status. Match it with [errors.As]:
-//
-//	var postgrestError *postgrest.Error
-//	if errors.As(err, &postgrestError) {
-//		// branch on postgrestError.Code, not on message text
-//	}
+// non-2xx status.
 //
 // Field usefulness typically runs Hint (the database's suggested fix, when it
 // knows one), then Code (a stable PostgREST or Postgres code such as "42P01" -

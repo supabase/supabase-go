@@ -5,9 +5,7 @@ import (
 	"strings"
 )
 
-// Response carries the metadata of a successfully executed query. It is
-// returned by [FilterBuilder.Execute] alongside the rows decoded into the
-// caller's destination.
+// Response carries the metadata of a successfully executed query.
 type Response struct {
 	// HTTPStatus is the HTTP status code of the response, typically 200, or
 	// 206 (Partial Content) when PostgREST serves a page of a larger result.

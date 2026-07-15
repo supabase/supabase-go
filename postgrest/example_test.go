@@ -20,9 +20,8 @@ func ExampleNew() {
 	// Output: true
 }
 
-// ExampleClient_From demonstrates the same read path via the direct-import
-// door, for consumers who take only the Database module. It requires a
-// reachable Supabase project, so it is compiled but not run by go test.
+// ExampleClient_From demonstrates the a database read operation for
+// consumers who take only the Database module.
 func ExampleClient_From() {
 	type Instrument struct {
 		ID   int    `json:"id"`

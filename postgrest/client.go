@@ -28,10 +28,8 @@ func New(projectConfiguration *configuration.Configuration) *Client {
 	}
 }
 
-// From begins a query against the given table or view, returning an immutable
-// [QueryBuilder]. Chain a verb such as [QueryBuilder.Select] and terminate
-// with [FilterBuilder.Execute]. An empty table name is reported by Execute as
-// [ErrMissingTable].
+// From begins a query against the given table or view.
+// Chain a verb such as [QueryBuilder.Select] and terminate with [FilterBuilder.Execute].
 func (c *Client) From(table string) QueryBuilder {
 	return QueryBuilder{
 		client:  c,

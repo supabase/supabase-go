@@ -9,6 +9,5 @@
 //
 // Builders are immutable values: every step returns a new independent builder,
 // so partially-built queries may be stored, forked and shared across
-// goroutines. Failures reported by PostgREST are returned as [*Error]; match
-// them with [errors.As] and branch on [Error.Code].
+// goroutines.
 package postgrest

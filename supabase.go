@@ -15,8 +15,7 @@ type Client struct {
 
 // NewClient constructs a Supabase client for the given project URL and API key.
 //
-// Validation is delegated to [configuration.New], so NewClient returns its
-// sentinel errors unchanged, each matchable with [errors.Is]:
+// Returned sentinel errors relate to misconfiguration:
 //   - [configuration.ErrMissingURL] when projectURL is empty.
 //   - [configuration.ErrMissingKey] when apiKey is empty.
 //   - [configuration.ErrInvalidURL] when projectURL is not an absolute http or
@@ -35,9 +34,8 @@ func NewClient(projectURL, apiKey string, options ...configuration.Option) (*Cli
 	}, nil
 }
 
-// From begins a Database query against the given table or view, returning an
-// immutable [postgrest.QueryBuilder]. Chain a verb such as
-// [postgrest.QueryBuilder.Select] and terminate with
+// From begins a Database query against the given table or view.
+// Chain a verb such as [postgrest.QueryBuilder.Select] and terminate with
 // [postgrest.FilterBuilder.Execute]:
 //
 //	var rows []Instrument

@@ -1,14 +1,10 @@
 # Minimal local stack for the SDK integration tests, matching the CLI version
-# pinned in scripts/integration-test.sh. Bump the two together: regenerate this
-# file with the new CLI's `supabase init` and re-apply these minimal settings,
-# because the schema drifts across CLI versions (verified against v2.109.1).
+# pinned in scripts/integration-test.sh (SUPABASE_CLI_VERSION: 2.109.1).
 #
 # The tests exercise Postgres + PostgREST (the api service) only. Auth stays
 # enabled solely because `supabase status -o env` emits the stack's API keys
-# (PUBLISHABLE_KEY included) only while the auth service is enabled; no test
-# calls it. Every other service is
-# disabled: this stack's startup time and flakiness set the floor for all
-# future CI.
+# (PUBLISHABLE_KEY included) only while the auth service is enabled.
+# Every other service is disabled.
 project_id = "supabase-go-integration"
 
 [api]

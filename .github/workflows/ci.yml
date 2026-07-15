@@ -29,14 +29,9 @@ jobs:
       # its interaction with the workspace is validated.
       - run: ./scripts/build-and-test.sh
 
-  # Integration tests run the real query against a local Supabase stack
-  # (Postgres + PostgREST). The stack is driven by the Supabase CLI, which the
-  # script fetches from its pinned GitHub release and verifies against a
-  # committed SHA-256 - no npm or Node here, that is the spell-check job's
-  # concern. The matrix mirrors build-and-test: the floor leg verifies the
-  # published go directive against the live stack, and the stable leg verifies
-  # the toolchain developers and CI tooling actually run. ubuntu-latest ships
-  # Docker as part of the trusted image baseline.
+  # Integration tests run against a local Supabase stack.
+  # This job's matrix mirrors build-and-test.
+  # GitHub's ubuntu-latest image ships Docker as part of the trusted image baseline.
   integration-test:
     runs-on: ubuntu-latest
     strategy:
