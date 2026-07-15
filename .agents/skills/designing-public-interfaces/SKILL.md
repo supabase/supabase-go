@@ -1,6 +1,6 @@
 ---
 name: designing-public-interfaces
-description: Guides design of this SDK's public API surface. Use when adding, renaming, removing or reshaping any exported identifier in any module published as end-user, consumer-facing interface - whether that module be existing or new to the published surface area. Includes functional options, domain client accessors, error model, sentinel errors, error struct types, exported fields, the accessor pattern, constructor signatures, naming policy and doc comments on exported identifiers.
+description: Guides design of this SDK's public API surface. Use when adding, renaming, removing or reshaping any exported identifier in any module published as end-user, consumer-facing interface - whether that module be existing or new to the published surface area. Includes functional options, domain client accessors, error model, sentinel errors, error struct types, exported fields, the accessor pattern, constructor signatures and naming policy.
 ---
 
 The following documents will be helpful:

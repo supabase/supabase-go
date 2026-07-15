@@ -120,6 +120,20 @@ We spell identifiers out in full. Clarity for every reader - including those new
 
 This is a deliberately strong stance. It keeps almost the entire surface in plain words while still reading as idiomatic Go, because the only short names left are the ones Go itself treats as conventional.
 
+## Commentary
+
+Every comment is read by a consumer of the boundary it sits on, so it describes the contract of that boundary and nothing else. For public doc comments the consumer is an API end-user, often an AI builder. For internal doc comments and inline comments the consumer is a maintainer of this codebase, often an AI refactoring tool. Neither reader is served by narration of the authoring process. That every exported identifier carries a doc comment at all is required by [`standard.md`](standard.md) - this section governs what any comment may say.
+
+Concretely:
+
+- **Contract, not rationale ("what", not "why").** A comment states behavior, inputs, outputs, guarantees and caller obligations. The reasoning behind a design belongs in [`decisions.md`](decisions.md) and working procedures belong here in DEVELOPMENT.md. A comment that argues for its own design has leaked.
+- **Self-contained at the boundary.** Never document an identifier by pointing at its neighbors: no "mirrors the reference implementation", no "same pattern as package X", no "the Y job relies on this", nor any other note about what upstream or downstream code happens to do. When a collaborator's behavior constrains this interface, state the resulting obligation as this interface's own ("the path is not escaped here, so it must be escaped on query assembly") without touring the collaborator.
+- **No language tutoring.** State what is returned or accepted, as types and sentinels. Do not teach `errors.Is` / `errors.As` mechanics, struct tag semantics or any other standard craft - the reader, human or AI, knows their tools.
+- **No roadmap narration.** Nothing "arrives in a later block", is "the first real X" or holds "for now". Comments describe the code as it stands, timelessly. Sequencing lives in the issue tracker and history lives in git.
+- **Each fact once, at the site that owns it.** Type-level guarantees such as immutability or concurrency safety are documented on the type, not restated by every method or call site that touches it.
+
+These rules apply to every commentary surface in the repository: Go doc comments (exported and internal), inline comments and comments in scripts, workflows, SQL and configuration files.
+
 ## Testing conventions
 
 If you are newer to Go, a few conventions are worth knowing - they are stricter and more file-layout-driven than many other ecosystems.
