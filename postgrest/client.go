@@ -1,9 +1,11 @@
 package postgrest
 
 import (
+	"net/http"
 	"net/url"
 
 	"github.com/supabase/supabase-go/configuration"
+	"github.com/supabase/supabase-go/postgrest/internal/request"
 )
 
 // Client is the entry point for Database queries against PostgREST. It is built
@@ -23,5 +25,16 @@ func New(projectConfiguration *configuration.Configuration) *Client {
 	return &Client{
 		httpClient: projectConfiguration.HTTPClient(),
 		baseURL:    projectConfiguration.BaseURL().JoinPath("rest", "v1"),
+	}
+}
+
+// From begins a query against the given table or view, returning an immutable
+// [QueryBuilder]. Chain a verb such as [QueryBuilder.Select] and terminate
+// with [FilterBuilder.Execute]. An empty table name is reported by Execute as
+// [ErrMissingTable].
+func (c *Client) From(table string) QueryBuilder {
+	return QueryBuilder{
+		client:  c,
+		request: request.New(http.MethodGet, table),
 	}
 }

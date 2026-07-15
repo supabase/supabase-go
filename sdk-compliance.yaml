@@ -15,3 +15,12 @@ features:
     status: implemented
     symbols:
       - configuration.WithHeader
+  database.query.from_table:
+    status: implemented
+    symbols:
+      - supabase.Client.From
+      - postgrest.Client.From
+  database.query.select:
+    status: implemented
+    symbols:
+      - postgrest.QueryBuilder.Select

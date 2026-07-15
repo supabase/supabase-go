@@ -29,6 +29,27 @@ jobs:
       # its interaction with the workspace is validated.
       - run: ./scripts/build-and-test.sh
 
+  # Integration tests run the real query against a local Supabase stack
+  # (Postgres + PostgREST). The stack is driven by the Supabase CLI, which the
+  # script fetches from its pinned GitHub release and verifies against a
+  # committed SHA-256 - no npm or Node here, that is the spell-check job's
+  # concern. The matrix mirrors build-and-test: the floor leg verifies the
+  # published go directive against the live stack, and the stable leg verifies
+  # the toolchain developers and CI tooling actually run. ubuntu-latest ships
+  # Docker as part of the trusted image baseline.
+  integration-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ["1.22", "stable"]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: ${{ matrix.go-version }}
+      - run: ./scripts/integration-test.sh
+
   # Lint and vuln are deliberately separate jobs so a vulnerability finding fails
   # on its own, clearly distinct from a lint failure. Each calls a single script
   # that is also what developers run locally (identical command in both places).

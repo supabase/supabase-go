@@ -35,8 +35,13 @@ func NewClient(projectURL, apiKey string, options ...configuration.Option) (*Cli
 	}, nil
 }
 
-// Database returns the client for the Supabase Database (PostgREST) surface. The
-// returned [postgrest.Client] is safe for concurrent use by multiple goroutines.
-func (c *Client) Database() *postgrest.Client {
-	return c.database
+// From begins a Database query against the given table or view, returning an
+// immutable [postgrest.QueryBuilder]. Chain a verb such as
+// [postgrest.QueryBuilder.Select] and terminate with
+// [postgrest.FilterBuilder.Execute]:
+//
+//	var rows []Instrument
+//	response, err := supabase.From("instruments").Select("id, name").Execute(ctx, &rows)
+func (c *Client) From(table string) postgrest.QueryBuilder {
+	return c.database.From(table)
 }

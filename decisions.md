@@ -1,6 +1,6 @@
 # Development Decisions for `supabase-go`
 
-<!-- cSpell:ignore Cheney claude PGRST -->
+<!-- cSpell:ignore Cheney claude mktemp -->
 
 This document has been created to capture decisions that have been made during development on this SDK which felt like worth recording for future reference.
 It's designed to be quick and friction-less to populate, a friction log inspired micro decisions list, often expected to be imperfect but with the ethos of "something is better than nothing" in terms of what we capture.
@@ -337,3 +337,123 @@ Doc comments on the mapped symbol never restate the id.
 A capability id is internal `supabase/sdk` taxonomy: meaningless to someone reading the rendered comment on pkg.go.dev or via `go doc`, so putting it there is noise leaking into public documentation.
 `sdk-compliance.yaml` already names the symbol in its own `symbols:` list, so the mapping is fully discoverable from that one file already as the canonical source of truth.
 Also, a second copy in the doc comment is another place for it to go stale.
+
+## The root client is fluent: From lives on supabase.Client
+
+**What**:  
+The root `supabase.Client` exposes `From(table)` directly, delegating to the composed postgrest client, and the `Database()` accessor is removed.
+Later domains (Auth, Storage, Functions) will keep namespaced accessors when they land; the Database query path alone is hoisted to the root.
+
+**Why**:  
+Every sibling SDK spells the hot path `supabase.from(...)` - it is the single piece of muscle memory Supabase developers carry between languages, and the examples across all SDKs start with it.
+Hoisting only `From` mirrors the siblings precisely (their other domains are namespaced: `supabase.auth.*`, `supabase.storage.*`).
+The "two doors" posture is unchanged because the postgrest module remains directly importable with its own `From`.
+Removing `Database()` outright rather than deprecating it is free pre-release, with zero consumers; after v1 the same change would be a breaking removal.
+
+## Query builders are immutable values over an internal request model
+
+**What**:  
+`postgrest` exposes concrete builder value types (`QueryBuilder`, `FilterBuilder`) whose every method returns a new independent builder.
+The request state they carry lives in `postgrest/internal/request`, a package whose single concern is an immutable `Request` value: unexported fields, read-only getters, copy-on-write `With*` methods, and no getter that returns reference-typed state.
+
+**Why**:  
+The sibling SDKs mutate builders in place and consequently document "one chain per operation" caveats (supabase-swift) or rely on single-threaded runtimes (supabase-js).
+Go promises "safe for concurrent use by multiple goroutines" on the postgrest Client, and copy-on-write value builders deliver that with zero locks while letting callers fork partially-built queries.
+Placing the state behind an internal package makes the immutability compiler-bounded rather than convention-across-the-codebase: only that one small, exhaustively-testable package can even express a mutation, and `internal/` keeps the micro-API off the public surface so its representation can change freely.
+Reference types are avoided inside the model (the parameter list is an ordered slice of immutable pairs, cloned on write) so a struct copy is a genuinely deep copy; the next entry records why that list is not a map.
+
+## Request parameters are an ordered multimap, not a map
+
+**What**:  
+The internal request model stores query parameters as an ordered slice of key/value pairs.
+A key may appear any number of times and insertion order is preserved.
+`map[string]string` was rejected outright; `map[string][]string` (the shape of `url.Values`) was considered and passed over.
+
+**Why**:  
+A query string is an ordered multimap, and PostgREST's dialect gives repeated keys meaning: repeated filter keys AND together (`age=gte.18&age=lte.65` is exactly how the next block's `Gte("age", 18).Lte("age", 65)` serializes) and repeated `or=` groups combine.
+`map[string]string` is the one shape that cannot represent valid PostgREST queries - a second filter on a column would silently overwrite the first.
+Every sibling SDK stores the same multimap shape: postgrest-js appends to `URLSearchParams`, supabase-swift appends `URLQueryItem`s to an array of pairs, postgrest-dart appends via `queryParametersAll`, and supabase-py wraps a persistent map of key to vector of values whose `set` appends.
+Between the two faithful shapes, the slice of pairs was preferred over `map[string][]string` because it keeps the model free of reference-typed fields: a plain struct copy is safe (pairs are immutable values; writes append after `slices.Clone`), whereas a map field aliases on copy, `maps.Clone` is shallow over the value slices, and one forgotten deep clone in a future `With*` method is a data race - the exact hazard the model exists to remove (supabase-py needed a third-party persistent-collections library to make the map shape safe; the slice gets the same guarantee from the stdlib).
+Keys that must not repeat, such as `select`, are enforced structurally in the public layer: `Select` consumes the `QueryBuilder` and returns a `FilterBuilder` with no `Select` method, so a duplicate is unrepresentable before it ever reaches the model.
+Should a later block need replace-semantics for a singleton key, the model grows a `WithParameterReplacing` additively; set-versus-append is per-method policy, not a constraint of the shape.
+
+## Builder phases are distinct concrete types (typestate); no interfaces, no embedding
+
+**What**:  
+`From` returns a concrete `QueryBuilder`; `Select` returns a concrete `FilterBuilder`; there is no builder interface and no embedded base-builder type.
+The two structs have identical definitions on purpose: a builder type's identity is its method set - which chain steps are legal from here - not its field set.
+`FilterBuilder` exists from the first block even though filters arrive later.
+
+**Why**:  
+The types encode the phase of the chain, so illegal chains are compile errors: `Select` twice is unrepresentable, because `Select` consumes the `QueryBuilder` and `FilterBuilder` has no `Select`.
+Every sibling SDK accepts the double call and resolves it silently, last write wins (postgrest-js `searchParams.set('select', ...)`, supabase-swift `appendOrUpdate`, postgrest-dart `overrideSearchParams`, supabase-py via inheritance).
+They re-expose select after a verb because mutations need a "return these columns" variant; when this SDK's write verbs land, that variant will appear deliberately on the mutation builders' types with replace semantics.
+Interfaces in the chain would hide the fluent surface from godoc and autocomplete without buying substitutability we need; the mockability seam is the injected HTTP client, not the builders.
+Embedding is rejected twice over: promoted methods return the embedded type, which severs a fluent chain (`.Limit()` would return the base, losing `.Eq()`), and promotion would leak phase methods across the boundary (`Select` would surface on `FilterBuilder`), destroying the typestate guarantee.
+Naming the post-verb builder `FilterBuilder` now means later blocks add methods to an existing type instead of renaming one - a rename would be a breaking API change.
+
+## Builder state serializes immediately into the request model
+
+**What**:  
+Every builder method serializes its effect into the internal request model at call time - `Select` writes the `select` parameter immediately.
+Builders hold no structured intermediate state (no columns, filters or limit fields), and `Execute` performs no assembly beyond handing the model a base URL.
+
+**Why**:  
+The wire format is the canonical state in every sibling SDK - postgrest-js mutates `URLSearchParams` inside each method, supabase-swift appends `URLQueryItem`s, postgrest-dart rewrites the `Uri`, supabase-py updates its `URLQuery` - so behavior parity with the reference implementation is auditable call by call: our `Select` does what theirs does, at the same moment.
+A structured representation assembled at `Execute` time would be a second source of truth whose serializer must track the reference forever, for no validation gain: ordering rules ("X not before/after Y") are enforced earlier and stronger by the typestate split, and value-level conflict rules, when a concrete one arrives, can read the model through a narrow predicate (a `HasParameter`-style query added then) - normalization loses no state a known rule needs.
+The only information call-time serialization erases is which method wrote a pair; no PostgREST rule branches on that provenance, and the siblings validate almost nothing themselves, delegating conflicts to PostgREST's own errors, which this SDK surfaces as `*Error`.
+
+## Execute is the explicit, context-first terminal returning (Response, error)
+
+**What**:  
+The only I/O in the chain is `FilterBuilder.Execute(ctx, destination)`, which decodes into a caller-supplied pointer and returns `(Response, error)`.
+`Response` carries `HTTPStatus` and `Count`, where `Count` is `-1` when the server reported no total, following `net/http.Response.ContentLength`'s convention for unknown values.
+
+**Why**:  
+supabase-js and supabase-flutter trigger execution implicitly by awaiting the builder (thenable/`Future`); Go has no await and hiding I/O in an accessor would violate least surprise.
+An explicit method taking `context.Context` first matches the standard's context mandate.
+The metadata surface exists from the method's first release because widening `(error)` to `(Response, error)` later would break every caller - return shapes are the one part of a terminal that cannot evolve additively.
+`Count` is populated from `Content-Range` parsing that is already exercised today and starts carrying real totals the moment a later block adds the `Prefer: count=` request option, with no surface change.
+The `-1` sentinel avoids pointer-or-bool optionality and follows stdlib precedent.
+
+## postgrest.Error carries the parsed PostgREST body plus HTTP status
+
+**What**:  
+Non-2xx PostgREST responses become `*postgrest.Error` with exported `HTTPStatus`, `Code`, `Message`, `Details`, `Hint` fields, matched via `errors.As`, plus an `Unwrap` returning an (currently usually nil) underlying cause.
+Unparsable error bodies are preserved raw in `Message`.
+Transport, request-building and decode failures are wrapped `fmt.Errorf("postgrest: ...: %w", err)` values, not `*Error`.
+
+**Why**:  
+The field set mirrors the reference SDK (postgrest-js `PostgrestError`), whose docs establish the read order (Hint carries the database's fix; Code is the stable branching key).
+Distinguishing "the server answered with an error" (`*Error`) from "we never got an answer" (wrapped transport error) lets callers branch with one `errors.As`.
+`Unwrap` exists from day one because this is the SDK's first public error type and its shape gets copied by every later module; retrofitting wrapping onto a shipped error type is harder than carrying a nil cause now.
+
+## Integration harness: pinned-binary Supabase CLI, minimal services, floor + stable matrix
+
+**What**:  
+CI's integration job and `scripts/integration-test.sh` run the same script, which starts a local stack using the Supabase CLI, a committed minimal `config.toml` (only db, api and auth enabled), a committed schema migration and a committed data-only `seed.sql`.
+The CLI is the pinned release binary, verified against a committed SHA-256 and installed into Go's own bin directory (GOBIN, else GOPATH/bin), never taken from npm.
+Integration tests are build-tagged `integration`, env-gated and run under `-race`.
+The CI job runs the same `["1.22", "stable"]` matrix as build-and-test; `go vet -tags integration` in the unit script additionally keeps the tagged file compiling for fast local signal.
+
+**Why**:  
+The CLI cannot be installed with `go install` at v2 for two independent reasons: its module (`github.com/supabase/cli`) now lives in `apps/cli-go/` while the repo root carries no `go.mod`, so the module proxy resolves that path only to the stale v1 root-module history rather than the v2 code, and its `go.mod` carries local `replace` directives, which `go install pkg@version` refuses outright.
+It is fetched instead as the pinned release binary, verified against a committed SHA-256 and installed into Go's own bin directory (GOBIN, else GOPATH/bin) - a writable, on-PATH location outside the checkout, so a read-only working tree is fine - the same first-party curl-and-checksum pattern as the local Go toolchain install.
+npm was rejected as the channel even though it pins equally well, because bundling the CLI into `tools/node` conflated it with the unrelated cspell tool - every `npm ci` pulling both - and forced a node_modules write into the checkout, whereas cspell stays on npm as a genuine JS tool whose deep dependency tree is what a lockfile exists for.
+The auth service stays enabled despite no test calling it, because `supabase status -o env` emits the stack's API keys (PUBLISHABLE_KEY included) only while auth is enabled - the harness reads its credentials from that output, consuming PUBLISHABLE_KEY exactly as the CLI repository's own e2e harness and the Swift SDK's integration tests do (ANON_KEY is deprecated upstream).
+Schema lives in `migrations/` and only data in `seed.sql` because the CLI applies the seed as a single batch whose statements are prepared before earlier ones execute, so DDL cannot ride with inserts that depend on it (SQLSTATE 42P01 on a fresh stack) - the same layout as the CLI repository's own e2e project and the Swift SDK's.
+The script runs the CLI against a disposable `mktemp -d` copy of `integration/` because the CLI writes scratch state (`supabase/.branches`, `supabase/.temp`) into whatever project directory it runs: the copy keeps committed trees pristine by construction (no scratch to gitignore, unlike upstream projects that gitignore it inside a writable tree) and lets the harness run from a read-only checkout, while `stop` still finds the stack because the CLI identifies it by `config.toml`'s `project_id`, not by path.
+Disabling every other unused service attacks the block's stated risk head-on: this harness's startup time and flakiness set the floor for all future CI.
+The floor leg exists because the published `go 1.22` directive is a compatibility promise to consumers, and only a live-stack run proves that promise end to end on the floor toolchain; the legs run in parallel so wall-clock cost is unchanged.
+
+## Local checks are two explicit tiers: check-fast.sh and integration-test.sh
+
+**What**:  
+`check-all.sh` is renamed `check-fast.sh`, keeping its role as the aggregate of every check that needs nothing beyond the repository's own toolchains (build and test, lint, vulnerability scan, spell check).
+`integration-test.sh` is a deliberate second tier with its own prerequisite (Docker) and is not folded into the aggregate; no umbrella script runs both.
+DEVELOPMENT.md documents when to run each tier and what each requires.
+
+**Why**:  
+Once an integration suite exists, a script named `check-all` that does not run it makes the name a lie, and folding it in would be worse: the aggregate is the pre-push sweep, and putting Docker, an image pull and a stack boot on that path would tax every contributor for coverage CI already provides on every push.
+Naming the tiers by cost tells a developer when to reach for each: the fast tier stays runnable on any machine with Go and Node, while the integration tier's prerequisites are documented rather than discovered.
+CI is unaffected - it never called the aggregate (each check runs as its own job so failures stay attributable), so the rename touches only local workflow and documentation.

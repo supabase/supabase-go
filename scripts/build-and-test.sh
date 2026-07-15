@@ -18,4 +18,10 @@ for module in "${modules[@]}"; do
   )
 done
 
+# Compile-only guard for the integration-tagged tests, so they get fast signal
+# here and for local developers without Docker (the integration tier also
+# compiles them, but later and slower).
+echo "==> compile integration-tagged tests (no execution)"
+(cd postgrest && go vet -tags integration ./...)
+
 echo "✅ Build and Test Passed."
