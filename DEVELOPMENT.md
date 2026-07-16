@@ -68,6 +68,8 @@ The fast tier above needs only the repository's own toolchains (Go, plus Node fo
 
 The script starts the stack against a disposable copy of `integration/`, seeds it, runs the `integration`-tagged tests under `-race` and always stops the stack on exit, including on failure. A plain `go test ./...` never runs these tests - they are build-tagged and environment-gated - so the fast tier stays Docker-free by construction.
 
+Integration test functions are named `TestIntegrationXxx`. The script selects them with `-run '^TestIntegration'`, so a tagged test named outside that prefix will never run.
+
 ### Previewing the rendered docs
 
 `pkg.go.dev` is where consumers read our doc comments and runnable examples. To preview that rendering for your local working tree, run [`pkgsite`](https://pkg.go.dev/golang.org/x/pkgsite/cmd/pkgsite). It reads the [`go.work` workspace file](go.work), so one run from the repository root serves all three modules on a local HTTP server (it prints the address, by default http://localhost:8080).
