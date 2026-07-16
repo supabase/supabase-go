@@ -5,8 +5,9 @@ import (
 	"fmt"
 )
 
-// postgrestError is a string-backed error type whose values can be declared as
-// compile-time constants.
+// postgrestError is a string-backed error type. Its values can be declared as
+// compile-time constants, are matched with [errors.Is] and cannot be minted
+// outside this package.
 type postgrestError string
 
 func (e postgrestError) Error() string { return "postgrest: " + string(e) }
@@ -33,7 +34,7 @@ type Error struct {
 	Message string
 
 	// Details carries extra context from the database, often the offending
-	// value, key or row. Empty when the server supplied none.
+	// value, key, or row. Empty when the server supplied none.
 	Details string
 
 	// Hint is actionable guidance from the database when available, often the

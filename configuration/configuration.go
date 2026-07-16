@@ -6,12 +6,9 @@ import (
 	"net/url"
 )
 
-// configurationError is a string-backed error type whose values can be declared
-// as compile-time constants. The sentinels below are therefore immutable: unlike
-// package-level error variables (which any importing package can reassign), these
-// cannot be replaced - the compiler rejects any attempt. The type is unexported,
-// so consumers can match the sentinels with errors.Is but cannot mint new values
-// of it.
+// configurationError is a string-backed error type. Its values can be declared
+// as compile-time constants, are matched with [errors.Is] and cannot be minted
+// outside this package.
 type configurationError string
 
 func (e configurationError) Error() string { return "configuration: " + string(e) }
@@ -31,7 +28,7 @@ const (
 )
 
 // Configuration holds the resolved settings shared across the SDK: the project
-// base URL, the API key and the HTTP client whose transport injects
+// base URL, the API key, and the HTTP client whose transport injects
 // authentication and global headers on every request.
 //
 // A Configuration is created with [New] and is safe for concurrent

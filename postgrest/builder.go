@@ -13,7 +13,7 @@ import (
 
 // QueryBuilder represents a query scoped to one table or view, ready for a verb.
 // A QueryBuilder is an immutable value - every method returns a new independent
-// builder - so builders may be stored, forked into divergent chains and used
+// builder - so builders may be stored, forked into divergent chains, and used
 // concurrently by multiple goroutines.
 type QueryBuilder struct {
 	client  *Client
@@ -23,7 +23,7 @@ type QueryBuilder struct {
 // FilterBuilder represents a fully-specified query awaiting execution.
 // A FilterBuilder is an immutable value - every method that returns a builder
 // returns a new independent builder - so builders may be stored, forked into
-// divergent chains and used concurrently by multiple goroutines.
+// divergent chains, and used concurrently by multiple goroutines.
 type FilterBuilder struct {
 	client  *Client
 	request request.Request
@@ -45,16 +45,16 @@ func (q QueryBuilder) Select(columns string) FilterBuilder {
 // which must be a non-nil pointer, typically to a slice of structs whose
 // fields carry json tags. It is the terminal of the builder chain and the
 // only method that performs I/O. The context governs cancellation and
-// deadline for the entire request. On success it returns a [Response]
-// which includes the HTTP status and, when the server reported one, the
-// total row count.
+// deadline for the entire request. On success it returns a [Response] which
+// includes the HTTP status and, when the server reported one, the total row
+// count.
 //
-// When PostgREST answers with a non-2xx status, Execute returns an [*Error]
-// carrying the HTTP status and the parsed error body.
-// Transport and decoding failures are returned wrapped.
-// If the builder was created with an empty table name, Execute reports
-// [ErrMissingTable] without performing any I/O.
-// On any error the returned Response is the zero value.
+// On failure the returned Response is the zero value, and the error is one of:
+//   - an [*Error], when PostgREST answers with a non-2xx status, carrying the
+//     HTTP status and the parsed error body.
+//   - [ErrMissingTable], when the builder was created with an empty table
+//     name. No I/O is performed in this case.
+//   - a wrapped transport or decoding failure.
 func (f FilterBuilder) Execute(ctx context.Context, destination any) (Response, error) {
 	if f.request.Path() == "" {
 		return Response{}, ErrMissingTable

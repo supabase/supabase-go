@@ -41,7 +41,7 @@ func ExampleNewClient_invalidInput() {
 	// Output: true
 }
 
-// ExampleClient_From runs a basic database query.
+// ExampleClient_From runs a basic Database query.
 // It requires a reachable Supabase project, so it is compiled but not run by go test.
 func ExampleClient_From() {
 	type Instrument struct {

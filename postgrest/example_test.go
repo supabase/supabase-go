@@ -20,8 +20,8 @@ func ExampleNew() {
 	// Output: true
 }
 
-// ExampleClient_From demonstrates a database read operation for
-// consumers who take only the Database module.
+// ExampleClient_From demonstrates a Database read for consumers who import
+// this module directly instead of the root supabase package.
 func ExampleClient_From() {
 	type Instrument struct {
 		ID   int    `json:"id"`

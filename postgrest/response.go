@@ -13,9 +13,7 @@ type Response struct {
 
 	// Count is the total number of rows matching the query when the server
 	// reported one, and -1 when it did not, following the convention of
-	// [net/http.Response.ContentLength]. PostgREST reports a total only when
-	// a count is requested via the Prefer header - surfaced by a later block -
-	// so until then Count is -1 unless the server volunteers a total.
+	// [net/http.Response.ContentLength].
 	Count int64
 }
 

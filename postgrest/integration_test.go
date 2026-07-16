@@ -46,8 +46,7 @@ func TestIntegrationSelectAllColumns(t *testing.T) {
 	if response.HTTPStatus != http.StatusOK {
 		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
 	}
-	// No count was requested (Prefer: count= arrives in a later block), and
-	// PostgREST reports an unknown total ("0-2/*") in that case.
+	// No count was requested, so PostgREST reports an unknown total ("0-2/*").
 	if response.Count != -1 {
 		t.Errorf("Count = %d, want -1 (no count requested)", response.Count)
 	}
