@@ -55,7 +55,7 @@ To run the whole fast tier before pushing - build and unit test plus lint, vulne
 
 ### Integration tests
 
-The fast tier above needs only the repository's own toolchains (Go, plus Node for the spell check) so should be treated it as the default gate before every push. The second tier exercises the SDK against a local Supabase stack (Postgres + PostgREST), has prerequisites and takes longer to run. Prerequisites:
+The fast tier above needs only the repository's own toolchains (Go, plus Node for the spell check) so should be treated as the default gate before every push. The second tier exercises the SDK against a local Supabase stack (Postgres + PostgREST), has prerequisites and takes longer to run. Prerequisites:
 
 - **Docker**: Installed and running - the stack's services are containers.
 - **`curl`**: The script fetches the version-pinned Supabase CLI binary from its GitHub release on first run, verifies it against a committed SHA-256 and installs it into Go's own bin directory (`$(go env GOPATH)/bin`).
