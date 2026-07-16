@@ -14,7 +14,7 @@ func ExampleNew() {
 		"https://PROJECT_ID.supabase.co",
 		"API_KEY",
 		configuration.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
-		configuration.WithHeader("X-Client-Info", "supabase-go/0.1"),
+		configuration.WithHeader("X-App-Version", "1.0.0+user.generated"),
 	)
 	if err != nil {
 		fmt.Println(err)

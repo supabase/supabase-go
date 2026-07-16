@@ -12,7 +12,7 @@ import (
 func TestTransportInjectsHeaders(t *testing.T) {
 	server, received := recordingServer(t)
 	projectConfiguration, err := configuration.New(server.URL, "test-key",
-		configuration.WithHeader("X-Client-Info", "supabase-go/test"))
+		configuration.WithHeader("X-App-Version", "1.0.0+user.generated"))
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}
@@ -24,8 +24,8 @@ func TestTransportInjectsHeaders(t *testing.T) {
 	if received.Get("Authorization") != "" {
 		t.Errorf("Authorization = %q, want it absent because the transport never sets it", received.Get("Authorization"))
 	}
-	if received.Get("X-Client-Info") != "supabase-go/test" {
-		t.Errorf("X-Client-Info = %q, want %q", received.Get("X-Client-Info"), "supabase-go/test")
+	if received.Get("X-App-Version") != "1.0.0+user.generated" {
+		t.Errorf("X-App-Version = %q, want %q", received.Get("X-App-Version"), "1.0.0+user.generated")
 	}
 }
 
@@ -46,13 +46,13 @@ func TestWithHTTPClientDoesNotMutateInput(t *testing.T) {
 func TestTransportHeaderPrecedence(t *testing.T) {
 	server, received := recordingServer(t)
 	projectConfiguration, err := configuration.New(server.URL, "project-key",
-		configuration.WithHeader("X-Client-Info", "default"))
+		configuration.WithHeader("X-Dummy-Header", "default"))
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}
 	sendGet(t, projectConfiguration.HTTPClient(), server.URL, func(request *http.Request) {
 		request.Header.Set("Authorization", "Bearer user-token")
-		request.Header.Set("X-Client-Info", "per-request")
+		request.Header.Set("X-Dummy-Header", "per-request")
 		request.Header.Set("apikey", "attacker-key")
 	})
 
@@ -61,8 +61,8 @@ func TestTransportHeaderPrecedence(t *testing.T) {
 		t.Errorf("Authorization = %q, want the per-request token preserved", received.Get("Authorization"))
 	}
 	// A per-request header beats the WithHeader default.
-	if received.Get("X-Client-Info") != "per-request" {
-		t.Errorf("X-Client-Info = %q, want the per-request value to win", received.Get("X-Client-Info"))
+	if received.Get("X-Dummy-Header") != "per-request" {
+		t.Errorf("X-Dummy-Header = %q, want the per-request value to win", received.Get("X-Dummy-Header"))
 	}
 	// apikey is always the project key and cannot be overridden.
 	if received.Get("apikey") != "project-key" {
