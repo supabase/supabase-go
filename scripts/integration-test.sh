@@ -104,11 +104,20 @@ echo "==> starting local stack (pinned CLI $("${SUPABASE_CLI}" --version))"
 # CLI repository's own e2e tests consume.
 eval "$("${SUPABASE_CLI}" --workdir "${project_directory}" status -o env)"
 
-cd postgrest
+# Every module with integration-tagged tests runs here. The -run filter is
+# anchored so it selects exactly the TestIntegration-prefixed functions and
+# can never match a unit test compiled into the same package.
+modules=(. postgrest)
 
 echo "==> running integration tests (-race, tag: integration)"
-SUPABASE_URL="${API_URL}" \
-SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
-  go test -race -shuffle=on -tags integration -run TestIntegration ./...
+for module in "${modules[@]}"; do
+  echo "==> ${module}"
+  (
+    cd "${module}"
+    SUPABASE_URL="${API_URL}" \
+    SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
+      go test -race -shuffle=on -tags integration -run '^TestIntegration' ./...
+  )
+done
 
 echo "✅ Integration Test Passed."
