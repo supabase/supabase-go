@@ -43,7 +43,9 @@ func (q QueryBuilder) Select(columns string) FilterBuilder {
 
 // Execute sends the query and decodes the JSON response into destination,
 // which must be a non-nil pointer, typically to a slice of structs whose
-// fields carry json tags. It is the terminal of the builder chain and the
+// fields carry json tags. Response fields with no matching destination
+// field are ignored, so a destination type may decode any subset of the
+// selected columns. It is the terminal of the builder chain and the
 // only method that performs I/O. The context governs cancellation and
 // deadline for the entire request. On success it returns a [Response] which
 // includes the HTTP status and, when the server reported one, the total row
