@@ -14,13 +14,14 @@ import (
 )
 
 // newIntegrationClient wires a client at the local Supabase stack started by
-// scripts/integration-test.sh, or skips when the stack is not available.
+// scripts/integration-test.sh, failing the test when the required environment
+// variables are absent.
 func newIntegrationClient(t *testing.T) *postgrest.Client {
 	t.Helper()
 	projectURL := os.Getenv("SUPABASE_URL")
 	apiKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
 	if projectURL == "" || apiKey == "" {
-		t.Skip("SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are not set; run scripts/integration-test.sh")
+		t.Fatal("SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set for integration tests - run scripts/integration-test.sh")
 	}
 	projectConfiguration, err := configuration.New(projectURL, apiKey)
 	if err != nil {
