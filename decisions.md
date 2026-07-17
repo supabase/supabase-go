@@ -78,7 +78,8 @@ The published `go` directive stays at the conservative consumer floor (`1.22`) i
 Pre-tag, a module that imports an unpublished sibling cannot resolve it without either `replace` directives or a workspace.
 `go.work` is the purpose-built mechanism (Go 1.18+) and gives a cleaner separation of "what we publish to customers" (the `go.mod` files, free of dev-only redirects) from "how we develop locally" (one workspace file), stating the wiring once instead of repeating `replace … => ../core` in every consumer.
 Committing it is the Go-team-endorsed practice for monorepos ([golang/go#53502](https://github.com/golang/go/issues/53502) explicitly declined a "never commit" warning; the relative paths are identical for every clone, gopls configures multi-module editing from it, and Dependabot understands it), and it is provably safe for consumers: `go.work` is never included in a published module zip and is ignored by `go get`, so it cannot affect anyone importing the SDK.
-The one workspace hazard - the overlay masking a missing `require` - cannot bite at this stage, as there are zero external dependencies.
+The one workspace hazard is the overlay masking a missing or wrong `require`: every in-repo build resolves siblings from workspace source, so a `require` defect surfaces only for consumers once tags exist.
+With zero external dependencies and no tidy gate yet, correctness of the sibling require lines rests on review.
 The decision is cheaply reversible (delete `go.work`, add `replace` blocks).
 
 ## Error model
