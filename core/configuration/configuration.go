@@ -1,9 +1,13 @@
+// Package configuration provides the shared project configuration and
+// functional options that other Supabase domain modules rely upon.
 package configuration
 
 import (
 	"fmt"
 	"net/http"
 	"net/url"
+
+	"github.com/supabase/supabase-go/core/internal/transport"
 )
 
 // configurationError is a string-backed error type. Its values can be declared
@@ -106,7 +110,7 @@ func New(rawURL, apiKey string, options ...Option) (*Configuration, error) {
 		option(configuration)
 	}
 
-	configuration.httpClient = wrapClient(configuration.httpClient, configuration.apiKey, configuration.headers)
+	configuration.httpClient = transport.WrapClient(configuration.httpClient, configuration.apiKey, configuration.headers)
 	return configuration, nil
 }
 

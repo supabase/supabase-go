@@ -4,7 +4,7 @@
 # pinned tools once, then run the binaries against each module.
 set -euo pipefail
 
-modules=(. configuration postgrest)
+modules=(. core postgrest)
 
 echo "Lint..."
 

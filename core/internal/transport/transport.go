@@ -1,4 +1,6 @@
-package configuration
+// Package transport provides the authenticating HTTP pipeline that other
+// Supabase domain modules are built on.
+package transport
 
 import "net/http"
 
@@ -11,10 +13,10 @@ type transport struct {
 	headers http.Header
 }
 
-// wrapClient returns a copy of client whose transport injects the project API key
+// WrapClient returns a copy of client whose transport injects the project API key
 // header and the supplied global headers. The input client is never mutated, so
 // sharing [http.DefaultClient] remains safe.
-func wrapClient(client *http.Client, apiKey string, headers http.Header) *http.Client {
+func WrapClient(client *http.Client, apiKey string, headers http.Header) *http.Client {
 	if client == nil {
 		client = http.DefaultClient
 	}

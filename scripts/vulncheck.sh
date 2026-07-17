@@ -3,7 +3,7 @@
 # fails its own job. govulncheck's version is checksum-pinned in tools/go/go.mod.
 set -euo pipefail
 
-modules=(. configuration postgrest)
+modules=(. core postgrest)
 
 echo "Vulnerability Scan..."
 
