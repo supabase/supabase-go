@@ -12,6 +12,12 @@ All decisions documented here clearly state 'why', justifying the 'what'.
 They're loosely held, acknowledging that reasons change and rebalance over time, so we should feel able to change or revert decisions as we learn more about what this codebase needs.
 The ideal situation is that this document will be updated as that happens, as an atomic component of codebase changes that reflect that decision change.
 
+**present-tense-only**: Every entry in this document justifies the codebase as it stands right now, never how it got here.
+When a decision changes, rewrite its entry to describe the new present, or delete it outright when its subject or rationale no longer earns a place - git history is the only ledger of what came before (that is, the journey that the codebase took to get to its current state), so supersession notes and narration of renames or reversals are noise wherever they appear here.
+
+While the entries in this document are presented as a series of lightweight Architectural Decisions Records (ADRs), this document is not append-only.
+Deleting a stale entry is correct maintenance and therefore encouraged.
+
 ## No `Makefile` or task runner
 
 **What**:  

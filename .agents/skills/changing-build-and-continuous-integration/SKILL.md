@@ -8,7 +8,7 @@ The following documents will be helpful:
 | Document | For |
 | -------- | --- |
 | [`DEVELOPMENT.md`](../../../DEVELOPMENT.md) | How to build, test, lint and spell-check locally with the same scripts CI runs, the one-time npm tooling setup and the supply-chain commit-SHA/checksum pinning approach. |
-| [`decisions.md`](../../../decisions.md) | Deep dive commentaries with both _What_ and _Why_ defined for key decisions that shape the structure of this codebase, including the build and verification machinery. Presented as a series of lightweight Architectural Decisions Records (ADRs). |
+| [`decisions.md`](../../../decisions.md) | Deep dive commentaries with both _What_ and _Why_ defined for key decisions that shape the structure of this codebase, including the build and verification machinery. |
 | [`standard.md`](../../../standard.md) | The canonical definition of "what good looks like" including authoritative guidance on dependencies, licensing, minimum Go version, module versioning and distribution. |
 
 Continuous Integration (CI) runs on GitHub's platform - inspect [`.github/workflows/`](../../../.github/workflows/) for details, including how commands are directed via [`scripts/`](../../../scripts/) so that local developers can run exactly what runs in CI.
