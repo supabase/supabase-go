@@ -160,15 +160,15 @@ One comment therefore serves all three without divergence.
 Doc links become navigable cross-links on the rendered page, lists make conditions like the error-return set scannable, and runnable examples cannot drift from the code because `go test` executes them.
 Holding to the standard syntax lets `gofmt` keep formatting consistent and stops contributors inventing ad hoc conventions.
 
-## Domain clients are reached through context-free accessor methods
+## Domain navigation is context-free and cannot fail
 
 **What**:  
-`NewClient` constructs every domain client up front, and the root client exposes each through an accessor method that returns the concrete handle (`Database() *postgrest.Client`, later `Auth() *auth.Client`).
-The accessors take no `context.Context` and return no error.
+`NewClient` constructs every domain client up front and holds each in an unexported field.
+The methods that reach domain behavior (for example, the fluent `From`) take no `context.Context` and return no error.
 `context.Context` is taken only by the terminal methods that perform I/O, such as the database `Execute`.
 
 **Why**:  
-Accessor methods keep the handle fields unexported, so the client stays immutable and safe for concurrent use, which an exported field would not be - a public field is reassignable and races if written while read.
+Reaching domains through methods keeps the handle fields unexported, so the client stays immutable and safe for concurrent use.
 Construction does no I/O - `NewClient` parses the project URL and wraps the HTTP transport, with no network call - so there is nothing at access time for a context to bound or cancel, and nothing that can fail.
 Google's SDKs are the cautionary contrast. Firebase's `app.Auth(ctx)` and `app.Firestore(ctx)` take a context and return an error because they lazily construct clients that resolve credentials and dial connections, and the context is then kept for the client's life: the `cloud.google.com/go` docs warn "Do not set a timeout on the context passed to NewClient: dialing happens asynchronously, and the context is used to refresh credentials in the background", and `golang.org/x/oauth2` states its client "is not valid beyond the lifetime of the context".
 That shape only earns its place when the returned client owns background work bound to the context, and it carries a footgun when it does not: a request-scoped context passed to such a constructor and then cached breaks the client's background refresh once the request ends.
