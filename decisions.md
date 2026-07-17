@@ -338,7 +338,7 @@ Hoisting only `From` (the database) mirrors sibling SDKs precisely (their other 
 The request state they carry lives in `postgrest/internal/request`, a package whose single concern is the production of immutable `Request` values - unexported fields, read-only getters, copy-on-write `With*` methods, and no getter that returns reference-typed state.
 
 **Why**:  
-Some sibling SDKs mutate builders in place (or at least they did when this was written) and consequently they find themselves having to document "one chain per operation" caveats ([`supabase-swift`](https://github.com/supabase/supabase-swift)) or rely on single-threaded runtimes ([`supabase-js`](https://github.com/supabase/supabase-js)).
+Some sibling SDKs mutate builders in place and consequently find themselves having to document "one chain per operation" caveats ([`supabase-swift`](https://github.com/supabase/supabase-swift)) or rely on single-threaded runtimes ([`supabase-js`](https://github.com/supabase/supabase-js)).
 This Go SDK promises "safe for concurrent use by multiple goroutines" on the postgrest Client, and copy-on-write value builders deliver that with zero locks while letting callers fork partially-built queries.
 Placing the state behind an internal package makes the immutability compiler-bounded rather than convention-across-the-codebase: only that one small, exhaustively-testable package can even express a mutation, and `internal/` keeps the micro-API off the public surface so its representation can change freely.
 Reference types are avoided inside the model (the parameter list is an ordered slice of immutable pairs, cloned on write) so a struct copy is a genuinely deep copy.
@@ -402,7 +402,7 @@ Transport, request-building and decode failures are wrapped `fmt.Errorf("postgre
 **Why**:  
 The field set mirrors the reference SDK (postgrest-js `PostgrestError`), whose docs establish the read order (Hint carries the database's fix; Code is the stable branching key).
 Distinguishing "the server answered with an error" (`*Error`) from "we never got an answer" (wrapped transport error) lets callers branch with one `errors.As`.
-`Unwrap` exists from day one because this is the SDK's first public error type and its shape gets copied by every later module; retrofitting wrapping onto a shipped error type is harder than carrying a nil cause now.
+`Unwrap` exists despite the usually-nil cause because this is the SDK's first public error type and its shape gets copied by every later module; retrofitting wrapping onto a shipped error type is harder than carrying a nil cause now.
 
 ## Integration harness: pinned-binary Supabase CLI, minimal services, floor + stable matrix
 
