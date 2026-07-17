@@ -189,11 +189,12 @@ The interface is named `HTTPClient` with a single `Do` method, following AWS SDK
 ## The postgrest module is Supabase-agnostic in code but not a supported general-purpose client
 
 **What**:  
-The `postgrest` module carries no Supabase-specific behavior - the `apikey` header, the `/rest/v1` base path and token handling live in `core` and the root - so its code could in principle talk to any PostgREST server.
+The `postgrest` module carries almost no Supabase-specific behavior - the `apikey` header and token handling live in `core` and the root - so its code could in principle talk to any PostgREST server.
+The one Supabase convention it does carry is `New` deriving its base URL under the project's `/rest/v1` path.
 It is not, however, a tested or supported general-purpose PostgREST client. It is documented as the Supabase Database client, and standalone use against a non-Supabase server is not promised.
 
 **Why**:  
-The agnostic-code claim is asserted cheaply, by the module boundary: `postgrest` imports and names none of the Supabase-specific pieces, which review and the build enforce, with no extra test infrastructure.
+The agnostic-code claim is asserted cheaply, by the module boundary: beyond the `/rest/v1` mount, `postgrest` imports and names none of the Supabase-specific pieces, which review and the build enforce, with no extra test infrastructure.
 A supported general-purpose promise would cost far more - a bare PostgREST server stood up in CI, a way to build `postgrest` without the base URL and apikey it is handed today, and testing across PostgREST versions - none of which is planned for the first releases.
 Keeping the promise narrow now forecloses nothing: promotion to a supported general-purpose client is additive (add the harness and a Supabase-free constructor) and breaks no existing Supabase user, mirroring how the JS SDK ships a standalone `@supabase/postgrest-js`.
 
