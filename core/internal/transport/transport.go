@@ -2,7 +2,11 @@
 // Supabase domain modules are built on.
 package transport
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/supabase/supabase-go/core/internal/telemetry"
+)
 
 // transport is an http.RoundTripper that injects Supabase authentication and
 // global headers into every outgoing request. It honors the RoundTripper
@@ -53,6 +57,7 @@ func (tr *transport) RoundTrip(request *http.Request) (*http.Response, error) {
 	}
 
 	clone.Header.Set("apikey", tr.apiKey)
+	clone.Header.Set("X-Client-Info", telemetry.ClientInformationHeaderValue())
 
 	return tr.base.RoundTrip(clone)
 }

@@ -21,6 +21,9 @@ func TestTransportInjectsHeaders(t *testing.T) {
 	if received.Get("apikey") != "test-key" {
 		t.Errorf("apikey = %q, want %q", received.Get("apikey"), "test-key")
 	}
+	if received.Get("X-Client-Info") != "supabase-go" {
+		t.Errorf("X-Client-Info = %q, want %q", received.Get("X-Client-Info"), "supabase-go")
+	}
 	if received.Get("Authorization") != "" {
 		t.Errorf("Authorization = %q, want it absent because the transport never sets it", received.Get("Authorization"))
 	}
@@ -54,6 +57,7 @@ func TestTransportHeaderPrecedence(t *testing.T) {
 		request.Header.Set("Authorization", "Bearer user-token")
 		request.Header.Set("X-Dummy-Header", "per-request")
 		request.Header.Set("apikey", "attacker-key")
+		request.Header.Set("X-Client-Info", "pretender")
 	})
 
 	// A per-request end-user token passes through untouched.
@@ -67,6 +71,10 @@ func TestTransportHeaderPrecedence(t *testing.T) {
 	// apikey is always the project key and cannot be overridden.
 	if received.Get("apikey") != "project-key" {
 		t.Errorf("apikey = %q, want the project key forced", received.Get("apikey"))
+	}
+	// X-Client-Info is for Supabase SDK telemetry needs, so should remain as set by this SDK, not the user
+	if received.Get("X-Client-Info") == "pretender" {
+		t.Errorf("X-Client-Info = %q, but wanted SDK default", received.Get("X-Client-Info"))
 	}
 }
 
