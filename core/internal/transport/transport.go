@@ -34,7 +34,8 @@ func WrapClient(client *http.Client, apiKey string, headers http.Header) *http.C
 	return &clone
 }
 
-// RoundTrip injects the project API key header and any global headers, then
+// RoundTrip implements [http.RoundTripper].
+// It injects the project API key header and any global headers, then
 // delegates to the wrapped transport. Precedence: existing request headers win
 // over global defaults, and the apikey header is always the project key. The
 // transport never sets Authorization: that header carries an end-user's JWT,
