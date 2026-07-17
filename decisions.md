@@ -30,7 +30,7 @@ A pure multi-module library has none of that - every task is a single `go`-toolc
 ## CI uses only first-party Actions (GitHub's `actions` org)
 
 **What**:  
-The only actions permitted are actions/checkout and actions/setup-go; no golangci/* or golang/* actions.
+The only actions permitted are those owned by GitHub's first-party [`actions` org](https://github.com/actions/); no golangci/* or golang/* actions.
 
 **Why**:  
 A wrapper action is a CI-only black box a developer can't run locally.
