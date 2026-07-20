@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
 )
 
 func ExampleNew() {
 	projectConfiguration, err := configuration.New(
+		core.ModulePathRoot,
 		"https://PROJECT_ID.supabase.co",
 		"API_KEY",
 		configuration.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
@@ -27,10 +29,10 @@ func ExampleNew() {
 // ExampleNew_invalidInput tells the validation failures apart with
 // errors.Is against the exported sentinels.
 func ExampleNew_invalidInput() {
-	_, err := configuration.New("", "API_KEY")
+	_, err := configuration.New(core.ModulePathRoot, "", "API_KEY")
 	fmt.Println(errors.Is(err, configuration.ErrMissingURL))
 
-	_, err = configuration.New("ftp://example.com", "API_KEY")
+	_, err = configuration.New(core.ModulePathRoot, "ftp://example.com", "API_KEY")
 	fmt.Println(errors.Is(err, configuration.ErrInvalidURL))
 	// Output:
 	// true

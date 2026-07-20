@@ -12,17 +12,17 @@ import (
 	"github.com/supabase/supabase-go/postgrest"
 )
 
-func ExampleNewClient() {
-	supabase, err := supabase.NewClient("https://PROJECT_ID.supabase.co", "API_KEY")
+func ExampleNew() {
+	supabase, err := supabase.New("https://PROJECT_ID.supabase.co", "API_KEY")
 	fmt.Println(supabase != nil && err == nil)
 	// Output: true
 }
 
-// ExampleNewClient_options customizes the client with the shared functional
+// ExampleNew_options customizes the client with the shared functional
 // options from the configuration package: a caller-supplied HTTP client and
 // global headers sent on every request.
-func ExampleNewClient_options() {
-	supabase, err := supabase.NewClient(
+func ExampleNew_options() {
+	supabase, err := supabase.New(
 		"https://PROJECT_ID.supabase.co",
 		"API_KEY",
 		configuration.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
@@ -32,11 +32,11 @@ func ExampleNewClient_options() {
 	// Output: true
 }
 
-// ExampleNewClient_invalidInput shows that NewClient surfaces the configuration
+// ExampleNew_invalidInput shows that supabase.New surfaces the configuration
 // package's sentinel errors unchanged, so a caller can match them with
 // errors.Is.
-func ExampleNewClient_invalidInput() {
-	_, err := supabase.NewClient("https://PROJECT_ID.supabase.co", "")
+func ExampleNew_invalidInput() {
+	_, err := supabase.New("https://PROJECT_ID.supabase.co", "")
 	fmt.Println(errors.Is(err, configuration.ErrMissingKey))
 	// Output: true
 }
@@ -49,7 +49,7 @@ func ExampleClient_From() {
 		Name string `json:"name"`
 	}
 
-	supabase, err := supabase.NewClient("https://PROJECT_ID.supabase.co", "API_KEY")
+	supabase, err := supabase.New("https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
 		fmt.Println(err)
 		return

@@ -39,7 +39,7 @@ patterns:
     pattern: /github\.com/g
 
   # Supabase is a proper noun ("Supabase" in prose), but the name is legitimately
-  # lowercase in code-shaped contexts: qualified identifiers (supabase.NewClient,
+  # lowercase in code-shaped contexts: qualified identifiers (supabase.New,
   # supabase.Option), org and repository paths (supabase/.github), project domains
   # (supabase.co), any hyphenated SDK name (this module's supabase-go and sibling
   # SDKs like supabase-js, supabase-swift, supabase-py), the Go import alias

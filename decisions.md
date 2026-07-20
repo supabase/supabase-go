@@ -164,13 +164,13 @@ Holding to the standard syntax lets `gofmt` keep formatting consistent and stops
 ## Domain navigation is context-free and cannot fail
 
 **What**:  
-`NewClient` constructs every domain client up front and holds each in an unexported field.
+`supabase.New` constructs every domain client up front and holds each in an unexported field.
 The methods that reach domain behavior (for example, the fluent `From`) take no `context.Context` and return no error.
 `context.Context` is taken only by the terminal methods that perform I/O, such as the database `Execute`.
 
 **Why**:  
 Reaching domains through methods keeps the handle fields unexported, so the client stays immutable and safe for concurrent use.
-Construction does no I/O - `NewClient` parses the project URL and wraps the HTTP transport, with no network call - so there is nothing at access time for a context to bound or cancel, and nothing that can fail.
+Construction does no I/O - `supabase.New` parses the project URL and wraps the HTTP transport, with no network call - so there is nothing at access time for a context to bound or cancel, and nothing that can fail.
 Google's SDKs are the cautionary contrast. Firebase's `app.Auth(ctx)` and `app.Firestore(ctx)` take a context and return an error because they lazily construct clients that resolve credentials and dial connections, and the context is then kept for the client's life: the `cloud.google.com/go` docs warn "Do not set a timeout on the context passed to NewClient: dialing happens asynchronously, and the context is used to refresh credentials in the background", and `golang.org/x/oauth2` states its client "is not valid beyond the lifetime of the context".
 That shape only earns its place when the returned client owns background work bound to the context, and it carries a footgun when it does not: a request-scoped context passed to such a constructor and then cached breaks the client's background refresh once the request ends.
 Our handles own no background work, so a context parameter would import that footgun for no gain.
@@ -202,7 +202,7 @@ Keeping the promise narrow now forecloses nothing: promotion to a supported gene
 ## The client presumes neither a deployment runtime context nor an API/Supabase key type
 
 **What**:  
-The key parameter to `NewClient` (and `configuration.New`) is named neutrally as `apiKey`, never `publishableKey` or `secretKey`, and the SDK neither inspects the key nor assumes where the calling code runs.
+The key parameter to `supabase.New` (and `configuration.New`) is named neutrally as `apiKey`, never `publishableKey` or `secretKey`, and the SDK neither inspects the key nor assumes where the calling code runs.
 A caller may pass any of the project's keys - a publishable key, a secret key or, while they last, a legacy `anon`/`service_role` key - and the SDK carries it as an opaque credential.
 
 **Why**:  

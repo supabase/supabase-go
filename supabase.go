@@ -1,19 +1,20 @@
 package supabase
 
 import (
+	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest"
 )
 
 // Client is the composed Supabase client. It is safe for concurrent use by
-// multiple goroutines. Construct it with [NewClient]. The zero value is not
+// multiple goroutines. Construct it with [New]. The zero value is not
 // usable.
 type Client struct {
 	configuration *configuration.Configuration
 	database      *postgrest.Client
 }
 
-// NewClient constructs a Supabase client for the given project URL and API key.
+// New constructs a Supabase client for the given project URL and API key.
 //
 // Returned sentinel errors relate to misconfiguration:
 //   - [configuration.ErrMissingURL] when projectURL is empty.
@@ -23,14 +24,14 @@ type Client struct {
 //
 // See [configuration.WithHTTPClient] and [configuration.WithHeader] for the
 // available options.
-func NewClient(projectURL, apiKey string, options ...configuration.Option) (*Client, error) {
-	projectConfiguration, err := configuration.New(projectURL, apiKey, options...)
+func New(projectURL, apiKey string, options ...configuration.Option) (*Client, error) {
+	projectConfiguration, err := configuration.New(core.ModulePathRoot, projectURL, apiKey, options...)
 	if err != nil {
 		return nil, err
 	}
 	return &Client{
 		configuration: projectConfiguration,
-		database:      postgrest.New(projectConfiguration),
+		database:      postgrest.NewFromConfiguration(projectConfiguration),
 	}, nil
 }
 

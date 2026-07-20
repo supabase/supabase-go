@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/internal/transport"
 )
 
@@ -74,8 +75,13 @@ func WithHeader(key, value string) Option {
 	}
 }
 
-// New validates rawURL and apiKey, applies the supplied options in
-// order, and returns a ready-to-use [Configuration].
+// New validates rawURL and apiKey, applies the supplied options in order, and
+// returns a ready-to-use [Configuration]. It identifies itself to Supabase
+// services as entryModulePath, the SDK client its requests are made through,
+// which is reported in the X-Client-Info header of every request.
+//
+// entryModulePath must name an SDK client that emits telemetry and whose module
+// is linked into the build. New panics at construction otherwise.
 //
 // It returns one of these sentinel errors, when its inputs are unusable:
 //   - [ErrMissingURL] when rawURL is empty.
@@ -84,7 +90,7 @@ func WithHeader(key, value string) Option {
 //     underlying parse failure, when there is one, is wrapped.
 //
 // See [WithHTTPClient] and [WithHeader] for the available options.
-func New(rawURL, apiKey string, options ...Option) (*Configuration, error) {
+func New(entryModulePath core.ModulePath, rawURL, apiKey string, options ...Option) (*Configuration, error) {
 	if rawURL == "" {
 		return nil, ErrMissingURL
 	}
@@ -110,7 +116,7 @@ func New(rawURL, apiKey string, options ...Option) (*Configuration, error) {
 		option(configuration)
 	}
 
-	configuration.httpClient = transport.WrapClient(configuration.httpClient, configuration.apiKey, configuration.headers)
+	configuration.httpClient = transport.WrapClient(entryModulePath, configuration.httpClient, configuration.apiKey, configuration.headers)
 	return configuration, nil
 }
 

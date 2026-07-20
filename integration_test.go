@@ -13,7 +13,7 @@ import (
 
 // TestIntegrationRootClientSelect selects seeded rows through the root
 // client against the local Supabase stack started by
-// scripts/integration-test.sh, covering the composition of NewClient,
+// scripts/integration-test.sh, covering the composition of a new client,
 // From, Select, and Execute.
 func TestIntegrationRootClientSelect(t *testing.T) {
 	projectURL := os.Getenv("SUPABASE_URL")
@@ -22,9 +22,9 @@ func TestIntegrationRootClientSelect(t *testing.T) {
 		t.Fatal("SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set for integration tests - run scripts/integration-test.sh")
 	}
 
-	client, err := supabase.NewClient(projectURL, apiKey)
+	client, err := supabase.New(projectURL, apiKey)
 	if err != nil {
-		t.Fatalf("NewClient: %v", err)
+		t.Fatalf("supabase.New: %v", err)
 	}
 
 	var rows []struct {

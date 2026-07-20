@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
 )
 
@@ -21,7 +22,7 @@ func TestNewValidation(t *testing.T) {
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			_, err := configuration.New(testCase.url, testCase.key)
+			_, err := configuration.New(core.ModulePathRoot, testCase.url, testCase.key)
 			if !errors.Is(err, testCase.wantError) {
 				t.Fatalf("configuration.New error = %v, want errors.Is %v", err, testCase.wantError)
 			}
@@ -30,7 +31,7 @@ func TestNewValidation(t *testing.T) {
 }
 
 func TestNewValid(t *testing.T) {
-	projectConfiguration, err := configuration.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	projectConfiguration, err := configuration.New(core.ModulePathRoot, "https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
 		t.Fatalf("configuration.New returned error: %v", err)
 	}
@@ -43,7 +44,7 @@ func TestNewValid(t *testing.T) {
 }
 
 func TestConfiguration_BaseURLReturnsCopy(t *testing.T) {
-	projectConfiguration, err := configuration.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	projectConfiguration, err := configuration.New(core.ModulePathRoot, "https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}

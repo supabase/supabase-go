@@ -4,24 +4,40 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest/internal/request"
 )
 
-// Client is the entry point for Database queries against PostgREST. It is built
-// from the shared [configuration.Configuration], either directly (when importing this
-// module on its own) or by the root supabase client. A Client is safe for
-// concurrent use by multiple goroutines.
+// Client is the entry point for Database queries against PostgREST. Construct a
+// standalone client with [New], or build one on a shared
+// [configuration.Configuration] with [NewFromConfiguration], as the root supabase
+// client does. A Client is safe for concurrent use by multiple goroutines.
 type Client struct {
 	httpClient configuration.HTTPClient
 	baseURL    *url.URL
 }
 
-// New constructs a PostgREST [Client] from the shared [configuration.Configuration]. The
-// PostgREST endpoints live under the project's /rest/v1 path, derived from
-// [configuration.Configuration.BaseURL], and requests carry the authentication and global
-// headers configured on [configuration.Configuration.HTTPClient].
-func New(projectConfiguration *configuration.Configuration) *Client {
+// New constructs a standalone PostgREST [Client] for the given project URL
+// and API key, building the [configuration.Configuration] it needs.
+//
+// It returns the sentinel errors documented by [configuration.New] when
+// projectURL or apiKey are unusable. See [configuration.WithHTTPClient] and
+// [configuration.WithHeader] for the available options.
+func New(projectURL, apiKey string, options ...configuration.Option) (*Client, error) {
+	projectConfiguration, err := configuration.New(core.ModulePathPostgrest, projectURL, apiKey, options...)
+	if err != nil {
+		return nil, err
+	}
+	return NewFromConfiguration(projectConfiguration), nil
+}
+
+// NewFromConfiguration constructs a PostgREST [Client] from the shared
+// [configuration.Configuration]. The PostgREST endpoints live under the project's
+// /rest/v1 path, derived from [configuration.Configuration.BaseURL], and requests
+// carry the authentication and global headers configured on
+// [configuration.Configuration.HTTPClient].
+func NewFromConfiguration(projectConfiguration *configuration.Configuration) *Client {
 	return &Client{
 		httpClient: projectConfiguration.HTTPClient(),
 		baseURL:    projectConfiguration.BaseURL().JoinPath("rest", "v1"),

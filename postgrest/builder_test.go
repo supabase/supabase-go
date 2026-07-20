@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest"
 )
@@ -21,11 +22,11 @@ type instrument struct {
 // exercise the same transport (apikey header injection included) consumers use.
 func newTestClient(t *testing.T, server *httptest.Server) *postgrest.Client {
 	t.Helper()
-	projectConfiguration, err := configuration.New(server.URL, "TEST_API_KEY")
+	projectConfiguration, err := configuration.New(core.ModulePathPostgrest, server.URL, "TEST_API_KEY")
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}
-	return postgrest.New(projectConfiguration)
+	return postgrest.NewFromConfiguration(projectConfiguration)
 }
 
 func TestExecuteDecodesRows(t *testing.T) {

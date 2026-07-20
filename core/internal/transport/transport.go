@@ -5,6 +5,7 @@ package transport
 import (
 	"net/http"
 
+	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/internal/telemetry"
 )
 
@@ -12,15 +13,17 @@ import (
 // global headers into every outgoing request. It honors the RoundTripper
 // contract: it never mutates the caller's request, operating on a clone instead.
 type transport struct {
-	base    http.RoundTripper
-	apiKey  string
-	headers http.Header
+	base                         http.RoundTripper
+	apiKey                       string
+	headers                      http.Header
+	clientInformationHeaderValue string
 }
 
-// WrapClient returns a copy of client whose transport injects the project API key
-// header and the supplied global headers. The input client is never mutated, so
-// sharing [http.DefaultClient] remains safe.
-func WrapClient(client *http.Client, apiKey string, headers http.Header) *http.Client {
+// WrapClient returns a copy of client whose transport injects the project API
+// key header, the supplied global headers and the X-Client-Info header that
+// identifies entryModulePath. The input client is never mutated, so sharing
+// [http.DefaultClient] remains safe.
+func WrapClient(entryModulePath core.ModulePath, client *http.Client, apiKey string, headers http.Header) *http.Client {
 	if client == nil {
 		client = http.DefaultClient
 	}
@@ -31,9 +34,10 @@ func WrapClient(client *http.Client, apiKey string, headers http.Header) *http.C
 
 	clone := *client
 	clone.Transport = &transport{
-		base:    base,
-		apiKey:  apiKey,
-		headers: headers.Clone(),
+		base:                         base,
+		apiKey:                       apiKey,
+		headers:                      headers.Clone(),
+		clientInformationHeaderValue: telemetry.ClientInformationHeaderValue(entryModulePath),
 	}
 	return &clone
 }
@@ -57,7 +61,7 @@ func (tr *transport) RoundTrip(request *http.Request) (*http.Response, error) {
 	}
 
 	clone.Header.Set("apikey", tr.apiKey)
-	clone.Header.Set("X-Client-Info", telemetry.ClientInformationHeaderValue())
+	clone.Header.Set("X-Client-Info", tr.clientInformationHeaderValue)
 
 	return tr.base.RoundTrip(clone)
 }

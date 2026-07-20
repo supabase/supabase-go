@@ -4,14 +4,16 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
 )
 
 func TestTransportInjectsHeaders(t *testing.T) {
 	server, received := recordingServer(t)
-	projectConfiguration, err := configuration.New(server.URL, "test-key",
+	projectConfiguration, err := configuration.New(core.ModulePathRoot, server.URL, "test-key",
 		configuration.WithHeader("X-App-Version", "1.0.0+user.generated"))
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
@@ -21,9 +23,12 @@ func TestTransportInjectsHeaders(t *testing.T) {
 	if received.Get("apikey") != "test-key" {
 		t.Errorf("apikey = %q, want %q", received.Get("apikey"), "test-key")
 	}
-	if received.Get("X-Client-Info") != "supabase-go" {
-		t.Errorf("X-Client-Info = %q, want %q", received.Get("X-Client-Info"), "supabase-go")
+
+	clientInfo := received.Get("X-Client-Info")
+	if !strings.HasPrefix(clientInfo, "supabase-go/(devel)") {
+		t.Errorf("X-Client-Info = %q, want to have prefix %q", clientInfo, "supabase-go/(devel)")
 	}
+
 	if received.Get("Authorization") != "" {
 		t.Errorf("Authorization = %q, want it absent because the transport never sets it", received.Get("Authorization"))
 	}
@@ -34,7 +39,7 @@ func TestTransportInjectsHeaders(t *testing.T) {
 
 func TestWithHTTPClientDoesNotMutateInput(t *testing.T) {
 	custom := &http.Client{}
-	projectConfiguration, err := configuration.New("https://PROJECT_ID.supabase.co", "k", configuration.WithHTTPClient(custom))
+	projectConfiguration, err := configuration.New(core.ModulePathRoot, "https://PROJECT_ID.supabase.co", "k", configuration.WithHTTPClient(custom))
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}
@@ -48,7 +53,7 @@ func TestWithHTTPClientDoesNotMutateInput(t *testing.T) {
 
 func TestTransportHeaderPrecedence(t *testing.T) {
 	server, received := recordingServer(t)
-	projectConfiguration, err := configuration.New(server.URL, "project-key",
+	projectConfiguration, err := configuration.New(core.ModulePathRoot, server.URL, "project-key",
 		configuration.WithHeader("X-Dummy-Header", "default"))
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
