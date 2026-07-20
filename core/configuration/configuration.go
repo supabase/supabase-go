@@ -77,13 +77,14 @@ func WithHeader(key, value string) Option {
 
 // New validates rawURL and apiKey, applies the supplied options in order, and
 // returns a ready-to-use [Configuration]. It identifies itself to Supabase
-// services as entryModulePath, the SDK client its requests are made through,
-// which is reported in the X-Client-Info header of every request.
+// services according to entryModulePath.
 //
-// entryModulePath must name an SDK client that emits telemetry and whose module
-// is linked into the build. New panics at construction otherwise.
+// entryModulePath must be one of the following, with its module linked into
+// the build, otherwise this function will panic:
+//   - [core.ModulePathCore]
+//   - [core.ModulePathPostgrest]
 //
-// It returns one of these sentinel errors, when its inputs are unusable:
+// Returns one of these sentinel errors, when inputs are unusable:
 //   - [ErrMissingURL] when rawURL is empty.
 //   - [ErrMissingKey] when apiKey is empty.
 //   - [ErrInvalidURL] when rawURL is not an absolute http or https URL. The

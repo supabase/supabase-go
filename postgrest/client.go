@@ -19,7 +19,7 @@ type Client struct {
 }
 
 // New constructs a standalone PostgREST [Client] for the given project URL
-// and API key, building the [configuration.Configuration] it needs.
+// and API key.
 //
 // It returns the sentinel errors documented by [configuration.New] when
 // projectURL or apiKey are unusable. See [configuration.WithHTTPClient] and

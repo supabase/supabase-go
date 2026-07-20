@@ -23,6 +23,11 @@ type transport struct {
 // key header, the supplied global headers and the X-Client-Info header that
 // identifies entryModulePath. The input client is never mutated, so sharing
 // [http.DefaultClient] remains safe.
+//
+// entryModulePath must be one of the following, with its module linked into
+// the build, otherwise this function will panic:
+//   - [core.ModulePathCore]
+//   - [core.ModulePathPostgrest]
 func WrapClient(entryModulePath core.ModulePath, client *http.Client, apiKey string, headers http.Header) *http.Client {
 	if client == nil {
 		client = http.DefaultClient
