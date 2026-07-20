@@ -429,7 +429,7 @@ The `telemetrytest/` module is a stand-in consumer: it requires the SDK modules 
 `scripts/telemetry-test.sh` runs it with `GOWORK=off` and the module is not listed in `go.work`.
 A second leg rebuilds the same program in GOPATH mode (`GO111MODULE=off`), where binaries carry build information without module records, and asserts the version-unknowable `0.0.0` fallback in every header.
 The `TELEMETRY_TEST_MODE` environment variable tells the program which expectations to hold.
-The check is part of the fast tier (`check-fast.sh`) and its own CI job on the same `["1.22", "stable"]` matrix as build-and-test.
+The check is part of the fast tier (`check-fast.sh`) and runs in CI as a step of the build-and-test job, on its `["1.22", "stable"]` matrix.
 The probe is a plain program, not a `go test` suite.
 
 **Why**:  

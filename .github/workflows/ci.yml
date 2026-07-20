@@ -28,23 +28,6 @@ jobs:
       # is added in the block that introduces the first external dependency, once
       # its interaction with the workspace is validated.
       - run: ./scripts/build-and-test.sh
-
-  # Consumes the SDK as a module dependency - fabricated require versions
-  # resolved to the local tree - and asserts the X-Client-Info header every
-  # entry point sends. The matrix mirrors build-and-test: header resolution is
-  # consumer-facing behavior, so it is proven on the published floor and on
-  # stable.
-  telemetry-test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        go-version: ["1.22", "stable"]
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version: ${{ matrix.go-version }}
       - run: ./scripts/telemetry-test.sh
 
   # Integration tests run against a local Supabase stack.
