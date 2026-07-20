@@ -17,11 +17,10 @@ const rootClientName = "supabase-go"
 // ClientInformationHeaderValue returns a value suitable for use for the
 // X-Client-Info header sent with HTTP requests submitted to Supabase services.
 //
-// entryModulePath identifies the SDK client the value describes. It panics if
-// that module is either not expected to emit telemetry or if that module's
-// dependency isn't found in build information when the running binary was known
-// to have been built with module support and isn't built or running tests within
-// the SDK's own module tree.
+// entryModulePath identifies the SDK client the value describes. It panics
+// when that module is not expected to emit telemetry, or when the running
+// binary's module information places the build outside the SDK's own module
+// tree yet holds no dependency record for that module.
 func ClientInformationHeaderValue(entryModulePath core.ModulePath) string {
 	headerValue, ok := clientInformationHeaderValues()[entryModulePath]
 	if !ok {
@@ -41,15 +40,15 @@ func buildClientInformationHeaderValues() map[core.ModulePath]string {
 	clientBases := make(map[core.ModulePath]string, len(clientNames))
 
 	buildInformation, ok := debug.ReadBuildInfo()
-	if ok {
+	if ok && buildInformation.Main.Path != "" {
 		if builtWithinSDK(buildInformation) {
 			for modulePath, clientName := range clientNames {
 				clientBases[modulePath] = clientName + "/(devel)"
 			}
 		} else {
-			// There was build information embedded in the running binary, which means
-			// that it was built with module support.
-			// We populate a value only for client modules we can find in dependencies.
+			// The binary was built outside the SDK's module tree, so client module
+			// versions are resolvable only from its recorded dependencies.
+			// We populate a value only for client modules we can find there.
 			for _, module := range buildInformation.Deps {
 				modulePath := core.ModulePath(module.Path)
 				if clientName, found := clientNames[modulePath]; found {
@@ -58,9 +57,11 @@ func buildClientInformationHeaderValues() map[core.ModulePath]string {
 			}
 		}
 	} else {
-		// There was no build information embedded in the running binary.
-		// This means that it was not built with module support.
-		// Our fallback is to synthesize a value for every possible client module.
+		// The binary carries no module information: either build information is
+		// absent entirely, or it lacks module records - as with binaries built
+		// without module support and test binaries from Go toolchains before 1.24.
+		// No client module's version is knowable, so synthesize a value for every
+		// possible client module.
 		for modulePath, clientName := range clientNames {
 			clientBases[modulePath] = clientName + "/0.0.0"
 		}

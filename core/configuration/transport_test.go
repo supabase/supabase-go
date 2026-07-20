@@ -24,9 +24,12 @@ func TestTransportInjectsHeaders(t *testing.T) {
 		t.Errorf("apikey = %q, want %q", received.Get("apikey"), "test-key")
 	}
 
+	// Test binaries carry module information only from Go 1.24, so the version
+	// sentinel depends on the toolchain: (devel) when the build is known to be
+	// in-tree, 0.0.0 when module information is absent.
 	clientInfo := received.Get("X-Client-Info")
-	if !strings.HasPrefix(clientInfo, "supabase-go/(devel)") {
-		t.Errorf("X-Client-Info = %q, want to have prefix %q", clientInfo, "supabase-go/(devel)")
+	if !strings.HasPrefix(clientInfo, "supabase-go/(devel)") && !strings.HasPrefix(clientInfo, "supabase-go/0.0.0") {
+		t.Errorf("X-Client-Info = %q, want prefix %q or %q", clientInfo, "supabase-go/(devel)", "supabase-go/0.0.0")
 	}
 
 	if received.Get("Authorization") != "" {

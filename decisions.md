@@ -438,3 +438,16 @@ Workspace membership would defeat the vantage from the other side - a workspace 
 The fabricated versions are distinct from every sentinel the header can otherwise carry (`(devel)` in-tree, `0.0.0` without build information), so a pass is unambiguous provenance, and their `-fabricated` prerelease label keeps the header values in check output from reading as release claims.
 Each must outrank every other require of the same module path in this build so minimal version selection keeps it as the selected, recorded version: `0.999.x` outranks the entire real `v0` series and deliberately loses to the first real `v1` require, so the fixture fails loudly at GA instead of surviving it silently.
 The floor leg exists because the header is consumer-facing behavior and `go 1.22` is the consumer contract.
+
+## Module information is judged by `Main.Path`, not by `ReadBuildInfo`'s ok
+
+**What**:  
+`buildClientInformationHeaderValues` treats the running binary as carrying module information only when `debug.ReadBuildInfo()` succeeds and `Main.Path` is non-empty.
+Otherwise every registered client synthesizes `<name>/0.0.0`, the same version-unknowable sentinel used when build information is absent entirely.
+The construction panic remains for a module-aware binary built outside the SDK's tree whose dependency records omit the named entry module, and for a module that is not a registered telemetry client.
+
+**Why**:  
+Since Go 1.18 every binary the go command produces embeds build information, so ok answers "is there a blob" and not "is module identity known": test binaries from toolchains before Go 1.24 ([golang/go#33976](https://github.com/golang/go/issues/33976)) and binaries built with `GO111MODULE=off` report ok with a zero-valued `Main` and nil `Deps`.
+Trusting ok alone would therefore panic every client construction inside a consumer's own `go test` on Go 1.22 or 1.23 - within the documented consumer floor - and in this repository's floor-leg CI.
+A binary in that state carries no module identity at all, so nothing distinguishes an in-tree build from a consumer's, no `(devel)` claim is honest and the version-unknowable sentinel is the only truthful value.
+The panic survives only where module identity is present and contradicts the caller's declared entry module, which is a programmer error rather than an environment degradation.
