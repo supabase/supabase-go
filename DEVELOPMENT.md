@@ -1,6 +1,6 @@
 # Developing the Supabase Go SDK
 
-<!-- cSpell:ignore darwin -->
+<!-- cSpell:ignore darwin mvdan -->
 
 This file holds the Go/SDK-specific guidance for working in this repository.
 General, organization-wide contribution policy lives in our [shared `.github` repository](https://github.com/supabase/.github)'s CONTRIBUTING.md file.
@@ -52,6 +52,23 @@ To run the whole fast tier before pushing - build and unit test plus lint, vulne
 ```bash
 ./scripts/check-fast.sh
 ```
+
+### Fixing Formatting for `gofumpt`
+
+When running [`lint.sh`](scripts/lint.sh), either directly or via [`check-fast.sh`](scripts/check-fast.sh), you may see a message in this form:
+
+```
+gofumpt would reformat:
+some/path/to/a/file.go
+```
+
+In this scenario you can run the following from repository root to ask `gofumpt` to fix what it didn't like:
+
+```
+GOWORK=off go -C tools/go run mvdan.cc/gofumpt -w ../..
+```
+
+This ensures you fix the formatting using the exact versions of tools used by our [build `scripts/`](scripts/) (including in CI) as specified in [the `tools/go/` module](tools/go/).
 
 ### Integration tests
 
