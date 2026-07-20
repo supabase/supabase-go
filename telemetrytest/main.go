@@ -1,9 +1,11 @@
 // Command telemetrytest asserts the X-Client-Info header each SDK entry point
-// sends when the SDK is consumed as a module dependency rather than built
-// within its own repository. The asserted versions are the fabricated ones
-// go.mod requires, so a pass proves they were resolved from the running
-// binary's build-information dependency records. The program exits non-zero
-// when any assertion fails.
+// sends when the SDK is consumed from outside its own repository. The
+// TELEMETRY_TEST_MODE environment variable selects the expectation:
+// "replaced-dependencies" asserts the fabricated versions go.mod requires,
+// proving they were resolved from the running binary's build-information
+// dependency records, while "no-module-information" asserts the 0.0.0
+// fallback of a binary that carries no module records, as GOPATH-mode builds
+// produce. The program exits non-zero when any assertion fails.
 package main
 
 import (
@@ -27,6 +29,8 @@ const (
 )
 
 func main() {
+	expectedRootVersion, expectedPostgrestVersion := expectedVersions()
+
 	runtimeSuffix := "; runtime=go"
 	if goRuntimeVersion, didFindGoPrefix := strings.CutPrefix(runtime.Version(), "go"); didFindGoPrefix {
 		runtimeSuffix += "; runtime-version=" + goRuntimeVersion
@@ -39,12 +43,12 @@ func main() {
 	}{
 		{
 			name:     "root supabase client",
-			want:     "supabase-go/" + requiredRootVersion + runtimeSuffix,
+			want:     "supabase-go/" + expectedRootVersion + runtimeSuffix,
 			exercise: exerciseRootClient,
 		},
 		{
 			name:     "standalone postgrest client",
-			want:     "postgrest-go/" + requiredPostgrestVersion + runtimeSuffix,
+			want:     "postgrest-go/" + expectedPostgrestVersion + runtimeSuffix,
 			exercise: exercisePostgrestClient,
 		},
 	}
@@ -65,6 +69,20 @@ func main() {
 	}
 	if failed {
 		os.Exit(1)
+	}
+}
+
+// expectedVersions returns the versions the TELEMETRY_TEST_MODE environment
+// variable demands of the header values, panicking on an unknown mode.
+func expectedVersions() (rootVersion, postgrestVersion string) {
+	mode := os.Getenv("TELEMETRY_TEST_MODE")
+	switch mode {
+	case "replaced-dependencies":
+		return requiredRootVersion, requiredPostgrestVersion
+	case "no-module-information":
+		return "0.0.0", "0.0.0"
+	default:
+		panic(fmt.Sprintf("TELEMETRY_TEST_MODE must be %q or %q, got %q", "replaced-dependencies", "no-module-information", mode))
 	}
 }
 
