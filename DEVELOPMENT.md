@@ -87,6 +87,14 @@ The script starts the stack against a disposable copy of `integration/`, seeds i
 
 Integration test functions are named `TestIntegrationXxx`. The script selects them with `-run '^TestIntegration'`, so a tagged test named outside that prefix will never run.
 
+### Telemetry header test
+
+Suites in the workspace always see the `(devel)` sentinel in the `X-Client-Info` header, because an in-tree build cannot resolve SDK module versions from build information. The consumer-view check covers the resolution real consumers exercise: the `telemetrytest/` module requires the SDK modules at fabricated versions, `replace`s them to the local tree and asserts the exact header every entry point sends. It needs only the Go toolchain and runs as part of the fast tier via `./scripts/check-fast.sh`, or alone:
+
+```bash
+./scripts/telemetry-test.sh
+```
+
 ### Previewing the rendered docs
 
 `pkg.go.dev` is where consumers read our doc comments and runnable examples. To preview that rendering for your local working tree, run [`pkgsite`](https://pkg.go.dev/golang.org/x/pkgsite/cmd/pkgsite). It reads the [`go.work` workspace file](go.work), so one run from the repository root serves all three modules on a local HTTP server (it prints the address, by default http://localhost:8080).

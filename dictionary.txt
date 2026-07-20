@@ -44,6 +44,7 @@ staticcheck
 stdlib
 subtest
 Supabase
+telemetrytest
 typestate
 unrepresentable
 vulncheck
