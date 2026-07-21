@@ -12,6 +12,12 @@ All decisions documented here clearly state 'why', justifying the 'what'.
 They're loosely held, acknowledging that reasons change and rebalance over time, so we should feel able to change or revert decisions as we learn more about what this codebase needs.
 The ideal situation is that this document will be updated as that happens, as an atomic component of codebase changes that reflect that decision change.
 
+**present-tense-only**: Every entry in this document justifies the codebase as it stands right now, never how it got here.
+When a decision changes, rewrite its entry to describe the new present, or delete it outright when its subject or rationale no longer earns a place - git history is the only ledger of what came before (that is, the journey that the codebase took to get to its current state), so supersession notes and narration of renames or reversals are noise wherever they appear here.
+
+While the entries in this document are presented as a series of lightweight Architectural Decisions Records (ADRs), this document is not append-only.
+Deleting a stale entry is correct maintenance and therefore encouraged.
+
 ## No `Makefile` or task runner
 
 **What**:  
@@ -24,7 +30,7 @@ A pure multi-module library has none of that - every task is a single `go`-toolc
 ## CI uses only first-party Actions (GitHub's `actions` org)
 
 **What**:  
-The only actions permitted are actions/checkout and actions/setup-go; no golangci/* or golang/* actions.
+The only actions permitted are those owned by GitHub's first-party [`actions` org](https://github.com/actions/); no golangci/* or golang/* actions.
 
 **Why**:  
 A wrapper action is a CI-only black box a developer can't run locally.
@@ -72,7 +78,8 @@ The published `go` directive stays at the conservative consumer floor (`1.22`) i
 Pre-tag, a module that imports an unpublished sibling cannot resolve it without either `replace` directives or a workspace.
 `go.work` is the purpose-built mechanism (Go 1.18+) and gives a cleaner separation of "what we publish to customers" (the `go.mod` files, free of dev-only redirects) from "how we develop locally" (one workspace file), stating the wiring once instead of repeating `replace … => ../core` in every consumer.
 Committing it is the Go-team-endorsed practice for monorepos ([golang/go#53502](https://github.com/golang/go/issues/53502) explicitly declined a "never commit" warning; the relative paths are identical for every clone, gopls configures multi-module editing from it, and Dependabot understands it), and it is provably safe for consumers: `go.work` is never included in a published module zip and is ignored by `go get`, so it cannot affect anyone importing the SDK.
-The one workspace hazard - the overlay masking a missing `require` - cannot bite at this stage, as there are zero external dependencies.
+The one workspace hazard is the overlay masking a missing or wrong `require`: every in-repo build resolves siblings from workspace source, so a `require` defect surfaces only for consumers once tags exist.
+With zero external dependencies and no tidy gate yet, correctness of the sibling require lines rests on review.
 The decision is cheaply reversible (delete `go.work`, add `replace` blocks).
 
 ## Error model
@@ -154,15 +161,15 @@ One comment therefore serves all three without divergence.
 Doc links become navigable cross-links on the rendered page, lists make conditions like the error-return set scannable, and runnable examples cannot drift from the code because `go test` executes them.
 Holding to the standard syntax lets `gofmt` keep formatting consistent and stops contributors inventing ad hoc conventions.
 
-## Domain clients are reached through context-free accessor methods
+## Domain navigation is context-free and cannot fail
 
 **What**:  
-`NewClient` constructs every domain client up front, and the root client exposes each through an accessor method that returns the concrete handle (`Database() *postgrest.Client`, later `Auth() *auth.Client`).
-The accessors take no `context.Context` and return no error.
+`NewClient` constructs every domain client up front and holds each in an unexported field.
+The methods that reach domain behavior (for example, the fluent `From`) take no `context.Context` and return no error.
 `context.Context` is taken only by the terminal methods that perform I/O, such as the database `Execute`.
 
 **Why**:  
-Accessor methods keep the handle fields unexported, so the client stays immutable and safe for concurrent use, which an exported field would not be - a public field is reassignable and races if written while read.
+Reaching domains through methods keeps the handle fields unexported, so the client stays immutable and safe for concurrent use.
 Construction does no I/O - `NewClient` parses the project URL and wraps the HTTP transport, with no network call - so there is nothing at access time for a context to bound or cancel, and nothing that can fail.
 Google's SDKs are the cautionary contrast. Firebase's `app.Auth(ctx)` and `app.Firestore(ctx)` take a context and return an error because they lazily construct clients that resolve credentials and dial connections, and the context is then kept for the client's life: the `cloud.google.com/go` docs warn "Do not set a timeout on the context passed to NewClient: dialing happens asynchronously, and the context is used to refresh credentials in the background", and `golang.org/x/oauth2` states its client "is not valid beyond the lifetime of the context".
 That shape only earns its place when the returned client owns background work bound to the context, and it carries a footgun when it does not: a request-scoped context passed to such a constructor and then cached breaks the client's background refresh once the request ends.
@@ -183,11 +190,12 @@ The interface is named `HTTPClient` with a single `Do` method, following AWS SDK
 ## The postgrest module is Supabase-agnostic in code but not a supported general-purpose client
 
 **What**:  
-The `postgrest` module carries no Supabase-specific behavior - the `apikey` header, the `/rest/v1` base path and token handling live in `core` and the root - so its code could in principle talk to any PostgREST server.
+The `postgrest` module carries almost no Supabase-specific behavior - the `apikey` header and token handling live in `core` and the root - so its code could in principle talk to any PostgREST server.
+The one Supabase convention it does carry is `New` deriving its base URL under the project's `/rest/v1` path.
 It is not, however, a tested or supported general-purpose PostgREST client. It is documented as the Supabase Database client, and standalone use against a non-Supabase server is not promised.
 
 **Why**:  
-The agnostic-code claim is asserted cheaply, by the module boundary: `postgrest` imports and names none of the Supabase-specific pieces, which review and the build enforce, with no extra test infrastructure.
+The agnostic-code claim is asserted cheaply, by the module boundary: beyond the `/rest/v1` mount, `postgrest` imports and names none of the Supabase-specific pieces, which review and the build enforce, with no extra test infrastructure.
 A supported general-purpose promise would cost far more - a bare PostgREST server stood up in CI, a way to build `postgrest` without the base URL and apikey it is handed today, and testing across PostgREST versions - none of which is planned for the first releases.
 Keeping the promise narrow now forecloses nothing: promotion to a supported general-purpose client is additive (add the harness and a Supabase-free constructor) and breaks no existing Supabase user, mirroring how the JS SDK ships a standalone `@supabase/postgrest-js`.
 
@@ -330,7 +338,7 @@ Hoisting only `From` (the database) mirrors sibling SDKs precisely (their other 
 The request state they carry lives in `postgrest/internal/request`, a package whose single concern is the production of immutable `Request` values - unexported fields, read-only getters, copy-on-write `With*` methods, and no getter that returns reference-typed state.
 
 **Why**:  
-Some sibling SDKs mutate builders in place (or at least they did when this was written) and consequently they find themselves having to document "one chain per operation" caveats ([`supabase-swift`](https://github.com/supabase/supabase-swift)) or rely on single-threaded runtimes ([`supabase-js`](https://github.com/supabase/supabase-js)).
+Some sibling SDKs mutate builders in place and consequently find themselves having to document "one chain per operation" caveats ([`supabase-swift`](https://github.com/supabase/supabase-swift)) or rely on single-threaded runtimes ([`supabase-js`](https://github.com/supabase/supabase-js)).
 This Go SDK promises "safe for concurrent use by multiple goroutines" on the postgrest Client, and copy-on-write value builders deliver that with zero locks while letting callers fork partially-built queries.
 Placing the state behind an internal package makes the immutability compiler-bounded rather than convention-across-the-codebase: only that one small, exhaustively-testable package can even express a mutation, and `internal/` keeps the micro-API off the public surface so its representation can change freely.
 Reference types are avoided inside the model (the parameter list is an ordered slice of immutable pairs, cloned on write) so a struct copy is a genuinely deep copy.
@@ -394,7 +402,7 @@ Transport, request-building and decode failures are wrapped `fmt.Errorf("postgre
 **Why**:  
 The field set mirrors the reference SDK (postgrest-js `PostgrestError`), whose docs establish the read order (Hint carries the database's fix; Code is the stable branching key).
 Distinguishing "the server answered with an error" (`*Error`) from "we never got an answer" (wrapped transport error) lets callers branch with one `errors.As`.
-`Unwrap` exists from day one because this is the SDK's first public error type and its shape gets copied by every later module; retrofitting wrapping onto a shipped error type is harder than carrying a nil cause now.
+`Unwrap` exists despite the usually-nil cause because this is the SDK's first public error type and its shape gets copied by every later module; retrofitting wrapping onto a shipped error type is harder than carrying a nil cause now.
 
 ## Integration harness: pinned-binary Supabase CLI, minimal services, floor + stable matrix
 
