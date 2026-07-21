@@ -104,9 +104,11 @@ echo "==> starting local stack (pinned CLI $("${SUPABASE_CLI}" --version))"
 # CLI repository's own e2e tests consume.
 eval "$("${SUPABASE_CLI}" --workdir "${project_directory}" status -o env)"
 
-# Every module with integration-tagged tests runs here. The -run filter is
-# anchored so it selects exactly the TestIntegration-prefixed functions and
-# can never match a unit test compiled into the same package.
+# The modules with integration-tagged tests - deliberately a curated subset of
+# the workspace (core has none), so this is NOT derived from go.work like the
+# build/lint/vuln lists are. The -run filter is anchored so it selects exactly
+# the TestIntegration-prefixed functions and can never match a unit test
+# compiled into the same package.
 modules=(. postgrest)
 
 echo "==> running integration tests (-race, tag: integration)"

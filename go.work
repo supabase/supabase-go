@@ -1,5 +1,11 @@
 go 1.22
 
+// This use set always matches exactly the modules that we publish from this SDK repository,
+// and is to be considered canonical in that respect.
+// It is used by Go's tooling so that build tooling and adjacent test modules are ignored.
+// It's also used by our scripts/ to enumerate modules to test when the tooling they call
+// otherwise cannot do that for them.
+
 use (
 	.
 	./core

@@ -11,28 +11,27 @@
 # tools/node and telemetrytest are never published, so they are out of scope.
 set -euo pipefail
 
+source "$(dirname "$0")/common.sh"
+
 echo "Module Path Check..."
 
 prefix="github.com/supabase/supabase-go"
 
-# The workspace lists exactly the modules we publish. Read their directories from
-# go.work, then each directory's declared module path: that is both the set we
-# scan and the set of paths a published `require` may legally name.
-usedirs="$(go work edit -json | jq -r '.Use[].DiskPath')"
+# The workspace lists exactly the modules we publish: it is both the set we scan
+# and, resolved to module paths, the set of paths a published `require` may name.
+workspace_modules="$(enumerate_workspace_modules)"
 
 published=""
-while IFS= read -r dir; do
-  [ -n "${dir}" ] || continue
+for dir in ${workspace_modules}; do
   module_path="$(go mod edit -json "${dir}/go.mod" | jq -r '.Module.Path')"
   published="${published}${module_path}"$'\n'
-done <<< "${usedirs}"
+done
 
 # Every first-party require in a published module must name a published module.
 # replace directives are irrelevant: a consumer ignores replace directives in its
 # dependencies' go.mod files, so they never affect what resolves.
 offenders=""
-while IFS= read -r dir; do
-  [ -n "${dir}" ] || continue
+for dir in ${workspace_modules}; do
   while IFS= read -r target; do
     [ -n "${target}" ] || continue
     if ! printf '%s' "${published}" | grep -Fxq -- "${target}"; then
@@ -43,7 +42,7 @@ while IFS= read -r dir; do
       (.Require // [])[] | select(.Path == $p or (.Path | startswith($p + "/"))) | .Path
     '
   )
-done <<< "${usedirs}"
+done
 
 if [ -n "${offenders}" ]; then
   echo "These published modules require a first-party path that is not a published module:" >&2

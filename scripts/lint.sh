@@ -4,7 +4,8 @@
 # pinned tools once, then run the binaries against each module.
 set -euo pipefail
 
-modules=(. core postgrest)
+source "$(dirname "$0")/common.sh"
+workspace_modules="$(enumerate_workspace_modules)"
 
 echo "Lint..."
 
@@ -21,7 +22,7 @@ trap 'rm -rf "${toolbin}"' EXIT
     github.com/mgechev/revive
 )
 
-for module in "${modules[@]}"; do
+for module in ${workspace_modules}; do
   echo "==> ${module}"
   (
     cd "${module}"
