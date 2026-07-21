@@ -47,7 +47,13 @@ npm ci --prefix tools/node   # one-time setup (re-run only when the tools/node/p
 ./scripts/spell-check.sh     # cspell - Go and Markdown sources
 ```
 
-To run the whole fast tier before pushing - build and unit test plus lint, vulnerabilities and spelling - use the aggregate:
+The published module graph is guarded too: every first-party `require` in a workspace module (`go.mod` file) must name another workspace module - the modules we actually publish - so a consumer's build can resolve them. Our [`go.work`](go.work) overlay otherwise resolves siblings from local source and hides a require pointing at an unpublished or non-existent first-party path until consumers hit it after tags exist:
+
+```bash
+./scripts/check-module-paths.sh
+```
+
+To run the whole fast tier before pushing - build and unit test plus the module-path guard, lint, vulnerabilities and spelling - use the aggregate:
 
 ```bash
 ./scripts/check-fast.sh

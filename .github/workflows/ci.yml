@@ -94,6 +94,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # check-module-paths.sh calls `go work edit` / `go mod edit`, so this job
+      # needs the toolchain (jq is part of the ubuntu-latest image). Structural
+      # checks are our own environment, so it tracks stable like lint and vuln.
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: stable
+
       # CONTRIBUTING and SECURITY are delegated to the org-level supabase/.github
       # repository; a repo-local copy would silently override the org default, so
       # we assert their absence rather than ignore them. The check covers the
@@ -108,3 +116,10 @@ jobs:
             echo "Put repo-specific guidance in DEVELOPMENT.md instead."
             exit 1
           fi
+
+      # Every first-party require in a published (workspace) module must name
+      # another published module, or a consumer could not resolve it. The
+      # go.work overlay otherwise hides such a path until tags exist. This is
+      # the same script developers run locally via check-fast.sh.
+      - name: Assert published modules require only published modules
+        run: ./scripts/check-module-paths.sh
