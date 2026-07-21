@@ -20,7 +20,7 @@ Keeping the surface under tight first-party control through the hardening window
 
 The repository is a multi-module monorepo. Intra-repo dependencies are resolved by the committed `go.work` workspace, so each module builds against the local sources of the others without any published tags.
 
-There is no task runner or aggregate linter. Build and test with the standard toolchain in each module directory (`.`, `configuration`, `postgrest`):
+There is no task runner or aggregate linter. Build and test with the standard toolchain in each module directory (`.`, `core`, `postgrest`):
 
 ```bash
 go build ./...

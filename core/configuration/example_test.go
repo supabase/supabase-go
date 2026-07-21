@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/supabase/supabase-go/configuration"
+	"github.com/supabase/supabase-go/core/configuration"
 )
 
 func ExampleNew() {

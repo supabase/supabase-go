@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/supabase/supabase-go/configuration"
+	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest"
 )
 

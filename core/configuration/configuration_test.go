@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/supabase/supabase-go/configuration"
+	"github.com/supabase/supabase-go/core/configuration"
 )
 
 func TestNewValidation(t *testing.T) {

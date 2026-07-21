@@ -63,14 +63,14 @@ Tool-pinning machinery (e.g. Go 1.24 tool directives) must never live in the pub
 ## Use a committed go.work workspace for intra-repo module resolution
   
 **What**:  
-The multi-module repository (`root`, `configuration`, `postgrest`, and future domain modules) wires its internal cross-module dependencies through a single `go.work` file committed at the repository root, rather than through replace directives in each `go.mod` file.
+The multi-module repository (root, `core`, `postgrest`, and future domain modules) wires its internal cross-module dependencies through a single `go.work` file committed at the repository root, rather than through replace directives in each `go.mod` file.
 Each module's `go.mod` file declares its sibling dependencies with ordinary require lines carrying the zero pseudo-version (`v0.0.0-00010101000000-000000000000`) until real tags exist.
 The workspace's use directives supply the actual source for every in-repo build, locally and in CI.
 The published `go` directive stays at the conservative consumer floor (`1.22`) independently of the toolchain version CI runs.
 
 **Why**:  
 Pre-tag, a module that imports an unpublished sibling cannot resolve it without either `replace` directives or a workspace.
-`go.work` is the purpose-built mechanism (Go 1.18+) and gives a cleaner separation of "what we publish to customers" (the `go.mod` files, free of dev-only redirects) from "how we develop locally" (one workspace file), stating the wiring once instead of repeating `replace … => ../configuration` in every consumer.
+`go.work` is the purpose-built mechanism (Go 1.18+) and gives a cleaner separation of "what we publish to customers" (the `go.mod` files, free of dev-only redirects) from "how we develop locally" (one workspace file), stating the wiring once instead of repeating `replace … => ../core` in every consumer.
 Committing it is the Go-team-endorsed practice for monorepos ([golang/go#53502](https://github.com/golang/go/issues/53502) explicitly declined a "never commit" warning; the relative paths are identical for every clone, gopls configures multi-module editing from it, and Dependabot understands it), and it is provably safe for consumers: `go.work` is never included in a published module zip and is ignored by `go get`, so it cannot affect anyone importing the SDK.
 The one workspace hazard - the overlay masking a missing `require` - cannot bite at this stage, as there are zero external dependencies.
 The decision is cheaply reversible (delete `go.work`, add `replace` blocks).
@@ -108,7 +108,7 @@ The prefix is written once, in the string-backed type's `Error()` method (`retur
 **Why**:  
 Naming the originating package is the dominant Go convention - the standard library does it everywhere (`json:`, `http:`, `os:`) - and it preserves provenance once an error is wrapped, logged or surfaced far from where it was created.
 The package is the unit a consumer imports and reasons about, so it is the right granularity for provenance. Finer-grained "which kind of failure" information is carried by the error's identifier and type (`ErrMissingURL`, `configurationError`) and its message text, not duplicated into the prefix.
-Package granularity also stays consistent as a package grows more error sources (for example the `transport` code alongside the constructor validation in `configuration`), so every error from the package reads with the same token regardless of which file or type produced it.
+Package granularity also stays consistent as a package grows more error sources (for example the internal `transport` package behind `configuration`), so every error from the package reads with the same token regardless of which code produced it.
 Centralizing the literal in `Error()` rather than baking `configuration: ` into each sentinel removes the repetition. Our single string-backed error type gives us one render choke point that the scattered `errors.New` calls in the standard library do not have.
 The rendered prefix does not affect `errors.Is`, which compares the underlying sentinel values (the unprefixed message strings). The prefix is purely for the human reading the message.
 
@@ -180,34 +180,10 @@ The single seam matches the dominant Go convention. Google's API libraries and S
 Handing out the interface rather than the `*http.Client` stops the configured transport being swapped out through the accessor - a caller holding the concrete client could set `Transport = nil` and silently disable auth, or race on it - and it keeps the `configuration` public surface small, which is part of the `v1` promise.
 The interface is named `HTTPClient` with a single `Do` method, following AWS SDK v2's interface of the same name and shape. `Do` is chosen because `*http.Client` already has that method, so the standard client satisfies the interface with no adapter, and the same one-method contract appears as the `HttpRequestDoer` that `oapi-codegen` generates in Supabase's own Auth code.
 
-## The shared module is named `configuration`, not `core`
-
-**What**:  
-The shared foundation module - project configuration, functional options and the authenticating HTTP pipeline - is the `configuration` package, renamed from `core` before anything was tagged.
-Its constructor is `New` (reading as `configuration.New`), the central type stays `Configuration`, the error prefix becomes `configuration: ` and the abbreviation `config` was rejected.
-
-**Why**:  
-In Go the package name is part of every exported identifier a caller reads, so it must describe what the package provides to its caller, not the package's position in our layering ("name your package for what it provides, not what it contains" - Dave Cheney's Practical Go).
-`core` named the layering, read as noise at the call site (`core.WithHeader`) and belongs to the family of meaning-free names (`util`, `common`, `base`) that Practical Go and the Go blog's [Package names](https://go.dev/blog/package-names) post warn against.
-Google's Go API client solves the same problem by naming its shared options package `option` so call sites read as phrases (`option.WithHTTPClient`), and our phrase-forming name is `configuration` because options are a minority of this package's surface, which also owns `Configuration`, `HTTPClient` and the sentinel errors.
-The full word beats `config` under the naming policy in `DEVELOPMENT.md` (whole words, no contracted abbreviations), `configuration.Configuration` follows the accepted `context.Context` shape and `New` follows the convention that `pkg.New` returns the package's central type.
-
-## The root package re-exports no option surface
-
-**What**:  
-The root supabase package declares no `Option` type and no option constructors. `NewClient` accepts `...configuration.Option` and callers use the `configuration` package's options directly.
-This replaces the earlier decision that aliased `supabase.Option` to the shared option type and re-exported `WithHTTPClient` and `WithHeaders`, which predated the rename that made the shared package caller-facing.
-
-**Why**:  
-The alias and wrappers added no capability - the alias already made the shared options valid arguments to `NewClient` - so they were a second public spelling of the same surface, forking user code and documentation into two dialects.
-The options configure the shared configuration, not the composed client, so the qualifier that names what they act on is the natural reading: `configuration.WithHeader(...)` says what is being configured, where `supabase.WithHeader(...)` implied the client owned the setting.
-The two-import call shape is the ecosystem norm for this design: Google's API packages take options from a separate `option` package without re-exporting them, and the Anthropic and OpenAI Go SDKs do the same.
-Zero-configuration callers still import only the root, and every option the roadmap gives the root client (custom HTTP client, global headers, the `slog` logger and tracing context) configures the shared plumbing, so nothing root-only is foreclosed: if such a setting ever appears, a root-owned option type can be introduced then, pre-`v1` at no cost.
-
 ## The postgrest module is Supabase-agnostic in code but not a supported general-purpose client
 
 **What**:  
-The `postgrest` module carries no Supabase-specific behavior - the `apikey` header, the `/rest/v1` base path and token handling live in `configuration` and the root - so its code could in principle talk to any PostgREST server.
+The `postgrest` module carries no Supabase-specific behavior - the `apikey` header, the `/rest/v1` base path and token handling live in `core` and the root - so its code could in principle talk to any PostgREST server.
 It is not, however, a tested or supported general-purpose PostgREST client. It is documented as the Supabase Database client, and standalone use against a non-Supabase server is not promised.
 
 **Why**:  

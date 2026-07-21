@@ -5,7 +5,7 @@
 # root.
 set -euo pipefail
 
-modules=(. configuration postgrest)
+modules=(. core postgrest)
 
 echo "Build and Test..."
 

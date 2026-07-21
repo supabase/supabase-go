@@ -5,5 +5,6 @@
 // There are two ways to use the SDK. Importing this package wires the shared
 // transport, API key, and options through one place. Callers who need only one
 // domain may instead import that module directly (for example
-// [github.com/supabase/supabase-go/postgrest]) and pull in only it and configuration.
+// [github.com/supabase/supabase-go/postgrest]) and pull in only it and the
+// core module's [github.com/supabase/supabase-go/core/configuration] package.
 package supabase
