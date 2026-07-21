@@ -17,6 +17,13 @@ const rootClientName = "supabase-go"
 // ClientInformationHeaderValue returns a value suitable for use for the
 // X-Client-Info header sent with HTTP requests submitted to Supabase services.
 //
+// The returned value is delimited with "; " (semi-colon followed by a space),
+// always in the following order:
+//   - entry module (e.g. "supabase-go" or "postgrest-go")
+//   - runtime (always "go")
+//   - runtime-version (e.g. "1.26.5" for go1.26.5)
+//   - platform (e.g. "Linux" or "macOS")
+//
 // entryModulePath identifies the SDK client the value describes. It panics
 // when that module is not expected to emit telemetry, or when the running
 // binary's module information places the build outside the SDK's own module
