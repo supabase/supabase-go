@@ -3,7 +3,7 @@ package configuration
 import "net/http"
 
 // transport is an http.RoundTripper that injects Supabase authentication and
-// global headers into every outgoing request. It honours the RoundTripper
+// global headers into every outgoing request. It honors the RoundTripper
 // contract: it never mutates the caller's request, operating on a clone instead.
 type transport struct {
 	base    http.RoundTripper
@@ -13,7 +13,7 @@ type transport struct {
 
 // wrapClient returns a copy of client whose transport injects the project API key
 // header and the supplied global headers. The input client is never mutated, so
-// sharing http.DefaultClient remains safe.
+// sharing [http.DefaultClient] remains safe.
 func wrapClient(client *http.Client, apiKey string, headers http.Header) *http.Client {
 	if client == nil {
 		client = http.DefaultClient
@@ -34,10 +34,9 @@ func wrapClient(client *http.Client, apiKey string, headers http.Header) *http.C
 
 // RoundTrip injects the project API key header and any global headers, then
 // delegates to the wrapped transport. Precedence: existing request headers win
-// over global defaults, and the API key header is always the project key. The
-// transport never sets Authorization - that header carries an end-user's JWT,
-// supplied by the application when acting for a signed-in user, so per Supabase
-// platform guidance the project key travels on the apikey header alone.
+// over global defaults, and the apikey header is always the project key. The
+// transport never sets Authorization: that header carries an end-user's JWT,
+// supplied by the application when acting for a signed-in user.
 func (tr *transport) RoundTrip(request *http.Request) (*http.Response, error) {
 	clone := request.Clone(request.Context())
 

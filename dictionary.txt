@@ -12,6 +12,7 @@ GOBIN
 GOENV
 GOEXPERIMENT
 GOTOOLCHAIN
+godoc
 gofmt
 gofumpt
 goimports
@@ -24,11 +25,13 @@ govulncheck
 GOWORK
 jsonv
 mockability
+multimap
 nativeness
 oapi
 omitempty
 omitzero
 otelhttp
+PGRST
 pinact
 pkgsite
 postgrest
@@ -36,8 +39,11 @@ PRODSEC
 reassignable
 rebalance
 SLSA
+SQLSTATE
 staticcheck
 stdlib
 subtest
 Supabase
+typestate
+unrepresentable
 vulncheck

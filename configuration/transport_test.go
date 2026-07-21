@@ -56,7 +56,7 @@ func TestTransportHeaderPrecedence(t *testing.T) {
 		request.Header.Set("apikey", "attacker-key")
 	})
 
-	// A per-request end-user token passes through untouched, which is what makes RLS work.
+	// A per-request end-user token passes through untouched.
 	if received.Get("Authorization") != "Bearer user-token" {
 		t.Errorf("Authorization = %q, want the per-request token preserved", received.Get("Authorization"))
 	}

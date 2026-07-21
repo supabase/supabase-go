@@ -1,6 +1,7 @@
 package supabase_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/supabase/supabase-go"
 	"github.com/supabase/supabase-go/configuration"
+	"github.com/supabase/supabase-go/postgrest"
 )
 
 func ExampleNewClient() {
@@ -37,4 +39,34 @@ func ExampleNewClient_invalidInput() {
 	_, err := supabase.NewClient("https://PROJECT_ID.supabase.co", "")
 	fmt.Println(errors.Is(err, configuration.ErrMissingKey))
 	// Output: true
+}
+
+// ExampleClient_From runs a basic Database query.
+// It requires a reachable Supabase project, so it is compiled but not run by go test.
+func ExampleClient_From() {
+	type Instrument struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+
+	supabase, err := supabase.NewClient("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	var instruments []Instrument
+	response, err := supabase.From("instruments").Select("id, name").Execute(context.Background(), &instruments)
+	if err != nil {
+		var postgrestError *postgrest.Error
+		if errors.As(err, &postgrestError) {
+			// Branch on the stable code, not the message text. When the
+			// database knows the fix it says so in Hint.
+			fmt.Println(postgrestError.Code, postgrestError.Hint)
+			return
+		}
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(len(instruments), response.HTTPStatus)
 }

@@ -1,0 +1,43 @@
+# Minimal local stack for the SDK integration tests, matching the CLI version
+# pinned in scripts/integration-test.sh (SUPABASE_CLI_VERSION: 2.109.1).
+#
+# The tests exercise Postgres + PostgREST (the api service) only. Auth stays
+# enabled solely because `supabase status -o env` emits the stack's API keys
+# (PUBLISHABLE_KEY included) only while the auth service is enabled.
+# Every other service is disabled.
+project_id = "supabase-go-integration"
+
+[api]
+# Pinned explicitly (rather than trusting CLI defaults) so DEVELOPMENT.md's
+# port prerequisites stay true even if upstream defaults drift.
+port = 54321
+# Only the schema the tests query; the CLI default also exposes graphql_public.
+schemas = ["public"]
+
+[db]
+port = 54322
+# Required field; matches the pinned CLI's default Postgres image.
+major_version = 17
+
+[auth]
+# Required for `status -o env` to emit the API keys (see header comment).
+enabled = true
+site_url = "http://127.0.0.1:3000"
+
+[studio]
+enabled = false
+
+[local_smtp]
+enabled = false
+
+[realtime]
+enabled = false
+
+[storage]
+enabled = false
+
+[edge_runtime]
+enabled = false
+
+[analytics]
+enabled = false

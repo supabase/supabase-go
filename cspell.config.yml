@@ -41,14 +41,21 @@ patterns:
   # Supabase is a proper noun ("Supabase" in prose), but the name is legitimately
   # lowercase in code-shaped contexts: qualified identifiers (supabase.NewClient,
   # supabase.Option), org and repository paths (supabase/.github), project domains
-  # (supabase.co), the module's hyphenated name (supabase-go), the Go import alias
+  # (supabase.co), any hyphenated SDK name (this module's supabase-go and sibling
+  # SDKs like supabase-js, supabase-swift, supabase-py), the Go import alias
   # (supabase "github.com/...) and doc-comment prose naming the root package ("the
-  # root supabase package", "the root supabase client"). A bare mis-cased
-  # "supabase" in prose matches no branch and is still flagged.
+  # root supabase package", "the root supabase client"). The hyphen branch matches
+  # -<lowercase> generally so a new sibling SDK needs no config change. A bare
+  # mis-cased "supabase" in prose matches no branch and is still flagged.
   - name: supabase-prefix
-    pattern: /supabase(\.\w+|\/[\w.-]+|-go\b| package\b| client\b| "github\.com)/g
+    pattern: /supabase(\.\w+|\/[\w.-]+|-[a-z]+\b| package\b| client\b| "github\.com)/g
+  # The same name preceded by a qualifier rather than followed by one: a
+  # "package"/"Package" declaration keyword, a path segment ("/supabase"), or a
+  # backtick opening an inline-code command or identifier (`supabase status ...`),
+  # where lowercase is always correct. The backtick is a general signal, so CLI
+  # subcommands need not be enumerated.
   - name: supabase-suffix
-    pattern: /(Package |package |\/)supabase/g
+    pattern: /(Package |package |\/|`)supabase/g
 
   # Local variable named "supabase" (aligned with docs for the JS, Swift,
   # Flutter and Python SDKs). In Go source, a bare "supabase" is unambiguously

@@ -29,6 +29,33 @@ jobs:
       # its interaction with the workspace is validated.
       - run: ./scripts/build-and-test.sh
 
+  # Integration tests run against a local Supabase stack.
+  # This job's matrix mirrors build-and-test.
+  # GitHub's ubuntu-latest image ships Docker as part of the trusted image baseline.
+  integration-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ["1.22", "stable"]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: ${{ matrix.go-version }}
+      # Restores the pinned Supabase CLI binaries that the script below
+      # otherwise fetches from its GitHub release. The pinned version and its
+      # checksums live in that script, so hashing it keys the cache: any bump
+      # re-keys automatically. A missing or stale restore is safe - the script
+      # verifies the installed version and re-fetches on mismatch.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/bin/supabase
+            ~/go/bin/supabase-go
+          key: supabase-cli-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/integration-test.sh') }}
+      - run: ./scripts/integration-test.sh
+
   # Lint and vuln are deliberately separate jobs so a vulnerability finding fails
   # on its own, clearly distinct from a lint failure. Each calls a single script
   # that is also what developers run locally (identical command in both places).

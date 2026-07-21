@@ -6,17 +6,14 @@ import (
 	"net/url"
 )
 
-// configurationError is a string-backed error type whose values can be declared
-// as compile-time constants. The sentinels below are therefore immutable: unlike
-// package-level error variables (which any importing package can reassign), these
-// cannot be replaced - the compiler rejects any attempt. The type is unexported,
-// so consumers can match the sentinels with errors.Is but cannot mint new values
-// of it.
+// configurationError is a string-backed error type. Its values can be declared
+// as compile-time constants, are matched with [errors.Is] and cannot be minted
+// outside this package.
 type configurationError string
 
 func (e configurationError) Error() string { return "configuration: " + string(e) }
 
-// Sentinel errors returned by [New]. Match them with [errors.Is].
+// Sentinel errors returned by [New].
 const (
 	// ErrMissingURL is returned when an empty project URL is supplied.
 	ErrMissingURL = configurationError("project URL is required")
@@ -31,7 +28,7 @@ const (
 )
 
 // Configuration holds the resolved settings shared across the SDK: the project
-// base URL, the API key and the HTTP client whose transport injects
+// base URL, the API key, and the HTTP client whose transport injects
 // authentication and global headers on every request.
 //
 // A Configuration is created with [New] and is safe for concurrent
@@ -76,8 +73,7 @@ func WithHeader(key, value string) Option {
 // New validates rawURL and apiKey, applies the supplied options in
 // order, and returns a ready-to-use [Configuration].
 //
-// It returns one of these sentinel errors, each matchable with [errors.Is], when
-// its inputs are unusable:
+// It returns one of these sentinel errors, when its inputs are unusable:
 //   - [ErrMissingURL] when rawURL is empty.
 //   - [ErrMissingKey] when apiKey is empty.
 //   - [ErrInvalidURL] when rawURL is not an absolute http or https URL. The
