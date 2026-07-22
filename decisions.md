@@ -59,10 +59,10 @@ The guiding test is whether a check helps avoid mistakes that would later force 
 ## The two Go-version environments are kept discrete
 
 **What**:  
-The `go` directive in published modules (`1.22`) is separate from, and unaffected by, the toolchain CI and tooling run on (latest stable).
+The `go` directive in published modules (`1.25`) is separate from, and unaffected by, the toolchain CI and tooling run on (latest stable).
 
 **Why**:  
-They are different concerns: the published `go` directive is a compatibility contract for the consumer's unknown environment (conservative floor), while the CI/lint toolchain is our own deterministic environment (latest, our choice).
+They are different concerns: the published `go` directive is a compatibility contract for the consumer's unknown environment (the policy floor recorded in the consumer-floor entry), while the CI/lint toolchain is our own deterministic environment (latest, our choice).
 A latest toolchain compiles a go 1.22 module fine.
 Tool-pinning machinery (e.g. Go 1.24 tool directives) must never live in the published modules, or it would drag our environment's needs into the consumer's contract and force the floor up.
 
@@ -72,7 +72,7 @@ Tool-pinning machinery (e.g. Go 1.24 tool directives) must never live in the pub
 The multi-module repository (root, `core`, `postgrest`, and future domain modules) wires its internal cross-module dependencies through a single `go.work` file committed at the repository root, rather than through replace directives in each `go.mod` file.
 Each module's `go.mod` file declares its sibling dependencies with ordinary require lines carrying the zero pseudo-version (`v0.0.0-00010101000000-000000000000`) until real tags exist.
 The workspace's use directives supply the actual source for every in-repo build, locally and in CI.
-The published `go` directive stays at the conservative consumer floor (`1.22`) independently of the toolchain version CI runs.
+The published `go` directive stays at the policy consumer floor (`1.25`) independently of the toolchain version CI runs.
 
 **Why**:  
 Pre-tag, a module that imports an unpublished sibling cannot resolve it without either `replace` directives or a workspace.
@@ -410,7 +410,7 @@ Distinguishing "the server answered with an error" (`*Error`) from "we never got
 CI's integration job and `scripts/integration-test.sh` run the same script, which starts a local stack using the Supabase CLI, a committed minimal `config.toml` (only db, api and auth enabled), a committed schema migration and a committed data-only `seed.sql`.
 The CLI is the pinned release binary, verified against a committed SHA-256 and installed into Go's own bin directory (GOBIN, else GOPATH/bin), never taken from npm.
 Integration tests are build-tagged `integration`, env-gated and run under `-race`.
-The CI job runs the same `["1.22", "stable"]` matrix as build-and-test; `go vet -tags integration` in the unit script additionally keeps the tagged file compiling for fast local signal.
+The CI job runs the same `["1.25", "stable"]` matrix as build-and-test; `go vet -tags integration` in the unit script additionally keeps the tagged file compiling for fast local signal.
 
 **Why**:  
 The CLI cannot be installed with `go install` at v2 for two independent reasons: its module (`github.com/supabase/cli`) now lives in `apps/cli-go/` while the repo root carries no `go.mod`, so the module proxy resolves that path only to the stale v1 root-module history rather than the v2 code, and its `go.mod` carries local `replace` directives, which `go install pkg@version` refuses outright.
@@ -420,7 +420,7 @@ The auth service stays enabled despite no test calling it, because `supabase sta
 Schema lives in `migrations/` and only data in `seed.sql` because the CLI applies the seed as a single batch whose statements are prepared before earlier ones execute, so DDL cannot ride with inserts that depend on it (SQLSTATE 42P01 on a fresh stack) - the same layout as the CLI repository's own e2e project and the Swift SDK's.
 The script runs the CLI against a disposable `mktemp -d` copy of `integration/` because the CLI writes scratch state (`supabase/.branches`, `supabase/.temp`) into whatever project directory it runs: the copy keeps committed trees pristine by construction (no scratch to gitignore, unlike upstream projects that gitignore it inside a writable tree) and lets the harness run from a read-only checkout, while `stop` still finds the stack because the CLI identifies it by `config.toml`'s `project_id`, not by path.
 Disabling every other unused service attacks the block's stated risk head-on: this harness's startup time and flakiness set the floor for all future CI.
-The floor leg exists because the published `go 1.22` directive is a compatibility promise to consumers, and only a live-stack run proves that promise end to end on the floor toolchain; the legs run in parallel so wall-clock cost is unchanged.
+The floor leg exists because the published `go 1.25` directive is a compatibility promise to consumers, and only a live-stack run proves that promise end to end on the floor toolchain; the legs run in parallel so wall-clock cost is unchanged.
 
 ## `X-Client-Info` resolution is proven by an out-of-tree consumer program
 
@@ -429,7 +429,7 @@ The `telemetrytest/` module is a stand-in consumer: it requires the SDK modules 
 `scripts/telemetry-test.sh` runs it with `GOWORK=off` and the module is not listed in `go.work`.
 A second leg rebuilds the same program in GOPATH mode (`GO111MODULE=off`), where binaries carry build information without module records, and asserts the version-unknowable `0.0.0` fallback in every header.
 The `TELEMETRY_TEST_MODE` environment variable tells the program which expectations to hold.
-The check is part of the fast tier (`check-fast.sh`) and runs in CI as a step of the build-and-test job, on its `["1.22", "stable"]` matrix.
+The check is part of the fast tier (`check-fast.sh`) and runs in CI as a step of the build-and-test job, on its `["1.25", "stable"]` matrix.
 The probe is a plain program, not a `go test` suite.
 
 **Why**:  
@@ -439,8 +439,8 @@ It must be a plain program because `go build` and `go run` stamp dependency reco
 Workspace membership would defeat the vantage from the other side - a workspace build supplies the SDK modules as local source with no resolvable versions - so the module stays out of `go.work` and the script forces `GOWORK=off`.
 The fabricated versions are distinct from every sentinel the header can otherwise carry (`(devel)` in-tree, `0.0.0` without build information), so a pass is unambiguous provenance, and their `-fabricated` prerelease label keeps the header values in check output from reading as release claims.
 Each must outrank every other require of the same module path in this build so minimal version selection keeps it as the selected, recorded version: `0.999.x` outranks the entire real `v0` series and deliberately loses to the first real `v1` require, so the fixture fails loudly at GA instead of surviving it silently.
-The floor leg exists because the header is consumer-facing behavior and `go 1.22` is the consumer contract.
-The GOPATH leg exists because module-record-free binaries are otherwise exercised only incidentally, by test binaries of toolchains before Go 1.24, while GOPATH mode produces them deterministically on every toolchain.
+The floor leg exists because the header is consumer-facing behavior and `go 1.25` is the consumer contract.
+The GOPATH leg exists because module-record-free binaries are otherwise not exercised at all - every matrix toolchain is now 1.24 or later, so even test binaries carry module records - while GOPATH mode produces them deterministically on every toolchain.
 The expected versions come from the environment rather than from the binary's own build information, which would assert whatever branch actually ran and pass even when a leg lands in the wrong branch.
 
 ## Module information is judged by `Main.Path`, not by `ReadBuildInfo`'s ok
@@ -451,7 +451,22 @@ Otherwise every registered client synthesizes `<name>/0.0.0`, the same version-u
 The construction panic remains for a module-aware binary built outside the SDK's tree whose dependency records omit the named entry module, and for a module that is not a registered telemetry client.
 
 **Why**:  
-Since Go 1.18 every binary the go command produces embeds build information, so ok answers "is there a blob" and not "is module identity known": test binaries from toolchains before Go 1.24 ([golang/go#33976](https://github.com/golang/go/issues/33976)) and binaries built with `GO111MODULE=off` report ok with a zero-valued `Main` and nil `Deps`.
-Trusting ok alone would therefore panic every client construction inside a consumer's own `go test` on Go 1.22 or 1.23 - within the documented consumer floor - and in this repository's floor-leg CI.
+Since Go 1.18 every binary the go command produces embeds build information, so ok answers "is there a blob" and not "is module identity known": binaries built with `GO111MODULE=off` (and test binaries from toolchains before Go 1.24, [golang/go#33976](https://github.com/golang/go/issues/33976), now all below the consumer floor) report ok with a zero-valued `Main` and nil `Deps`.
+Trusting ok alone would therefore panic every client construction in a GOPATH-mode build, including this repository's GOPATH telemetry leg.
 A binary in that state carries no module identity at all, so nothing distinguishes an in-tree build from a consumer's, no `(devel)` claim is honest and the version-unknowable sentinel is the only truthful value.
 The panic survives only where module identity is present and contradicts the caller's declared entry module, which is a programmer error rather than an environment degradation.
+
+## The consumer floor is a policy: the oldest Go major the Go project still supports
+
+**What**:  
+Every floor-carrying artefact - the three published `go.mod` directives, `go.work`, the `telemetrytest` stand-in consumer and CI's floor matrix legs - carries the oldest Go major release still supported by the Go project, currently `1.25`.
+Raises are applied opportunistically after each Go release rather than on release day.
+The policy is stated consumer-facing in README.md ("Supported Go versions") and as the minimum-version bullet in `standard.md`.
+
+**Why**:  
+The standard library is statically linked into every consumer binary and only the two newest majors receive security fixes, so a floor inside Go's support window never claims compatibility with toolchains whose binaries cannot be patched.
+A lower floor buys no reach: every Go line below 1.25 is end of life, so no supported-toolchain consumer distinguishes 1.25 from lower floors.
+The ecosystem this SDK composes with already sits at the same point - `golang.org/x` applies the two-release policy to itself and pgx, grpc-go, google-cloud-go and the community postgrest-go all require 1.25 - so the floor is aligned rather than pioneering.
+With zero external dependencies nothing propagates a floor onto us, making this a deliberate policy choice rather than an inherited consequence.
+1.25 lets the SDK use `testing/synctest` unconditionally for retry and timeout tests, rely on `encoding/json`'s `omitzero` being honoured by every consumer build and export `iter.Seq2`-shaped streaming APIs when that block arrives, while the newest-only alternative (1.26) would exclude supported-toolchain users for no capability gain.
+The version-unknowable telemetry fallback keeps deterministic coverage through the GOPATH leg on every toolchain, so no CI coverage depends on a pre-1.24 floor toolchain.
