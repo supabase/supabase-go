@@ -63,8 +63,8 @@ The `go` directive in published modules (`1.25`) is separate from, and unaffecte
 
 **Why**:  
 They are different concerns: the published `go` directive is a compatibility contract for the consumer's unknown environment (the policy floor recorded in the consumer-floor entry), while the CI/lint toolchain is our own deterministic environment (latest, our choice).
-A latest toolchain compiles a go 1.22 module fine.
-Tool-pinning machinery (e.g. Go 1.24 tool directives) must never live in the published modules, or it would drag our environment's needs into the consumer's contract and force the floor up.
+A latest toolchain compiles a go 1.25 module fine.
+Tool-pinning machinery must never live in the published modules, or it would drag our environment's needs into the consumer's contract and force the floor up.
 
 ## Use a committed go.work workspace for intra-repo module resolution
   
