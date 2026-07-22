@@ -60,8 +60,8 @@ func main() {
 		case err != nil:
 			fmt.Printf("FAIL %s: %v\n", check.name, err)
 			failed = true
-		case observed != check.want:
-			fmt.Printf("FAIL %s: X-Client-Info = %q, want %q\n", check.name, observed, check.want)
+		case !strings.HasPrefix(observed, check.want):
+			fmt.Printf("FAIL %s: X-Client-Info = %q, want to start with %q\n", check.name, observed, check.want)
 			failed = true
 		default:
 			fmt.Printf("ok   %s: X-Client-Info = %q\n", check.name, observed)

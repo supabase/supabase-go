@@ -17,6 +17,13 @@ const rootClientName = "supabase-go"
 // ClientInformationHeaderValue returns a value suitable for use for the
 // X-Client-Info header sent with HTTP requests submitted to Supabase services.
 //
+// The returned value is delimited with "; " (semi-colon followed by a space),
+// always in the following order:
+//   - entry module (e.g. "supabase-go" or "postgrest-go")
+//   - runtime (always "go")
+//   - runtime-version (e.g. "1.26.5" for go1.26.5)
+//   - platform (e.g. "Linux" or "macOS")
+//
 // entryModulePath identifies the SDK client the value describes. It panics
 // when that module is not expected to emit telemetry, or when the running
 // binary's module information places the build outside the SDK's own module
@@ -73,6 +80,46 @@ func buildClientInformationHeaderValues() map[core.ModulePath]string {
 		common += "; runtime-version=" + goRuntimeVersion
 	}
 
+	// Our platform values align with what other Supabase SDKs emit, where defined.
+	// For OS values not emitted by other Supabase SDKs we're following the same pattern
+	// of using the human-formatted form (e.g. capitalized "BSD" and 'F' in "FreeBSD").
+	common += "; platform="
+	switch runtime.GOOS {
+	case "aix":
+		common += "AIX"
+	case "android":
+		common += "Android"
+	case "darwin":
+		common += "macOS"
+	case "dragonfly":
+		common += "DragonFly"
+	case "freebsd":
+		common += "FreeBSD"
+	case "ios":
+		common += "iOS"
+	case "illumos":
+		common += "Illumos"
+	case "js":
+		common += "JavaScript"
+	case "linux":
+		common += "Linux"
+	case "netbsd":
+		common += "NetBSD"
+	case "openbsd":
+		common += "OpenBSD"
+	case "solaris":
+		common += "Solaris"
+	case "windows":
+		common += "Windows"
+	case "wasip1":
+		common += "WASIp1"
+
+	// For OS for which we don't have a mapping we emit the runtime.GOOS value verbatim,
+	// including for "plan9" (final release was made in January 2015!).
+	default:
+		common += runtime.GOOS
+	}
+
 	headerValues := make(map[core.ModulePath]string, len(clientBases))
 	for modulePath, clientBase := range clientBases {
 		headerValues[modulePath] = clientBase + common
@@ -90,3 +137,53 @@ func builtWithinSDK(buildInformation *debug.BuildInfo) bool {
 	return buildInformation.Main.Path == rootModulePath ||
 		strings.HasPrefix(buildInformation.Main.Path, rootModulePath+"/")
 }
+
+// Regarding runtime.GOOS and runtime.GOARCH...
+// For reference, here is a snapshot of `go tool dist list` on 21 July 2026, run from go version go1.26.5 darwin/arm64:
+// aix/ppc64
+// android/386
+// android/amd64
+// android/arm
+// android/arm64
+// darwin/amd64
+// darwin/arm64
+// dragonfly/amd64
+// freebsd/386
+// freebsd/amd64
+// freebsd/arm
+// freebsd/arm64
+// illumos/amd64
+// ios/amd64
+// ios/arm64
+// js/wasm
+// linux/386
+// linux/amd64
+// linux/arm
+// linux/arm64
+// linux/loong64
+// linux/mips
+// linux/mips64
+// linux/mips64le
+// linux/mipsle
+// linux/ppc64
+// linux/ppc64le
+// linux/riscv64
+// linux/s390x
+// netbsd/386
+// netbsd/amd64
+// netbsd/arm
+// netbsd/arm64
+// openbsd/386
+// openbsd/amd64
+// openbsd/arm
+// openbsd/arm64
+// openbsd/ppc64
+// openbsd/riscv64
+// plan9/386
+// plan9/amd64
+// plan9/arm
+// solaris/amd64
+// wasip1/wasm
+// windows/386
+// windows/amd64
+// windows/arm64
