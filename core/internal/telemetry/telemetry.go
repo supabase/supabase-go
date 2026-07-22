@@ -23,6 +23,7 @@ const rootClientName = "supabase-go"
 //   - runtime (always "go")
 //   - runtime-version (e.g. "1.26.5" for go1.26.5)
 //   - platform (e.g. "Linux" or "macOS")
+//   - platform-architecture (e.g. "amd64" or "arm64")
 //
 // entryModulePath identifies the SDK client the value describes. It panics
 // when that module is not expected to emit telemetry, or when the running
@@ -119,6 +120,11 @@ func buildClientInformationHeaderValues() map[core.ModulePath]string {
 	default:
 		common += runtime.GOOS
 	}
+
+	// Our platform-architecture values are emitted in their original form.
+	// This is because, at the time of implementation, we appear to be the first Supabase SDK
+	// to emit this information.
+	common += "; platform-architecture=" + runtime.GOARCH
 
 	headerValues := make(map[core.ModulePath]string, len(clientBases))
 	for modulePath, clientBase := range clientBases {

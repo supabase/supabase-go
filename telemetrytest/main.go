@@ -64,7 +64,13 @@ func main() {
 			fmt.Printf("FAIL %s: X-Client-Info = %q, want to start with %q\n", check.name, observed, check.want)
 			failed = true
 		default:
-			fmt.Printf("ok   %s: X-Client-Info = %q\n", check.name, observed)
+			if !strings.Contains(observed, "; platform=") {
+				fmt.Printf("FAIL %s: X-Client-Info = %q, want to contain platform key\n", check.name, observed)
+			} else if !strings.Contains(observed, "; platform-architecture=") {
+				fmt.Printf("FAIL %s: X-Client-Info = %q, want to contain platform-architecture key\n", check.name, observed)
+			} else {
+				fmt.Printf("ok   %s: X-Client-Info = %q\n", check.name, observed)
+			}
 		}
 	}
 	if failed {
