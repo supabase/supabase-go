@@ -5,11 +5,12 @@
 # root.
 set -euo pipefail
 
-modules=(. core postgrest)
+source "$(dirname "$0")/common.sh"
+workspace_modules="$(enumerate_workspace_modules)"
 
 echo "Build and Test..."
 
-for module in "${modules[@]}"; do
+for module in ${workspace_modules}; do
   echo "==> ${module}"
   (
     cd "${module}"

@@ -3,7 +3,8 @@
 # fails its own job. govulncheck's version is checksum-pinned in tools/go/go.mod.
 set -euo pipefail
 
-modules=(. core postgrest)
+source "$(dirname "$0")/common.sh"
+workspace_modules="$(enumerate_workspace_modules)"
 
 echo "Vulnerability Scan..."
 
@@ -14,7 +15,7 @@ trap 'rm -rf "${toolbin}"' EXIT
   GOWORK=off GOBIN="${toolbin}" go install golang.org/x/vuln/cmd/govulncheck
 )
 
-for module in "${modules[@]}"; do
+for module in ${workspace_modules}; do
   echo "==> ${module}"
   ( cd "${module}" && "${toolbin}/govulncheck" ./... )
 done
