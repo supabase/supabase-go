@@ -6,4 +6,6 @@
 // module. No Go code lives here and nothing builds this module.
 module github.com/supabase/supabase-go/tools/node
 
-go 1.22
+// It happens that this version aligns with our SDK consumer floor, though this
+// is not essential, as explained by the commentary above.
+go 1.25
