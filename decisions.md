@@ -459,14 +459,11 @@ The panic survives only where module identity is present and contradicts the cal
 ## The consumer floor is a policy: the oldest Go major the Go project still supports
 
 **What**:  
-Every floor-carrying artefact - the three published `go.mod` directives, `go.work`, the `telemetrytest` stand-in consumer and CI's floor matrix legs - carries the oldest Go major release still supported by the Go project, currently `1.25`.
-Raises are applied opportunistically after each Go release rather than on release day.
-The policy is stated consumer-facing in README.md ("Supported Go versions") and as the minimum-version bullet in `standard.md`.
+Every floor-carrying artefact - the published `go.mod` directives, [`go.work`](go.work), the [`telemetrytest`](telemetrytest/) stand-in consumer and [CI](.github/workflows/ci.yml)'s floor matrix legs - carries the oldest Go major release still supported by the Go project, currently `1.25`.
+This floor should be raised opportunistically after each Go release rather than on release day.
+The policy is stated consumer-facing in [our root `README.md`](README.md) ("Supported Go versions").
 
 **Why**:  
 The standard library is statically linked into every consumer binary and only the two newest majors receive security fixes, so a floor inside Go's support window never claims compatibility with toolchains whose binaries cannot be patched.
-A lower floor buys no reach: every Go line below 1.25 is end of life, so no supported-toolchain consumer distinguishes 1.25 from lower floors.
-The ecosystem this SDK composes with already sits at the same point - `golang.org/x` applies the two-release policy to itself and pgx, grpc-go, google-cloud-go and the community postgrest-go all require 1.25 - so the floor is aligned rather than pioneering.
-With zero external dependencies nothing propagates a floor onto us, making this a deliberate policy choice rather than an inherited consequence.
-1.25 lets the SDK use `testing/synctest` unconditionally for retry and timeout tests, rely on `encoding/json`'s `omitzero` being honoured by every consumer build and export `iter.Seq2`-shaped streaming APIs when that block arrives, while the newest-only alternative (1.26) would exclude supported-toolchain users for no capability gain.
-The version-unknowable telemetry fallback keeps deterministic coverage through the GOPATH leg on every toolchain, so no CI coverage depends on a pre-1.24 floor toolchain.
+A lower floor buys no reach: every Go line below `1.25` is end of life, so no supported-toolchain consumer distinguishes `1.25` from lower floors.
+The ecosystem this SDK composes with already sits at the same point - `golang.org/x` applies the two-release policy to itself and [pgx](https://github.com/jackc/pgx), [grpc-go](https://github.com/grpc/grpc-go), [google-cloud-go](https://github.com/googleapis/google-cloud-go) and [the original Supabase community postgrest-go](https://github.com/supabase-community/postgrest-go) all require 1.25 - so the floor is aligned rather than pioneering.
