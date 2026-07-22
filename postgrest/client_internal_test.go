@@ -3,16 +3,17 @@ package postgrest
 import (
 	"testing"
 
+	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
 )
 
-func TestNewWiresConfiguration(t *testing.T) {
-	projectConfiguration, err := configuration.New("https://PROJECT_ID.supabase.co", "API_KEY")
+func TestNewFromConfigurationWiresConfiguration(t *testing.T) {
+	projectConfiguration, err := configuration.New(core.ModulePathPostgrest, "https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}
 
-	client := New(projectConfiguration)
+	client := NewFromConfiguration(projectConfiguration)
 	if client.httpClient == nil {
 		t.Error("httpClient was not wired")
 	}

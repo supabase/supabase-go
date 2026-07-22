@@ -164,13 +164,13 @@ Holding to the standard syntax lets `gofmt` keep formatting consistent and stops
 ## Domain navigation is context-free and cannot fail
 
 **What**:  
-`NewClient` constructs every domain client up front and holds each in an unexported field.
+`supabase.New` constructs every domain client up front and holds each in an unexported field.
 The methods that reach domain behavior (for example, the fluent `From`) take no `context.Context` and return no error.
 `context.Context` is taken only by the terminal methods that perform I/O, such as the database `Execute`.
 
 **Why**:  
 Reaching domains through methods keeps the handle fields unexported, so the client stays immutable and safe for concurrent use.
-Construction does no I/O - `NewClient` parses the project URL and wraps the HTTP transport, with no network call - so there is nothing at access time for a context to bound or cancel, and nothing that can fail.
+Construction does no I/O - `supabase.New` parses the project URL and wraps the HTTP transport, with no network call - so there is nothing at access time for a context to bound or cancel, and nothing that can fail.
 Google's SDKs are the cautionary contrast. Firebase's `app.Auth(ctx)` and `app.Firestore(ctx)` take a context and return an error because they lazily construct clients that resolve credentials and dial connections, and the context is then kept for the client's life: the `cloud.google.com/go` docs warn "Do not set a timeout on the context passed to NewClient: dialing happens asynchronously, and the context is used to refresh credentials in the background", and `golang.org/x/oauth2` states its client "is not valid beyond the lifetime of the context".
 That shape only earns its place when the returned client owns background work bound to the context, and it carries a footgun when it does not: a request-scoped context passed to such a constructor and then cached breaks the client's background refresh once the request ends.
 Our handles own no background work, so a context parameter would import that footgun for no gain.
@@ -202,7 +202,7 @@ Keeping the promise narrow now forecloses nothing: promotion to a supported gene
 ## The client presumes neither a deployment runtime context nor an API/Supabase key type
 
 **What**:  
-The key parameter to `NewClient` (and `configuration.New`) is named neutrally as `apiKey`, never `publishableKey` or `secretKey`, and the SDK neither inspects the key nor assumes where the calling code runs.
+The key parameter to `supabase.New` (and `configuration.New`) is named neutrally as `apiKey`, never `publishableKey` or `secretKey`, and the SDK neither inspects the key nor assumes where the calling code runs.
 A caller may pass any of the project's keys - a publishable key, a secret key or, while they last, a legacy `anon`/`service_role` key - and the SDK carries it as an opaque credential.
 
 **Why**:  
@@ -421,3 +421,37 @@ Schema lives in `migrations/` and only data in `seed.sql` because the CLI applie
 The script runs the CLI against a disposable `mktemp -d` copy of `integration/` because the CLI writes scratch state (`supabase/.branches`, `supabase/.temp`) into whatever project directory it runs: the copy keeps committed trees pristine by construction (no scratch to gitignore, unlike upstream projects that gitignore it inside a writable tree) and lets the harness run from a read-only checkout, while `stop` still finds the stack because the CLI identifies it by `config.toml`'s `project_id`, not by path.
 Disabling every other unused service attacks the block's stated risk head-on: this harness's startup time and flakiness set the floor for all future CI.
 The floor leg exists because the published `go 1.22` directive is a compatibility promise to consumers, and only a live-stack run proves that promise end to end on the floor toolchain; the legs run in parallel so wall-clock cost is unchanged.
+
+## `X-Client-Info` resolution is proven by an out-of-tree consumer program
+
+**What**:  
+The `telemetrytest/` module is a stand-in consumer: it requires the SDK modules at fabricated, self-labeled versions (`v0.999.1-fabricated` root, `v0.999.2-fabricated` postgrest), `replace`s them to the local working tree and its main program asserts the exact `X-Client-Info` value each entry point sends to a local HTTP server.
+`scripts/telemetry-test.sh` runs it with `GOWORK=off` and the module is not listed in `go.work`.
+A second leg rebuilds the same program in GOPATH mode (`GO111MODULE=off`), where binaries carry build information without module records, and asserts the version-unknowable `0.0.0` fallback in every header.
+The `TELEMETRY_TEST_MODE` environment variable tells the program which expectations to hold.
+The check is part of the fast tier (`check-fast.sh`) and runs in CI as a step of the build-and-test job, on its `["1.22", "stable"]` matrix.
+The probe is a plain program, not a `go test` suite.
+
+**Why**:  
+Every binary the in-repo suites produce has this repository as its main module, so header resolution takes the in-tree branch and reports `(devel)`.
+The branch every published-module consumer exercises - reading client versions from build-information dependency records - is reachable only from a main module outside the SDK's module tree.
+It must be a plain program because `go build` and `go run` stamp dependency records into binaries while `go test` binaries record the main module and no dependencies (observed on go1.26), which rules out expressing the probe as a test suite.
+Workspace membership would defeat the vantage from the other side - a workspace build supplies the SDK modules as local source with no resolvable versions - so the module stays out of `go.work` and the script forces `GOWORK=off`.
+The fabricated versions are distinct from every sentinel the header can otherwise carry (`(devel)` in-tree, `0.0.0` without build information), so a pass is unambiguous provenance, and their `-fabricated` prerelease label keeps the header values in check output from reading as release claims.
+Each must outrank every other require of the same module path in this build so minimal version selection keeps it as the selected, recorded version: `0.999.x` outranks the entire real `v0` series and deliberately loses to the first real `v1` require, so the fixture fails loudly at GA instead of surviving it silently.
+The floor leg exists because the header is consumer-facing behavior and `go 1.22` is the consumer contract.
+The GOPATH leg exists because module-record-free binaries are otherwise exercised only incidentally, by test binaries of toolchains before Go 1.24, while GOPATH mode produces them deterministically on every toolchain.
+The expected versions come from the environment rather than from the binary's own build information, which would assert whatever branch actually ran and pass even when a leg lands in the wrong branch.
+
+## Module information is judged by `Main.Path`, not by `ReadBuildInfo`'s ok
+
+**What**:  
+`buildClientInformationHeaderValues` treats the running binary as carrying module information only when `debug.ReadBuildInfo()` succeeds and `Main.Path` is non-empty.
+Otherwise every registered client synthesizes `<name>/0.0.0`, the same version-unknowable sentinel used when build information is absent entirely.
+The construction panic remains for a module-aware binary built outside the SDK's tree whose dependency records omit the named entry module, and for a module that is not a registered telemetry client.
+
+**Why**:  
+Since Go 1.18 every binary the go command produces embeds build information, so ok answers "is there a blob" and not "is module identity known": test binaries from toolchains before Go 1.24 ([golang/go#33976](https://github.com/golang/go/issues/33976)) and binaries built with `GO111MODULE=off` report ok with a zero-valued `Main` and nil `Deps`.
+Trusting ok alone would therefore panic every client construction inside a consumer's own `go test` on Go 1.22 or 1.23 - within the documented consumer floor - and in this repository's floor-leg CI.
+A binary in that state carries no module identity at all, so nothing distinguishes an in-tree build from a consumer's, no `(devel)` claim is honest and the version-unknowable sentinel is the only truthful value.
+The panic survives only where module identity is present and contradicts the caller's declared entry module, which is a programmer error rather than an environment degradation.

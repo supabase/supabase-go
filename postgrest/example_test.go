@@ -5,18 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest"
 )
 
 func ExampleNew() {
-	projectConfiguration, err := configuration.New("https://PROJECT_ID.supabase.co", "API_KEY")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	client := postgrest.New(projectConfiguration)
-	fmt.Println(client != nil)
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	fmt.Println(client != nil && err == nil)
 	// Output: true
 }
 
@@ -28,12 +22,11 @@ func ExampleClient_From() {
 		Name string `json:"name"`
 	}
 
-	projectConfiguration, err := configuration.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	client := postgrest.New(projectConfiguration)
 
 	var instruments []Instrument
 	response, err := client.From("instruments").Select("id, name").Execute(context.Background(), &instruments)

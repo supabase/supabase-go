@@ -1,6 +1,6 @@
 # Developing the Supabase Go SDK
 
-<!-- cSpell:ignore darwin -->
+<!-- cSpell:ignore darwin mvdan -->
 
 This file holds the Go/SDK-specific guidance for working in this repository.
 General, organization-wide contribution policy lives in our [shared `.github` repository](https://github.com/supabase/.github)'s CONTRIBUTING.md file.
@@ -53,6 +53,41 @@ To run the whole fast tier before pushing - build and unit test plus lint, vulne
 ./scripts/check-fast.sh
 ```
 
+### Running checks at the consumer floor
+
+CI proves consumer-facing behavior on two toolchains: the published floor (`go 1.22`, the oldest Go a consumer may hold us to) and current stable, on Linux runners. A local run uses whatever Go is installed, so to reproduce the floor legs name the toolchain for one run (downloaded and checksum-verified automatically on first use). On Linux that is the whole recipe:
+
+```bash
+GOTOOLCHAIN=go1.22.12 ./scripts/build-and-test.sh
+GOTOOLCHAIN=go1.22.12 ./scripts/telemetry-test.sh
+```
+
+On macOS 26 or later those runs abort as soon as a test binary launches, with `dyld: missing LC_UUID load command`. The dynamic loader requires every executable to carry an `LC_UUID` load command, which Go's linker emits by default only from Go 1.24 ([golang/go#68678](https://github.com/golang/go/issues/68678)). The end-of-life 1.22 line received the emission only as an opt-in behind the linker's `-B` flag ([golang/go#69991](https://github.com/golang/go/issues/69991)), so opt the whole run in through `GOFLAGS`:
+
+```bash
+GOTOOLCHAIN=go1.22.12 GOFLAGS=-ldflags=-B=gobuildid ./scripts/build-and-test.sh
+GOTOOLCHAIN=go1.22.12 GOFLAGS=-ldflags=-B=gobuildid ./scripts/telemetry-test.sh
+```
+
+`go1.22.12` is the final point release of the floor line, matching what CI's `1.22` matrix legs resolve to. `./scripts/integration-test.sh` accepts the same prefixes (see its prerequisites below). Lint, vulnerability scan and spell check have no floor legs - they are our own environment, deliberately kept on stable. The floor legs also have unique coverage value: test binaries from pre-1.24 toolchains carry no module information, so they exercise the SDK's version-unknowable telemetry fallback.
+
+### Fixing Formatting for `gofumpt`
+
+When running [`lint.sh`](scripts/lint.sh), either directly or via [`check-fast.sh`](scripts/check-fast.sh), you may see a message in this form:
+
+```
+gofumpt would reformat:
+some/path/to/a/file.go
+```
+
+In this scenario you can run the following from repository root to ask `gofumpt` to fix what it didn't like:
+
+```
+GOWORK=off go -C tools/go run mvdan.cc/gofumpt -w ../..
+```
+
+This ensures you fix the formatting using the exact versions of tools used by our [build `scripts/`](scripts/) (including in CI) as specified in [the `tools/go/` module](tools/go/).
+
 ### Integration tests
 
 The fast tier above needs only the repository's own toolchains (Go, plus Node for the spell check) so should be treated as the default gate before every push. The second tier exercises the SDK against a local Supabase stack (Postgres + PostgREST), has prerequisites and takes longer to run. Prerequisites:
@@ -69,6 +104,14 @@ The fast tier above needs only the repository's own toolchains (Go, plus Node fo
 The script starts the stack against a disposable copy of `integration/`, seeds it, runs the `integration`-tagged tests under `-race` and always stops the stack on exit, including on failure. A plain `go test ./...` never runs these tests - they are build-tagged and environment-gated - so the fast tier stays Docker-free by construction.
 
 Integration test functions are named `TestIntegrationXxx`. The script selects them with `-run '^TestIntegration'`, so a tagged test named outside that prefix will never run.
+
+### Telemetry header test
+
+Suites in the workspace always see the `(devel)` sentinel in the `X-Client-Info` header, because an in-tree build cannot resolve SDK module versions from build information. The consumer-view check covers the resolution real consumers exercise: the `telemetrytest/` module requires the SDK modules at fabricated versions, `replace`s them to the local tree and asserts the exact header every entry point sends. A second leg rebuilds the same program in GOPATH mode, where binaries carry no module records, and asserts the version-unknowable `0.0.0` fallback. It needs only the Go toolchain and runs as part of the fast tier via `./scripts/check-fast.sh`, or alone:
+
+```bash
+./scripts/telemetry-test.sh
+```
 
 ### Previewing the rendered docs
 

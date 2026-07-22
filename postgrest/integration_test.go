@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest"
 )
@@ -23,11 +24,11 @@ func newIntegrationClient(t *testing.T) *postgrest.Client {
 	if projectURL == "" || apiKey == "" {
 		t.Fatal("SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set for integration tests - run scripts/integration-test.sh")
 	}
-	projectConfiguration, err := configuration.New(projectURL, apiKey)
+	projectConfiguration, err := configuration.New(core.ModulePathPostgrest, projectURL, apiKey)
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}
-	return postgrest.New(projectConfiguration)
+	return postgrest.NewFromConfiguration(projectConfiguration)
 }
 
 type seededInstrument struct {

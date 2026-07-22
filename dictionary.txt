@@ -3,6 +3,7 @@ apikey
 codegen
 contravariance
 cyclop
+dyld
 errcheck
 Errorf
 exhaustruct
@@ -11,7 +12,9 @@ footgun
 GOBIN
 GOENV
 GOEXPERIMENT
+GOFLAGS
 GOTOOLCHAIN
+gobuildid
 godoc
 gofmt
 gofumpt
@@ -24,6 +27,7 @@ goroutines
 govulncheck
 GOWORK
 jsonv
+ldflags
 mockability
 multimap
 nativeness
@@ -44,6 +48,7 @@ staticcheck
 stdlib
 subtest
 Supabase
+telemetrytest
 typestate
 unrepresentable
 vulncheck

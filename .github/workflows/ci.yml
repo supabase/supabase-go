@@ -28,6 +28,7 @@ jobs:
       # is added in the block that introduces the first external dependency, once
       # its interaction with the workspace is validated.
       - run: ./scripts/build-and-test.sh
+      - run: ./scripts/telemetry-test.sh
 
   # Integration tests run against a local Supabase stack.
   # This job's matrix mirrors build-and-test.

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/internal/transport"
 )
 
@@ -74,17 +75,23 @@ func WithHeader(key, value string) Option {
 	}
 }
 
-// New validates rawURL and apiKey, applies the supplied options in
-// order, and returns a ready-to-use [Configuration].
+// New validates rawURL and apiKey, applies the supplied options in order, and
+// returns a ready-to-use [Configuration]. It identifies itself to Supabase
+// services according to entryModulePath.
 //
-// It returns one of these sentinel errors, when its inputs are unusable:
+// entryModulePath must be one of the following, with its module linked into
+// the build, otherwise this function will panic:
+//   - [core.ModulePathRoot]
+//   - [core.ModulePathPostgrest]
+//
+// Returns one of these sentinel errors, when inputs are unusable:
 //   - [ErrMissingURL] when rawURL is empty.
 //   - [ErrMissingKey] when apiKey is empty.
 //   - [ErrInvalidURL] when rawURL is not an absolute http or https URL. The
 //     underlying parse failure, when there is one, is wrapped.
 //
 // See [WithHTTPClient] and [WithHeader] for the available options.
-func New(rawURL, apiKey string, options ...Option) (*Configuration, error) {
+func New(entryModulePath core.ModulePath, rawURL, apiKey string, options ...Option) (*Configuration, error) {
 	if rawURL == "" {
 		return nil, ErrMissingURL
 	}
@@ -110,7 +117,7 @@ func New(rawURL, apiKey string, options ...Option) (*Configuration, error) {
 		option(configuration)
 	}
 
-	configuration.httpClient = transport.WrapClient(configuration.httpClient, configuration.apiKey, configuration.headers)
+	configuration.httpClient = transport.WrapClient(entryModulePath, configuration.httpClient, configuration.apiKey, configuration.headers)
 	return configuration, nil
 }
 
