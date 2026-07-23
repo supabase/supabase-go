@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/supabase/supabase-go/core"
@@ -29,6 +30,11 @@ func newTestClient(t *testing.T, server *httptest.Server) *postgrest.Client {
 	return postgrest.NewFromConfiguration(projectConfiguration)
 }
 
+// TestCollectDecodesRows pins the read happy path end to end: rows decode
+// into the caller's type and the request reaches the wire with the cleaned
+// select list, the /rest/v1 path, the injected apikey header and the
+// plural-form Accept header (the SDK never requests
+// application/vnd.pgrst.object+json).
 func TestCollectDecodesRows(t *testing.T) {
 	var observed *http.Request
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -94,6 +100,10 @@ func TestCollectEmptyResultYieldsEmptySlice(t *testing.T) {
 	}
 }
 
+// TestCollectReturnsResponseMetadata pins Response's wiring from the
+// Content-Range header: a reported total populates Count and an absent or
+// unknown one is -1. Parser edge cases live in TestParseContentRangeTotal;
+// this test proves the header value actually flows through the pipeline.
 func TestCollectReturnsResponseMetadata(t *testing.T) {
 	testCases := []struct {
 		name         string
@@ -133,6 +143,8 @@ func TestCollectReturnsResponseMetadata(t *testing.T) {
 	}
 }
 
+// TestCollectEmptySelectMeansAllColumns pins Select's documented contract
+// that an empty column list selects all columns, exactly as "*" does.
 func TestCollectEmptySelectMeansAllColumns(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if got := request.URL.Query().Get("select"); got != "*" {
@@ -174,6 +186,10 @@ func TestCollectPreservesQuotedIdentifiersInSelect(t *testing.T) {
 	}
 }
 
+// TestCollectReturnsTypedErrorForPostgRESTFailure pins the failure half of
+// the return contract: a non-2xx answer surfaces as an *Error carrying the
+// parsed body, while rows and Response stay zero - a failing status lives on
+// the error, never on Response.
 func TestCollectReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
@@ -270,6 +286,10 @@ func TestCollectWrapsDecodeFailure(t *testing.T) {
 	}
 }
 
+// TestCollectReportsMissingTableWithoutIO pins ErrMissingTable's contract:
+// an empty table name is rejected before any request is sent, so the
+// sentinel costs no network round trip and the handler proves the absence
+// of I/O by failing the test if reached.
 func TestCollectReportsMissingTableWithoutIO(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Error("no HTTP request should be made for an empty table name")
@@ -288,6 +308,9 @@ func TestCollectReportsMissingTableWithoutIO(t *testing.T) {
 	}
 }
 
+// TestCollectHonoursContextCancellation pins the context contract:
+// cancelling the caller's context aborts the in-flight request and the
+// cause stays matchable with errors.Is through the wrapped chain.
 func TestCollectHonoursContextCancellation(t *testing.T) {
 	started := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
@@ -314,6 +337,10 @@ func TestCollectHonoursContextCancellation(t *testing.T) {
 	}
 }
 
+// TestBuildersForkIndependently pins builder immutability at the wire: one
+// QueryBuilder forked into two divergent chains sends two independent
+// requests, neither observing the other. The backing-slice aliasing
+// subtlety underneath is pinned by the internal request package's tests.
 func TestBuildersForkIndependently(t *testing.T) {
 	selects := make(chan string, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -322,8 +349,6 @@ func TestBuildersForkIndependently(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// One QueryBuilder, two divergent chains: immutability means neither
-	// chain can observe the other.
 	base := newTestClient(t, server).From("instruments")
 	if _, _, err := postgrest.Collect[instrument](context.Background(), base.Select("id")); err != nil {
 		t.Fatalf("first chain: %v", err)

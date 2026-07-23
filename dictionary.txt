@@ -35,6 +35,7 @@ oapi
 omitempty
 omitzero
 otelhttp
+pgrst
 PGRST
 pinact
 pkgsite

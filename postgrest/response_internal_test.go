@@ -2,6 +2,10 @@ package postgrest
 
 import "testing"
 
+// TestParseContentRangeTotal pins the Content-Range tail parse, including
+// the distinction between a counted empty result ("*/0" is 0) and an
+// unreported total ("*" is -1), and that malformed forms degrade to -1
+// rather than failing the query.
 func TestParseContentRangeTotal(t *testing.T) {
 	testCases := []struct {
 		name         string

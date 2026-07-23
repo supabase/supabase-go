@@ -7,6 +7,9 @@ import (
 	"github.com/supabase/supabase-go/core/configuration"
 )
 
+// TestNewFromConfigurationWiresConfiguration pins the constructor's wiring:
+// the shared HTTP client is carried over and the PostgREST base URL is the
+// project URL joined with /rest/v1.
 func TestNewFromConfigurationWiresConfiguration(t *testing.T) {
 	projectConfiguration, err := configuration.New(core.ModulePathPostgrest, "https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {

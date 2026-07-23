@@ -7,6 +7,8 @@ import (
 	"github.com/supabase/supabase-go/postgrest"
 )
 
+// TestErrorRendering pins Error's two rendered forms - with and without a
+// server-supplied code - since these strings are what consumers log.
 func TestErrorRendering(t *testing.T) {
 	testCases := []struct {
 		name  string
@@ -33,6 +35,9 @@ func TestErrorRendering(t *testing.T) {
 	}
 }
 
+// TestErrorMatchesWithErrorsAs pins the error-model contract that callers
+// branch on *Error with a single errors.As, and that a body-parsed Error
+// has no underlying cause to unwrap.
 func TestErrorMatchesWithErrorsAs(t *testing.T) {
 	var err error = &postgrest.Error{HTTPStatus: 404, Code: "42P01", Message: "missing"}
 
