@@ -27,4 +27,4 @@ features:
   database.using_modifiers.request_cancellation:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.Execute
+      - postgrest.Collect

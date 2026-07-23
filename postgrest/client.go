@@ -45,7 +45,8 @@ func NewFromConfiguration(projectConfiguration *configuration.Configuration) *Cl
 }
 
 // From begins a query against the given table or view.
-// Chain a verb such as [QueryBuilder.Select] and terminate with [FilterBuilder.Execute].
+// Chain a verb such as [QueryBuilder.Select] and terminate with a generic
+// terminal such as [Collect].
 func (c *Client) From(table string) QueryBuilder {
 	return QueryBuilder{
 		client:  c,

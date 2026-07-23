@@ -1,6 +1,6 @@
 # Development Decisions for `supabase-go`
 
-<!-- cSpell:ignore Cheney claude mktemp -->
+<!-- cSpell:ignore Cheney claude iter mktemp openai pgrst pgx Seq vnd -->
 
 This document has been created to capture decisions that have been made during development on this SDK which felt like worth recording for future reference.
 It's designed to be quick and friction-less to populate, a friction log inspired micro decisions list, often expected to be imperfect but with the ethos of "something is better than nothing" in terms of what we capture.
@@ -166,7 +166,7 @@ Holding to the standard syntax lets `gofmt` keep formatting consistent and stops
 **What**:  
 `supabase.New` constructs every domain client up front and holds each in an unexported field.
 The methods that reach domain behavior (for example, the fluent `From`) take no `context.Context` and return no error.
-`context.Context` is taken only by the terminal methods that perform I/O, such as the database `Execute`.
+`context.Context` is taken only by the terminals that perform I/O, such as the database `Collect`.
 
 **Why**:  
 Reaching domains through methods keeps the handle fields unexported, so the client stays immutable and safe for concurrent use.
@@ -375,22 +375,40 @@ Embedding is rejected twice over: promoted methods return the embedded type, whi
 
 **What**:  
 Every builder method serializes its effect into the internal request model at call time - `Select` writes the `select` parameter immediately.
-Builders hold no structured intermediate state (no columns, filters or limit fields), and `Execute` performs no assembly beyond handing the model a base URL.
+Builders hold no structured intermediate state (no columns, filters or limit fields), and the terminals' shared `execute` path performs no assembly beyond handing the model a base URL.
 
 **Why**:  
 The wire format is the canonical state in every sibling SDK - postgrest-js mutates `URLSearchParams` inside each method, supabase-swift appends `URLQueryItem`s, postgrest-dart rewrites the `Uri`, supabase-py updates its `URLQuery` - so behavior parity with the reference implementation is auditable call by call: our `Select` does what theirs does, at the same moment.
-A structured representation assembled at `Execute` time would be a second source of truth whose serializer must track the reference forever, for no validation gain: ordering rules ("X not before/after Y") are enforced earlier and stronger by the typestate split, and value-level conflict rules, when a concrete one arrives, can read the model through a narrow predicate (a `HasParameter`-style query added then) - normalization loses no state a known rule needs.
+A structured representation assembled at execution time would be a second source of truth whose serializer must track the reference forever, for no validation gain: ordering rules ("X not before/after Y") are enforced earlier and stronger by the typestate split, and value-level conflict rules, when a concrete one arrives, can read the model through a narrow predicate (a `HasParameter`-style query added then) - normalization loses no state a known rule needs.
 The only information call-time serialization erases is which method wrote a pair; no PostgREST rule branches on that provenance, and the siblings validate almost nothing themselves, delegating conflicts to PostgREST's own errors, which this SDK surfaces as `*Error`.
 
-## Execute is the explicit, context-first terminal returning `(Response, error)`
+## Reads terminate in package-level generic functions, context-first
 
 **What**:  
-The only I/O in the chain is `FilterBuilder.Execute(ctx, destination)`, which decodes into a caller-supplied pointer and returns `(Response, error)`.
-`Response` carries `HTTPStatus` and `Count`, where `Count` is `-1` when the server reported no total, following `net/http.Response.ContentLength`'s convention for unknown values.
+The builder chain is non-generic and performs no I/O.
+Execution happens only in package-level generic terminals - `Collect[Row](ctx, query)` returning `([]Row, Response, error)` - which share one unexported `execute` path.
+`Response` carries `HTTPStatus` and `Count` as exported scalar fields on a by-value record, where `Count` is `-1` when the server reported no total, following `net/http.Response.ContentLength`'s convention.
 
 **Why**:  
-supabase-js and supabase-flutter trigger execution implicitly by awaiting the builder (thenable/`Future`); Go has no await and hiding I/O in an accessor would violate the principle of least surprise.
-An explicit method taking `context.Context` first matches the standard's context mandate.
+Go has no parameterized methods, so a typed method terminal is unrepresentable on the chain, and a fully generic chain (the community postgrest-go's unreleased rewrite) threads the row type through every filter method for no gain, since decode is the only step that needs it.
+A free generic function types the result at exactly that step: array-ness becomes the terminal's return contract instead of a destination-shape convention, and the destination-pointer questions (nil-ness, preallocation) become unrepresentable.
+An `any`-typed `Execute` alongside the typed terminals was rejected as a second front door for the same job - `Collect[json.RawMessage]` covers raw per-row access.
+supabase-js and supabase-flutter execute implicitly by awaiting the builder. Go has no await, and an explicit context-first function matches the standard's context mandate, with stdlib and ecosystem precedent for the shape (`slices.Collect` and `iter.Pull` as free generic functions over non-generic values, pgx's `CollectRows[T]` and `CollectOneRow` solving typed row decoding identically for Postgres, stripe-go's range-over-`Seq2` list surface and openai-go's auto-paging).
+`Response` stays a plain exported-field record because it is returned by value and holds only scalars, so consumers hold independent copies and no aliasing exists to defend against, while unexported fields would stop consumers fabricating a `Response` in their own test doubles.
+This argument is scalar-dependent: a reference-typed field (headers, raw body) must not be added to `Response` without revisiting it.
+
+## The SDK never sends `Accept: application/vnd.pgrst.object+json`
+
+**What**:  
+Every read requests and decodes the plural JSON-array form.
+Singular semantics are client-side: the single-row terminals unwrap the array and report contract violations as sentinels (`ErrNoRows`, `ErrTooManyRows`) after inspecting what the server returned, sending the consumer's query unmodified.
+
+**Why**:  
+The singular media type exists to spare hand-written clients an unwrap that an SDK performs anyway, and its error model collapses absence and multiplicity into one 406/PGRST116 whose disambiguation requires parsing a human-readable details string - unusable for a `MaybeSingle` that must treat absence as routine.
+postgrest-js retreated from the media type for GET `maybeSingle` (its issue #361) and now fabricates synthetic PGRST116 error objects client-side for compatibility with its own past, a contortion a fresh surface need not inherit.
+One wire shape keeps a single decode path and keeps `Content-Range` parsing universal, and sentinels give Gophers `errors.Is` matching in the `database/sql.ErrNoRows` tradition instead of string-matching a server code.
+Cost accepted: a violated single-row expectation transfers up to one server-capped page before erroring, where server-side coercion would return a body-less 406 - a bug-path-only cost, bounded by Supabase's `max_rows` (default 1000).
+Injecting `limit=2` to bound that cost further was rejected because it silently rewrites the consumer's query, collides with a consumer-set `Limit` and breaks this file's serialize-immediately decision (terminals perform no assembly).
 
 ## `postgrest.Error` carries the parsed PostgREST body plus HTTP status
 

@@ -7,13 +7,17 @@ import (
 
 // Response carries the metadata of a successfully executed query.
 type Response struct {
-	// HTTPStatus is the HTTP status code of the response, typically 200, or
-	// 206 (Partial Content) when PostgREST serves a page of a larger result.
+	// HTTPStatus is the HTTP status code of the response, always in the 2xx
+	// range: any non-2xx answer surfaces as an [*Error] instead, never here.
+	// PostgREST answers 206 (Partial Content) rather than 200 only when a
+	// requested count reveals the response to be a window of a larger result.
 	HTTPStatus int
 
 	// Count is the total number of rows matching the query when the server
 	// reported one, and -1 when it did not, following the convention of
-	// [net/http.Response.ContentLength].
+	// [net/http.Response.ContentLength]. The total counts every matching row,
+	// not just those returned, so it can exceed the number of decoded rows
+	// when the response carries only a window of the result.
 	Count int64
 }
 

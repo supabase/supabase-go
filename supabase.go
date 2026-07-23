@@ -37,10 +37,9 @@ func New(projectURL, apiKey string, options ...configuration.Option) (*Client, e
 
 // From begins a Database query against the given table or view.
 // Chain a verb such as [postgrest.QueryBuilder.Select] and terminate with
-// [postgrest.FilterBuilder.Execute]:
+// a generic terminal such as [postgrest.Collect]:
 //
-//	var rows []Instrument
-//	response, err := supabase.From("instruments").Select("id, name").Execute(ctx, &rows)
+//	rows, response, err := postgrest.Collect[Instrument](ctx, supabase.From("instruments").Select("id, name"))
 func (c *Client) From(table string) postgrest.QueryBuilder {
 	return c.database.From(table)
 }

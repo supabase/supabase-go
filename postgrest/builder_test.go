@@ -29,7 +29,7 @@ func newTestClient(t *testing.T, server *httptest.Server) *postgrest.Client {
 	return postgrest.NewFromConfiguration(projectConfiguration)
 }
 
-func TestExecuteDecodesRows(t *testing.T) {
+func TestCollectDecodesRows(t *testing.T) {
 	var observed *http.Request
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		observed = request.Clone(request.Context())
@@ -38,10 +38,9 @@ func TestExecuteDecodesRows(t *testing.T) {
 	}))
 	defer server.Close()
 
-	var rows []instrument
-	response, err := newTestClient(t, server).From("instruments").Select("id, name").Execute(context.Background(), &rows)
+	rows, response, err := postgrest.Collect[instrument](context.Background(), newTestClient(t, server).From("instruments").Select("id, name"))
 	if err != nil {
-		t.Fatalf("Execute: %v", err)
+		t.Fatalf("Collect: %v", err)
 	}
 
 	if len(rows) != 2 || rows[0].Name != "violin" {
@@ -64,7 +63,7 @@ func TestExecuteDecodesRows(t *testing.T) {
 	}
 }
 
-func TestExecuteReturnsResponseMetadata(t *testing.T) {
+func TestCollectReturnsResponseMetadata(t *testing.T) {
 	testCases := []struct {
 		name         string
 		contentRange string
@@ -84,10 +83,9 @@ func TestExecuteReturnsResponseMetadata(t *testing.T) {
 			}))
 			defer server.Close()
 
-			var rows []instrument
-			response, err := newTestClient(t, server).From("instruments").Select("").Execute(context.Background(), &rows)
+			_, response, err := postgrest.Collect[instrument](context.Background(), newTestClient(t, server).From("instruments").Select(""))
 			if err != nil {
-				t.Fatalf("Execute: %v", err)
+				t.Fatalf("Collect: %v", err)
 			}
 			if response.Count != testCase.wantCount {
 				t.Errorf("Count = %d, want %d", response.Count, testCase.wantCount)
@@ -99,7 +97,7 @@ func TestExecuteReturnsResponseMetadata(t *testing.T) {
 	}
 }
 
-func TestExecuteEmptySelectMeansAllColumns(t *testing.T) {
+func TestCollectEmptySelectMeansAllColumns(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if got := request.URL.Query().Get("select"); got != "*" {
 			t.Errorf("select = %q, want *", got)
@@ -108,13 +106,12 @@ func TestExecuteEmptySelectMeansAllColumns(t *testing.T) {
 	}))
 	defer server.Close()
 
-	var rows []instrument
-	if _, err := newTestClient(t, server).From("instruments").Select("").Execute(context.Background(), &rows); err != nil {
-		t.Fatalf("Execute: %v", err)
+	if _, _, err := postgrest.Collect[instrument](context.Background(), newTestClient(t, server).From("instruments").Select("")); err != nil {
+		t.Fatalf("Collect: %v", err)
 	}
 }
 
-func TestExecuteReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
+func TestCollectReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
 		writer.WriteHeader(http.StatusNotFound)
@@ -122,8 +119,7 @@ func TestExecuteReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	var rows []instrument
-	response, err := newTestClient(t, server).From("missing").Select("").Execute(context.Background(), &rows)
+	rows, response, err := postgrest.Collect[instrument](context.Background(), newTestClient(t, server).From("missing").Select(""))
 
 	var typedError *postgrest.Error
 	if !errors.As(err, &typedError) {
@@ -132,25 +128,27 @@ func TestExecuteReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	if typedError.HTTPStatus != http.StatusNotFound || typedError.Code != "42P01" {
 		t.Errorf("typedError = %+v", typedError)
 	}
+	if rows != nil {
+		t.Errorf("rows = %+v, want nil on error", rows)
+	}
 	if response != (postgrest.Response{}) {
 		t.Errorf("response = %+v, want zero value on error", response)
 	}
 }
 
-func TestExecuteReportsMissingTableWithoutIO(t *testing.T) {
+func TestCollectReportsMissingTableWithoutIO(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Error("no HTTP request should be made for an empty table name")
 	}))
 	defer server.Close()
 
-	var rows []instrument
-	_, err := newTestClient(t, server).From("").Select("id").Execute(context.Background(), &rows)
+	_, _, err := postgrest.Collect[instrument](context.Background(), newTestClient(t, server).From("").Select("id"))
 	if !errors.Is(err, postgrest.ErrMissingTable) {
 		t.Errorf("want ErrMissingTable, got %v", err)
 	}
 }
 
-func TestExecuteHonoursContextCancellation(t *testing.T) {
+func TestCollectHonoursContextCancellation(t *testing.T) {
 	started := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
 		close(started)
@@ -164,8 +162,7 @@ func TestExecuteHonoursContextCancellation(t *testing.T) {
 		cancel()
 	}()
 
-	var rows []instrument
-	_, err := newTestClient(t, server).From("instruments").Select("").Execute(ctx, &rows)
+	_, _, err := postgrest.Collect[instrument](ctx, newTestClient(t, server).From("instruments").Select(""))
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("want context.Canceled in chain, got %v", err)
 	}
@@ -182,11 +179,10 @@ func TestBuildersForkIndependently(t *testing.T) {
 	// One QueryBuilder, two divergent chains: immutability means neither
 	// chain can observe the other.
 	base := newTestClient(t, server).From("instruments")
-	var rows []instrument
-	if _, err := base.Select("id").Execute(context.Background(), &rows); err != nil {
+	if _, _, err := postgrest.Collect[instrument](context.Background(), base.Select("id")); err != nil {
 		t.Fatalf("first chain: %v", err)
 	}
-	if _, err := base.Select("name").Execute(context.Background(), &rows); err != nil {
+	if _, _, err := postgrest.Collect[instrument](context.Background(), base.Select("name")); err != nil {
 		t.Fatalf("second chain: %v", err)
 	}
 

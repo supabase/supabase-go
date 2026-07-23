@@ -115,8 +115,7 @@ func exerciseRootClient(baseURL string) error {
 	if err != nil {
 		return err
 	}
-	var rows []struct{}
-	_, err = client.From("probe").Select("id").Execute(context.Background(), &rows)
+	_, _, err = postgrest.Collect[struct{}](context.Background(), client.From("probe").Select("id"))
 	return err
 }
 
@@ -125,7 +124,6 @@ func exercisePostgrestClient(baseURL string) error {
 	if err != nil {
 		return err
 	}
-	var rows []struct{}
-	_, err = client.From("probe").Select("id").Execute(context.Background(), &rows)
+	_, _, err = postgrest.Collect[struct{}](context.Background(), client.From("probe").Select("id"))
 	return err
 }

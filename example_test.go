@@ -55,8 +55,7 @@ func ExampleClient_From() {
 		return
 	}
 
-	var instruments []Instrument
-	response, err := supabase.From("instruments").Select("id, name").Execute(context.Background(), &instruments)
+	instruments, response, err := postgrest.Collect[Instrument](context.Background(), supabase.From("instruments").Select("id, name"))
 	if err != nil {
 		var postgrestError *postgrest.Error
 		if errors.As(err, &postgrestError) {
