@@ -68,6 +68,32 @@ func TestCollectDecodesRows(t *testing.T) {
 	}
 }
 
+// TestCollectEmptyResultYieldsEmptySlice pins Collect's documented
+// empty-result contract: a JSON [] decodes to an empty, non-nil slice, so
+// callers range over results without a nil check.
+func TestCollectEmptyResultYieldsEmptySlice(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte(`[]`))
+	}))
+	defer server.Close()
+
+	rows, _, err := postgrest.Collect[instrument](
+		context.Background(),
+		newTestClient(t, server).
+			From("instruments").
+			Select(""),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if rows == nil {
+		t.Error("rows = nil, want empty non-nil slice")
+	}
+	if len(rows) != 0 {
+		t.Errorf("len(rows) = %d, want 0", len(rows))
+	}
+}
+
 func TestCollectReturnsResponseMetadata(t *testing.T) {
 	testCases := []struct {
 		name         string
@@ -126,6 +152,28 @@ func TestCollectEmptySelectMeansAllColumns(t *testing.T) {
 	}
 }
 
+// TestCollectPreservesQuotedIdentifiersInSelect pins the other half of
+// Select's cleaning contract: whitespace is stripped from the column list
+// except inside double-quoted identifiers, which must reach the wire intact.
+func TestCollectPreservesQuotedIdentifiersInSelect(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if got, want := request.URL.Query().Get("select"), `"full name",id`; got != want {
+			t.Errorf("select = %q, want %q (quoted whitespace must survive)", got, want)
+		}
+		_, _ = writer.Write([]byte(`[]`))
+	}))
+	defer server.Close()
+
+	if _, _, err := postgrest.Collect[instrument](
+		context.Background(),
+		newTestClient(t, server).
+			From("instruments").
+			Select(`"full name", id`),
+	); err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+}
+
 func TestCollectReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
@@ -147,6 +195,72 @@ func TestCollectReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	}
 	if typedError.HTTPStatus != http.StatusNotFound || typedError.Code != "42P01" {
 		t.Errorf("typedError = %+v", typedError)
+	}
+	if rows != nil {
+		t.Errorf("rows = %+v, want nil on error", rows)
+	}
+	if response != (postgrest.Response{}) {
+		t.Errorf("response = %+v, want zero value on error", response)
+	}
+}
+
+// TestCollectPreservesUnparsableErrorBody pins newError's fallback: a
+// non-2xx body that is not the documented PostgREST error JSON (HTML from an
+// intermediary, for example) still surfaces as an *Error, with the raw body
+// preserved in Message so no diagnostic information is lost.
+func TestCollectPreservesUnparsableErrorBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = writer.Write([]byte(`<html>upstream unavailable</html>`))
+	}))
+	defer server.Close()
+
+	_, _, err := postgrest.Collect[instrument](
+		context.Background(),
+		newTestClient(t, server).
+			From("instruments").
+			Select(""),
+	)
+
+	var typedError *postgrest.Error
+	if !errors.As(err, &typedError) {
+		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+	}
+	if typedError.HTTPStatus != http.StatusServiceUnavailable {
+		t.Errorf("HTTPStatus = %d, want 503", typedError.HTTPStatus)
+	}
+	if typedError.Message != `<html>upstream unavailable</html>` {
+		t.Errorf("Message = %q, want the raw body preserved", typedError.Message)
+	}
+	if typedError.Code != "" {
+		t.Errorf("Code = %q, want empty for an unparsable body", typedError.Code)
+	}
+}
+
+// TestCollectWrapsDecodeFailure pins the remaining failure class: a 2xx
+// answer whose body does not decode is a wrapped failure, not an *Error
+// (that type means the server answered with an error), and rows and
+// Response stay zero.
+func TestCollectWrapsDecodeFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{not json`))
+	}))
+	defer server.Close()
+
+	rows, response, err := postgrest.Collect[instrument](
+		context.Background(),
+		newTestClient(t, server).
+			From("instruments").
+			Select(""),
+	)
+
+	if err == nil || !strings.Contains(err.Error(), "decoding response") {
+		t.Fatalf("want wrapped decoding failure, got %v", err)
+	}
+	var typedError *postgrest.Error
+	if errors.As(err, &typedError) {
+		t.Errorf("decode failure must not be an *Error: %v", typedError)
 	}
 	if rows != nil {
 		t.Errorf("rows = %+v, want nil on error", rows)
