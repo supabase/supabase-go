@@ -39,7 +39,11 @@ func New(projectURL, apiKey string, options ...configuration.Option) (*Client, e
 // Chain a verb such as [postgrest.QueryBuilder.Select] and terminate with
 // a generic terminal such as [postgrest.Collect]:
 //
-//	rows, response, err := postgrest.Collect[Instrument](ctx, supabase.From("instruments").Select("id, name"))
+//		rows, response, err := postgrest.Collect[Instrument](
+//	     ctx,
+//	     supabase.
+//	         From("instruments").
+//	         Select("id, name"))
 func (c *Client) From(table string) postgrest.QueryBuilder {
 	return c.database.From(table)
 }

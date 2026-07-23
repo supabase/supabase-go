@@ -38,7 +38,12 @@ func TestCollectDecodesRows(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, response, err := postgrest.Collect[instrument](context.Background(), newTestClient(t, server).From("instruments").Select("id, name"))
+	rows, response, err := postgrest.Collect[instrument](
+		context.Background(),
+		newTestClient(t, server).
+			From("instruments").
+			Select("id, name"),
+	)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -83,7 +88,12 @@ func TestCollectReturnsResponseMetadata(t *testing.T) {
 			}))
 			defer server.Close()
 
-			_, response, err := postgrest.Collect[instrument](context.Background(), newTestClient(t, server).From("instruments").Select(""))
+			_, response, err := postgrest.Collect[instrument](
+				context.Background(),
+				newTestClient(t, server).
+					From("instruments").
+					Select(""),
+			)
 			if err != nil {
 				t.Fatalf("Collect: %v", err)
 			}
@@ -106,7 +116,12 @@ func TestCollectEmptySelectMeansAllColumns(t *testing.T) {
 	}))
 	defer server.Close()
 
-	if _, _, err := postgrest.Collect[instrument](context.Background(), newTestClient(t, server).From("instruments").Select("")); err != nil {
+	if _, _, err := postgrest.Collect[instrument](
+		context.Background(),
+		newTestClient(t, server).
+			From("instruments").
+			Select(""),
+	); err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
 }
@@ -119,7 +134,12 @@ func TestCollectReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, response, err := postgrest.Collect[instrument](context.Background(), newTestClient(t, server).From("missing").Select(""))
+	rows, response, err := postgrest.Collect[instrument](
+		context.Background(),
+		newTestClient(t, server).
+			From("missing").
+			Select(""),
+	)
 
 	var typedError *postgrest.Error
 	if !errors.As(err, &typedError) {
@@ -142,7 +162,13 @@ func TestCollectReportsMissingTableWithoutIO(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, _, err := postgrest.Collect[instrument](context.Background(), newTestClient(t, server).From("").Select("id"))
+	_, _, err := postgrest.Collect[instrument](
+		context.Background(),
+		newTestClient(t, server).
+			From("").
+			Select("id"),
+	)
+
 	if !errors.Is(err, postgrest.ErrMissingTable) {
 		t.Errorf("want ErrMissingTable, got %v", err)
 	}
@@ -162,7 +188,13 @@ func TestCollectHonoursContextCancellation(t *testing.T) {
 		cancel()
 	}()
 
-	_, _, err := postgrest.Collect[instrument](ctx, newTestClient(t, server).From("instruments").Select(""))
+	_, _, err := postgrest.Collect[instrument](
+		ctx,
+		newTestClient(t, server).
+			From("instruments").
+			Select(""),
+	)
+
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("want context.Canceled in chain, got %v", err)
 	}

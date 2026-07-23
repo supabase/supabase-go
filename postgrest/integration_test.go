@@ -39,7 +39,12 @@ type seededInstrument struct {
 func TestIntegrationSelectAllColumns(t *testing.T) {
 	client := newIntegrationClient(t)
 
-	rows, response, err := postgrest.Collect[seededInstrument](context.Background(), client.From("instruments").Select(""))
+	rows, response, err := postgrest.Collect[seededInstrument](
+		context.Background(),
+		client.
+			From("instruments").
+			Select(""),
+	)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -71,7 +76,13 @@ func TestIntegrationSelectColumnSubset(t *testing.T) {
 	type nameOnly struct {
 		Name string `json:"name"`
 	}
-	rows, _, err := postgrest.Collect[nameOnly](context.Background(), client.From("instruments").Select("name"))
+
+	rows, _, err := postgrest.Collect[nameOnly](
+		context.Background(),
+		client.
+			From("instruments").
+			Select("name"),
+	)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
@@ -83,7 +94,12 @@ func TestIntegrationSelectColumnSubset(t *testing.T) {
 func TestIntegrationMissingRelationReturnsTypedError(t *testing.T) {
 	client := newIntegrationClient(t)
 
-	_, _, err := postgrest.Collect[seededInstrument](context.Background(), client.From("does_not_exist").Select(""))
+	_, _, err := postgrest.Collect[seededInstrument](
+		context.Background(),
+		client.
+			From("does_not_exist").
+			Select(""),
+	)
 
 	var typedError *postgrest.Error
 	if !errors.As(err, &typedError) {
