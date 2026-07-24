@@ -44,6 +44,9 @@ func TestIntegrationRootClientSelect(t *testing.T) {
 	if response.HTTPStatus != http.StatusOK {
 		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
 	}
+	if response.Count != -1 {
+		t.Errorf("Count = %d, want -1 (no count requested)", response.Count)
+	}
 	if len(rows) != 3 {
 		t.Errorf("row count = %d, want 3 (seed drifted?)", len(rows))
 	}
