@@ -10,7 +10,9 @@ import (
 // Collect executes the query and returns every row of the result decoded into
 // Row, which is typically a struct whose fields carry json tags. Response
 // fields with no matching Row field are ignored, so Row may decode any subset
-// of the selected columns. An empty result yields an empty slice. Collect is a
+// of the selected columns. Row may also be a dynamic container such as
+// map[string]any or [json.RawMessage] when column shapes are not known at
+// compile time. An empty result yields an empty slice. Collect is a
 // terminal of the builder chain and the only place I/O is performed. The
 // context governs cancellation and deadline for the entire request. On success
 // it also returns a [Response] carrying the HTTP status and, when the server

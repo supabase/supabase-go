@@ -30,6 +30,20 @@ func newTestClient(t *testing.T, server *httptest.Server) *postgrest.Client {
 	return postgrest.NewFromConfiguration(projectConfiguration)
 }
 
+// assertOKResponse pins the Response surface shared by the success-path
+// tests, whose handlers serve no Content-Range header: HTTP 200 with the
+// total unreported (-1). Count wiring for served headers is pinned by
+// TestCollectReturnsResponseMetadata.
+func assertOKResponse(t *testing.T, response postgrest.Response) {
+	t.Helper()
+	if response.HTTPStatus != http.StatusOK {
+		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
+	}
+	if response.Count != -1 {
+		t.Errorf("Count = %d, want -1 (no Content-Range served)", response.Count)
+	}
+}
+
 // TestCollectDecodesRows pins the read happy path end to end: rows decode
 // into the caller's type and the request reaches the wire with the cleaned
 // select list, the /rest/v1 path, the injected apikey header and the
@@ -83,7 +97,7 @@ func TestCollectEmptyResultYieldsEmptySlice(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, _, err := postgrest.Collect[instrument](
+	rows, response, err := postgrest.Collect[instrument](
 		context.Background(),
 		newTestClient(t, server).
 			From("instruments").
@@ -98,6 +112,37 @@ func TestCollectEmptyResultYieldsEmptySlice(t *testing.T) {
 	if len(rows) != 0 {
 		t.Errorf("len(rows) = %d, want 0", len(rows))
 	}
+	assertOKResponse(t, response)
+}
+
+// TestCollectPreservesRawRowBytes pins the json.RawMessage half of the
+// documented dynamic-container contract: Collect[json.RawMessage] defers
+// per-row decoding, each element carrying its row's JSON verbatim so
+// consumers can route or decode rows individually. The map[string]any half
+// is demonstrated by ExampleCollect_schemaDriven.
+func TestCollectPreservesRawRowBytes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`[{"id":1,"name":"violin"},{"id":2,"name":"flute"}]`))
+	}))
+	defer server.Close()
+
+	rows, response, err := postgrest.Collect[json.RawMessage](
+		context.Background(),
+		newTestClient(t, server).
+			From("instruments").
+			Select(""),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("row count = %d, want 2", len(rows))
+	}
+	if got, want := string(rows[0]), `{"id":1,"name":"violin"}`; got != want {
+		t.Errorf("rows[0] = %s, want %s (row bytes must pass through verbatim)", got, want)
+	}
+	assertOKResponse(t, response)
 }
 
 // TestCollectReturnsResponseMetadata pins Response's wiring from the
