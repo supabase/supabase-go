@@ -3,7 +3,6 @@
 package postgrest_test
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"os"
@@ -36,13 +35,22 @@ type seededInstrument struct {
 	Name string `json:"name"`
 }
 
+// TestIntegrationSelectAllColumns proves the read path against real
+// PostgREST: seeded rows decode, the status is 200 and a request without a
+// count preference reports an unknown total as -1, confirming live the
+// Content-Range behavior the unit tests synthesize.
 func TestIntegrationSelectAllColumns(t *testing.T) {
 	client := newIntegrationClient(t)
 
-	var rows []seededInstrument
-	response, err := client.From("instruments").Select("").Execute(context.Background(), &rows)
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[seededInstrument]("instruments").
+			Select(""),
+	)
 	if err != nil {
-		t.Fatalf("Execute: %v", err)
+		t.Fatalf("Collect: %v", err)
 	}
 
 	if response.HTTPStatus != http.StatusOK {
@@ -66,31 +74,60 @@ func TestIntegrationSelectAllColumns(t *testing.T) {
 	}
 }
 
+// TestIntegrationSelectColumnSubset proves the cleaned select list is
+// accepted by the real server and that a narrower row type decodes the
+// projection.
 func TestIntegrationSelectColumnSubset(t *testing.T) {
 	client := newIntegrationClient(t)
 
-	var rows []struct {
+	type nameOnly struct {
 		Name string `json:"name"`
 	}
-	if _, err := client.From("instruments").Select("name").Execute(context.Background(), &rows); err != nil {
-		t.Fatalf("Execute: %v", err)
+
+	rows, _, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[nameOnly]("instruments").
+			Select("name"),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
 	}
-	if len(rows) != 3 || rows[0].Name == "" {
-		t.Errorf("rows = %+v", rows)
+	if len(rows) != 3 {
+		t.Fatalf("row count = %d, want 3 (seed drifted?)", len(rows))
+	}
+	for index, row := range rows {
+		if row.Name == "" {
+			t.Errorf("rows[%d].Name is empty", index)
+		}
 	}
 }
 
+// TestIntegrationMissingRelationReturnsTypedError proves error parsing
+// against a real PostgREST error response. The stack is version-pinned by
+// the harness, so the exact protocol shape (PGRST205, HTTP 404) is asserted
+// deliberately: a failure here on a pin bump is upstream drift worth
+// reviewing.
 func TestIntegrationMissingRelationReturnsTypedError(t *testing.T) {
 	client := newIntegrationClient(t)
 
-	var rows []seededInstrument
-	_, err := client.From("does_not_exist").Select("").Execute(context.Background(), &rows)
+	_, _, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[seededInstrument]("does_not_exist").
+			Select(""),
+	)
 
 	var typedError *postgrest.Error
 	if !errors.As(err, &typedError) {
 		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
 	}
-	if typedError.Code == "" || typedError.HTTPStatus == 0 {
-		t.Errorf("typedError = %+v; want populated Code and HTTPStatus", typedError)
+	if typedError.Code != "PGRST205" {
+		t.Errorf("Code = %q, want PGRST205 (unknown relation)", typedError.Code)
+	}
+	if typedError.HTTPStatus != http.StatusNotFound {
+		t.Errorf("HTTPStatus = %d, want 404", typedError.HTTPStatus)
 	}
 }

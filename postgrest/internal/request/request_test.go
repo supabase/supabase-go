@@ -20,13 +20,16 @@ func mustParseURL(t *testing.T, raw string) *url.URL {
 
 func requestURL(t *testing.T, r request.Request) string {
 	t.Helper()
-	httpRequest, err := r.HTTPRequest(context.Background(), mustParseURL(t, "https://example.test/rest/v1"))
+	httpRequest, err := r.HTTPRequest(t.Context(), mustParseURL(t, "https://example.test/rest/v1"))
 	if err != nil {
 		t.Fatalf("HTTPRequest: %v", err)
 	}
 	return httpRequest.URL.String()
 }
 
+// TestWithParameterDoesNotMutateReceiver pins the model's immutability
+// contract: WithParameter returns a new value and the receiver is unchanged,
+// so a Request can be stored and forked safely.
 func TestWithParameterDoesNotMutateReceiver(t *testing.T) {
 	base := request.New(http.MethodGet, "instruments")
 
@@ -44,9 +47,10 @@ func TestWithParameterDoesNotMutateReceiver(t *testing.T) {
 	}
 }
 
+// TestForksFromSharedIntermediateAreIndependent pins fork independence for
+// chains sharing a cloned backing-slice ancestry - the append-aliasing bug
+// that WithParameter's slices.Clone exists to prevent.
 func TestForksFromSharedIntermediateAreIndependent(t *testing.T) {
-	// Two chains built on the same intermediate must not observe each other,
-	// even though they share a cloned backing slice ancestry.
 	intermediate := request.New(http.MethodGet, "instruments").WithParameter("select", "id")
 
 	first := intermediate.WithParameter("limit", "1")
@@ -60,10 +64,10 @@ func TestForksFromSharedIntermediateAreIndependent(t *testing.T) {
 	}
 }
 
+// TestWithParameterPreservesRepeatedKeys pins duplicate-key preservation:
+// PostgREST combines repeated filter keys with AND (age=gte.18&age=lte.65 is
+// a range filter), so the model must keep duplicates, never collapse them.
 func TestWithParameterPreservesRepeatedKeys(t *testing.T) {
-	// PostgREST combines repeated filter keys with AND (age=gte.18&age=lte.65
-	// is a range filter), so the model must keep duplicates, never collapse
-	// them.
 	ranged := request.New(http.MethodGet, "people").
 		WithParameter("age", "gte.18").
 		WithParameter("age", "lte.65")
@@ -73,9 +77,12 @@ func TestWithParameterPreservesRepeatedKeys(t *testing.T) {
 	}
 }
 
+// TestHTTPRequestCarriesContextMethodAndAcceptHeader pins request assembly:
+// the caller's context rides the HTTP request, the method is preserved and
+// Accept asks for JSON.
 func TestHTTPRequestCarriesContextMethodAndAcceptHeader(t *testing.T) {
 	type contextKey struct{}
-	ctx := context.WithValue(context.Background(), contextKey{}, "present")
+	ctx := context.WithValue(t.Context(), contextKey{}, "present")
 
 	httpRequest, err := request.New(http.MethodGet, "instruments").
 		HTTPRequest(ctx, mustParseURL(t, "https://example.test/rest/v1"))
@@ -93,9 +100,11 @@ func TestHTTPRequestCarriesContextMethodAndAcceptHeader(t *testing.T) {
 	}
 }
 
+// TestPathEscaping pins that the relation path, stored unescaped by New, is
+// escaped at assembly time as Path documents.
 func TestPathEscaping(t *testing.T) {
 	httpRequest, err := request.New(http.MethodGet, "odd table").
-		HTTPRequest(context.Background(), mustParseURL(t, "https://example.test/rest/v1"))
+		HTTPRequest(t.Context(), mustParseURL(t, "https://example.test/rest/v1"))
 	if err != nil {
 		t.Fatalf("HTTPRequest: %v", err)
 	}

@@ -1,16 +1,16 @@
 package postgrest
 
 import (
-	"net/http"
 	"net/url"
 
 	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
-	"github.com/supabase/supabase-go/postgrest/internal/request"
 )
 
-// Client is the entry point for Database queries against PostgREST. Construct a
-// standalone client with [New], or build one on a shared
+// Client executes Database queries against PostgREST, owning the pooled HTTP
+// client and project base URL that every request shares. Build queries with
+// [From] and execute them with a generic read function such as [Collect].
+// Construct a standalone client with [New], or build one on a shared
 // [configuration.Configuration] with [NewFromConfiguration], as the root supabase
 // client does. A Client is safe for concurrent use by multiple goroutines.
 type Client struct {
@@ -41,14 +41,5 @@ func NewFromConfiguration(projectConfiguration *configuration.Configuration) *Cl
 	return &Client{
 		httpClient: projectConfiguration.HTTPClient(),
 		baseURL:    projectConfiguration.BaseURL().JoinPath("rest", "v1"),
-	}
-}
-
-// From begins a query against the given table or view.
-// Chain a verb such as [QueryBuilder.Select] and terminate with [FilterBuilder.Execute].
-func (c *Client) From(table string) QueryBuilder {
-	return QueryBuilder{
-		client:  c,
-		request: request.New(http.MethodGet, table),
 	}
 }

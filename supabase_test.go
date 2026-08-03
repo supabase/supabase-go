@@ -8,6 +8,9 @@ import (
 	"github.com/supabase/supabase-go/core/configuration"
 )
 
+// TestNewValidationPropagates pins that New surfaces the configuration
+// package's sentinels unchanged, so callers match them with errors.Is as the
+// doc comment promises.
 func TestNewValidationPropagates(t *testing.T) {
 	if _, err := supabase.New("", "k"); !errors.Is(err, configuration.ErrMissingURL) {
 		t.Fatalf("want ErrMissingURL, got %v", err)

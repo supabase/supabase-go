@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/supabase/supabase-go/core"
@@ -29,7 +30,12 @@ func newTestClient(t *testing.T, server *httptest.Server) *postgrest.Client {
 	return postgrest.NewFromConfiguration(projectConfiguration)
 }
 
-func TestExecuteDecodesRows(t *testing.T) {
+// TestCollectDecodesRows pins the read happy path end to end: rows decode
+// into the caller's type and the request reaches the wire with the cleaned
+// select list, the /rest/v1 path, the injected apikey header and the
+// plural-form Accept header (the SDK never requests
+// application/vnd.pgrst.object+json).
+func TestCollectDecodesRows(t *testing.T) {
 	var observed *http.Request
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		observed = request.Clone(request.Context())
@@ -38,10 +44,15 @@ func TestExecuteDecodesRows(t *testing.T) {
 	}))
 	defer server.Close()
 
-	var rows []instrument
-	response, err := newTestClient(t, server).From("instruments").Select("id, name").Execute(context.Background(), &rows)
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("instruments").
+			Select("id, name"),
+	)
 	if err != nil {
-		t.Fatalf("Execute: %v", err)
+		t.Fatalf("Collect: %v", err)
 	}
 
 	if len(rows) != 2 || rows[0].Name != "violin" {
@@ -64,7 +75,38 @@ func TestExecuteDecodesRows(t *testing.T) {
 	}
 }
 
-func TestExecuteReturnsResponseMetadata(t *testing.T) {
+// TestCollectEmptyResultYieldsEmptySlice pins Collect's documented
+// empty-result contract: a JSON [] decodes to an empty, non-nil slice, so
+// callers range over results without a nil check.
+func TestCollectEmptyResultYieldsEmptySlice(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte(`[]`))
+	}))
+	defer server.Close()
+
+	rows, _, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("instruments").
+			Select(""),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if rows == nil {
+		t.Error("rows = nil, want empty non-nil slice")
+	}
+	if len(rows) != 0 {
+		t.Errorf("len(rows) = %d, want 0", len(rows))
+	}
+}
+
+// TestCollectReturnsResponseMetadata pins Response's wiring from the
+// Content-Range header: a reported total populates Count and an absent or
+// unknown one is -1. Parser edge cases live in TestParseContentRangeTotal;
+// this test proves the header value actually flows through the pipeline.
+func TestCollectReturnsResponseMetadata(t *testing.T) {
 	testCases := []struct {
 		name         string
 		contentRange string
@@ -84,10 +126,15 @@ func TestExecuteReturnsResponseMetadata(t *testing.T) {
 			}))
 			defer server.Close()
 
-			var rows []instrument
-			response, err := newTestClient(t, server).From("instruments").Select("").Execute(context.Background(), &rows)
+			_, response, err := postgrest.Collect(
+				t.Context(),
+				newTestClient(t, server),
+				postgrest.
+					From[instrument]("instruments").
+					Select(""),
+			)
 			if err != nil {
-				t.Fatalf("Execute: %v", err)
+				t.Fatalf("Collect: %v", err)
 			}
 			if response.Count != testCase.wantCount {
 				t.Errorf("Count = %d, want %d", response.Count, testCase.wantCount)
@@ -99,7 +146,9 @@ func TestExecuteReturnsResponseMetadata(t *testing.T) {
 	}
 }
 
-func TestExecuteEmptySelectMeansAllColumns(t *testing.T) {
+// TestCollectEmptySelectMeansAllColumns pins Select's documented contract
+// that an empty column list selects all columns, exactly as "*" does.
+func TestCollectEmptySelectMeansAllColumns(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if got := request.URL.Query().Get("select"); got != "*" {
 			t.Errorf("select = %q, want *", got)
@@ -108,13 +157,45 @@ func TestExecuteEmptySelectMeansAllColumns(t *testing.T) {
 	}))
 	defer server.Close()
 
-	var rows []instrument
-	if _, err := newTestClient(t, server).From("instruments").Select("").Execute(context.Background(), &rows); err != nil {
-		t.Fatalf("Execute: %v", err)
+	if _, _, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("instruments").
+			Select(""),
+	); err != nil {
+		t.Fatalf("Collect: %v", err)
 	}
 }
 
-func TestExecuteReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
+// TestCollectPreservesQuotedIdentifiersInSelect pins the other half of
+// Select's cleaning contract: whitespace is stripped from the column list
+// except inside double-quoted identifiers, which must reach the wire intact.
+func TestCollectPreservesQuotedIdentifiersInSelect(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if got, want := request.URL.Query().Get("select"), `"full name",id`; got != want {
+			t.Errorf("select = %q, want %q (quoted whitespace must survive)", got, want)
+		}
+		_, _ = writer.Write([]byte(`[]`))
+	}))
+	defer server.Close()
+
+	if _, _, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("instruments").
+			Select(`"full name", id`),
+	); err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+}
+
+// TestCollectReturnsTypedErrorForPostgRESTFailure pins the failure half of
+// the return contract: a non-2xx answer surfaces as an *Error carrying the
+// parsed body, while rows and Response stay zero - a failing status lives on
+// the error, never on Response.
+func TestCollectReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
 		writer.WriteHeader(http.StatusNotFound)
@@ -122,8 +203,13 @@ func TestExecuteReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	var rows []instrument
-	response, err := newTestClient(t, server).From("missing").Select("").Execute(context.Background(), &rows)
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("missing").
+			Select(""),
+	)
 
 	var typedError *postgrest.Error
 	if !errors.As(err, &typedError) {
@@ -132,25 +218,124 @@ func TestExecuteReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	if typedError.HTTPStatus != http.StatusNotFound || typedError.Code != "42P01" {
 		t.Errorf("typedError = %+v", typedError)
 	}
+	if rows != nil {
+		t.Errorf("rows = %+v, want nil on error", rows)
+	}
 	if response != (postgrest.Response{}) {
 		t.Errorf("response = %+v, want zero value on error", response)
 	}
 }
 
-func TestExecuteReportsMissingTableWithoutIO(t *testing.T) {
+// TestCollectPreservesUnparsableErrorBody pins newError's fallback: a
+// non-2xx body that is not the documented PostgREST error JSON (HTML from an
+// intermediary, for example) still surfaces as an *Error, with the raw body
+// preserved in Message so no diagnostic information is lost.
+func TestCollectPreservesUnparsableErrorBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = writer.Write([]byte(`<html>upstream unavailable</html>`))
+	}))
+	defer server.Close()
+
+	_, _, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("instruments").
+			Select(""),
+	)
+
+	var typedError *postgrest.Error
+	if !errors.As(err, &typedError) {
+		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+	}
+	if typedError.HTTPStatus != http.StatusServiceUnavailable {
+		t.Errorf("HTTPStatus = %d, want 503", typedError.HTTPStatus)
+	}
+	if typedError.Message != `<html>upstream unavailable</html>` {
+		t.Errorf("Message = %q, want the raw body preserved", typedError.Message)
+	}
+	if typedError.Code != "" {
+		t.Errorf("Code = %q, want empty for an unparsable body", typedError.Code)
+	}
+}
+
+// TestCollectWrapsDecodeFailure pins the remaining failure class: a 2xx
+// answer whose body does not decode is a wrapped failure, not an *Error
+// (that type means the server answered with an error), and rows and
+// Response stay zero.
+func TestCollectWrapsDecodeFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{not json`))
+	}))
+	defer server.Close()
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("instruments").
+			Select(""),
+	)
+
+	if err == nil || !strings.Contains(err.Error(), "decoding response") {
+		t.Fatalf("want wrapped decoding failure, got %v", err)
+	}
+	var typedError *postgrest.Error
+	if errors.As(err, &typedError) {
+		t.Errorf("decode failure must not be an *Error: %v", typedError)
+	}
+	if rows != nil {
+		t.Errorf("rows = %+v, want nil on error", rows)
+	}
+	if response != (postgrest.Response{}) {
+		t.Errorf("response = %+v, want zero value on error", response)
+	}
+}
+
+// TestCollectReportsMissingTableWithoutIO pins ErrMissingTable's contract:
+// an empty table name is rejected before any request is sent, so the
+// sentinel costs no network round trip and the handler proves the absence
+// of I/O by failing the test if reached.
+func TestCollectReportsMissingTableWithoutIO(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Error("no HTTP request should be made for an empty table name")
 	}))
 	defer server.Close()
 
-	var rows []instrument
-	_, err := newTestClient(t, server).From("").Select("id").Execute(context.Background(), &rows)
+	_, _, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("").
+			Select("id"),
+	)
+
 	if !errors.Is(err, postgrest.ErrMissingTable) {
 		t.Errorf("want ErrMissingTable, got %v", err)
 	}
 }
 
-func TestExecuteHonoursContextCancellation(t *testing.T) {
+// TestCollectReportsMissingClientWithoutIO pins ErrMissingClient's contract:
+// a nil client is rejected before anything else is inspected, so the
+// sentinel is reported instead of a panic on the absent client.
+func TestCollectReportsMissingClientWithoutIO(t *testing.T) {
+	_, _, err := postgrest.Collect(
+		t.Context(),
+		nil,
+		postgrest.From[instrument]("instruments").Select("id"),
+	)
+
+	if !errors.Is(err, postgrest.ErrMissingClient) {
+		t.Errorf("want ErrMissingClient, got %v", err)
+	}
+}
+
+// TestCollectHonoursContextCancellation pins the context contract:
+// cancelling the caller's context aborts the in-flight request and the
+// cause stays matchable with errors.Is through the wrapped chain.
+func TestCollectHonoursContextCancellation(t *testing.T) {
 	started := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
 		close(started)
@@ -158,19 +343,29 @@ func TestExecuteHonoursContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	go func() {
 		<-started
 		cancel()
 	}()
 
-	var rows []instrument
-	_, err := newTestClient(t, server).From("instruments").Select("").Execute(ctx, &rows)
+	_, _, err := postgrest.Collect(
+		ctx,
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("instruments").
+			Select(""),
+	)
+
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("want context.Canceled in chain, got %v", err)
 	}
 }
 
+// TestBuildersForkIndependently pins builder immutability at the wire: one
+// QueryBuilder forked into two divergent chains sends two independent
+// requests, neither observing the other. The backing-slice aliasing
+// subtlety underneath is pinned by the internal request package's tests.
 func TestBuildersForkIndependently(t *testing.T) {
 	selects := make(chan string, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -179,14 +374,12 @@ func TestBuildersForkIndependently(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// One QueryBuilder, two divergent chains: immutability means neither
-	// chain can observe the other.
-	base := newTestClient(t, server).From("instruments")
-	var rows []instrument
-	if _, err := base.Select("id").Execute(context.Background(), &rows); err != nil {
+	client := newTestClient(t, server)
+	base := postgrest.From[instrument]("instruments")
+	if _, _, err := postgrest.Collect(t.Context(), client, base.Select("id")); err != nil {
 		t.Fatalf("first chain: %v", err)
 	}
-	if _, err := base.Select("name").Execute(context.Background(), &rows); err != nil {
+	if _, _, err := postgrest.Collect(t.Context(), client, base.Select("name")); err != nil {
 		t.Fatalf("second chain: %v", err)
 	}
 

@@ -1,13 +1,20 @@
 // Package postgrest is the Supabase Database client: a chained query builder
-// over PostgREST that terminates in a context-taking Execute.
+// over PostgREST. A context-taking free generic function such as [Collect]
+// executes the finished query through a [Client].
 //
-// A query starts at [Client.From], chains through an immutable builder and
-// executes with a destination to decode into:
+// A query names the row type it decodes into at [From], chains through an
+// immutable builder and executes:
 //
-//	var rows []Instrument
-//	response, err := client.From("instruments").Select("id, name").Execute(ctx, &rows)
+//	rows, response, err := postgrest.Collect(
+//	    ctx,
+//	    client,
+//	    postgrest.
+//	        From[Instrument]("instruments").
+//	        Select("id, name"))
 //
-// Builders are immutable values: every step returns a new independent builder,
-// so partially-built queries may be stored, forked, and shared across
-// goroutines.
+// Builders are pure immutable values carrying no client reference: every step
+// returns a new independent builder, so queries may be declared at package
+// level before any client exists, stored, forked, and shared across
+// goroutines. The client - and with it the HTTP connection pool - enters only
+// at the executing read function.
 package postgrest

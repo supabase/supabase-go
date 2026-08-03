@@ -1,6 +1,6 @@
 # Development Decisions for `supabase-go`
 
-<!-- cSpell:ignore Cheney claude mktemp -->
+<!-- cSpell:ignore Cheney claude iter mktemp openai pgrst pgx Seq sqlc vnd -->
 
 This document has been created to capture decisions that have been made during development on this SDK which felt like worth recording for future reference.
 It's designed to be quick and friction-less to populate, a friction log inspired micro decisions list, often expected to be imperfect but with the ethos of "something is better than nothing" in terms of what we capture.
@@ -166,7 +166,7 @@ Holding to the standard syntax lets `gofmt` keep formatting consistent and stops
 **What**:  
 `supabase.New` constructs every domain client up front and holds each in an unexported field.
 The methods that reach domain behavior (for example, the fluent `From`) take no `context.Context` and return no error.
-`context.Context` is taken only by the terminal methods that perform I/O, such as the database `Execute`.
+`context.Context` is taken only by the functions that perform I/O, such as the database `Collect`.
 
 **Why**:  
 Reaching domains through methods keeps the handle fields unexported, so the client stays immutable and safe for concurrent use.
@@ -322,14 +322,15 @@ A capability id is internal `supabase/sdk` taxonomy: meaningless to someone read
 `sdk-compliance.yaml` already names the symbol in its own `symbols:` list, so the mapping is fully discoverable from that one file already as the canonical source of truth.
 Also, a second copy in the doc comment is another place for it to go stale.
 
-## The root client is fluent: `From` lives on `supabase.Client`
+## Queries are pure values and the client appears only at execution
 
 **What**:  
-The root `supabase.Client` exposes `From(table)` directly, delegating to the composed postgrest client.
+`postgrest.From` is a package-level function returning builders that carry only query state, with no client reference.
+The generic read functions take the client explicitly - `Collect(ctx, client, query)`, reporting `ErrMissingClient` on nil - and the root `supabase.Client` reaches the Database through the `Database()` accessor rather than hoisting `From`.
 
 **Why**:  
-Every sibling SDK spells the hot path `supabase.from(...)` - it is the single piece of muscle memory Supabase developers carry between languages, and the examples across all SDKs start with it.
-Hoisting only `From` (the database) mirrors sibling SDKs precisely (their other domains are namespaced: `supabase.auth.*`, `supabase.storage.*`).
+A client captured in the request model would pin otherwise-pure values to a constructed query for no representational need (as raised [in review on #27](https://github.com/supabase/supabase-go/pull/27#pullrequestreview-4790009535)).
+Pure builders let query fragments live wherever values live, including package-level variables initialized before any client exists, and make the I/O dependency visible at the one call that performs I/O.
 
 ## Query builders are immutable values over an internal request model
 
@@ -375,22 +376,40 @@ Embedding is rejected twice over: promoted methods return the embedded type, whi
 
 **What**:  
 Every builder method serializes its effect into the internal request model at call time - `Select` writes the `select` parameter immediately.
-Builders hold no structured intermediate state (no columns, filters or limit fields), and `Execute` performs no assembly beyond handing the model a base URL.
+Builders hold no structured intermediate state (no columns, filters or limit fields), and the read functions' shared `execute` path performs no assembly beyond handing the model a base URL.
 
 **Why**:  
 The wire format is the canonical state in every sibling SDK - postgrest-js mutates `URLSearchParams` inside each method, supabase-swift appends `URLQueryItem`s, postgrest-dart rewrites the `Uri`, supabase-py updates its `URLQuery` - so behavior parity with the reference implementation is auditable call by call: our `Select` does what theirs does, at the same moment.
-A structured representation assembled at `Execute` time would be a second source of truth whose serializer must track the reference forever, for no validation gain: ordering rules ("X not before/after Y") are enforced earlier and stronger by the typestate split, and value-level conflict rules, when a concrete one arrives, can read the model through a narrow predicate (a `HasParameter`-style query added then) - normalization loses no state a known rule needs.
+A structured representation assembled at execution time would be a second source of truth whose serializer must track the reference forever, for no validation gain: ordering rules ("X not before/after Y") are enforced earlier and stronger by the typestate split, and value-level conflict rules, when a concrete one arrives, can read the model through a narrow predicate (a `HasParameter`-style query added then) - normalization loses no state a known rule needs.
 The only information call-time serialization erases is which method wrote a pair; no PostgREST rule branches on that provenance, and the siblings validate almost nothing themselves, delegating conflicts to PostgREST's own errors, which this SDK surfaces as `*Error`.
 
-## Execute is the explicit, context-first terminal returning `(Response, error)`
+## Reads execute in package-level generic functions, context-first
 
 **What**:  
-The only I/O in the chain is `FilterBuilder.Execute(ctx, destination)`, which decodes into a caller-supplied pointer and returns `(Response, error)`.
-`Response` carries `HTTPStatus` and `Count`, where `Count` is `-1` when the server reported no total, following `net/http.Response.ContentLength`'s convention for unknown values.
+The builder chain is generic from its root - `From[Row]("table")` names the row type once, threads it through `QueryBuilder[Row]` and `FilterBuilder[Row]`, performing no I/O.
+Execution happens only in package-level generic functions - `Collect(ctx, client, query)` returning `([]Row, Response, error)`, with `Row` inferred from the query - which share one unexported `execute` path.
+`Response` carries `HTTPStatus` and `Count` as exported scalar fields on a by-value record, where `Count` is `-1` when the server reported no total, following `net/http.Response.ContentLength`'s convention.
 
 **Why**:  
-supabase-js and supabase-flutter trigger execution implicitly by awaiting the builder (thenable/`Future`); Go has no await and hiding I/O in an accessor would violate the principle of least surprise.
-An explicit method taking `context.Context` first matches the standard's context mandate.
+Naming the row type at `From[Row]` lets every read function infer it like [`slices.Collect`](https://pkg.go.dev/slices#Collect), keeps package-level query variables typed so reuse sites cannot diverge and gives future write verbs compile-checked payloads (`Insert(rows ...Row)`), whereas explicit instantiation (pgx's [`CollectRows[T]`](https://pkg.go.dev/github.com/jackc/pgx/v5#CollectRows), sqlc's per-query structs) repeats an unchecked bracket at every read site.
+Typing is per-query, never per-table: `select` is a projection language, so the row shape belongs to the query (a second shape is another `From[U]`), and a per-table registry would centralize a binding Go can never check against the selected columns.
+The accepted costs - `Row` is a phantom threading through builders whose state never depends on it, and a finished query cannot fork into differently-typed decodes - stay shallow: an in-package `Retype[U](query)` is purely additive ([partial type argument lists](https://go.dev/ref/spec#Instantiations)) and `From[json.RawMessage]` covers raw rows, which is also why no `any`-typed `Execute` front door exists.
+Execution is a package-level function - methods cannot declare type parameters below go1.27, the module floor - context-first per the standard's context mandate, following `slices.Collect` and [`iter.Pull`](https://pkg.go.dev/iter#Pull) as free generic functions over values (stripe-go's range-over-`Seq2` lists and openai-go's auto-paging extend the shape to paging), and array-ness as the return contract makes destination-pointer questions (nil-ness, preallocation) unrepresentable.
+`Response` stays a plain exported-field record because it is returned by value and holds only scalars, so consumers hold independent copies and no aliasing exists to defend against, while unexported fields would stop consumers fabricating a `Response` in their own test doubles.
+This argument is scalar-dependent: a reference-typed field (headers, raw body) must not be added to `Response` without revisiting it.
+
+## The SDK never sends `Accept: application/vnd.pgrst.object+json`
+
+**What**:  
+Every read requests and decodes the plural JSON-array form.
+Singular semantics are client-side: single-row read functions unwrap the array and report contract violations as sentinels (`ErrNoRows`, `ErrTooManyRows`) after inspecting what the server returned, sending the consumer's query unmodified.
+
+**Why**:  
+The singular media type exists to spare hand-written clients an unwrap that an SDK performs anyway, and its error model collapses absence and multiplicity into one 406/PGRST116 whose disambiguation requires parsing a human-readable details string - unusable for a `MaybeSingle` that must treat absence as routine.
+postgrest-js retreated from the media type for GET `maybeSingle` (its issue #361) and now fabricates synthetic PGRST116 error objects client-side for compatibility with its own past, a contortion a fresh surface need not inherit.
+One wire shape keeps a single decode path and keeps `Content-Range` parsing universal, and sentinels give Gophers `errors.Is` matching in the `database/sql.ErrNoRows` tradition instead of string-matching a server code.
+Cost accepted: a violated single-row expectation transfers up to one server-capped page before erroring, where server-side coercion would return a body-less 406 - a bug-path-only cost, bounded by Supabase's `max_rows` (default 1000).
+Injecting `limit=2` to bound that cost further was rejected because it silently rewrites the consumer's query, collides with a consumer-set `Limit` and breaks this file's serialize-immediately decision (read functions perform no assembly).
 
 ## `postgrest.Error` carries the parsed PostgREST body plus HTTP status
 
