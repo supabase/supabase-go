@@ -26,7 +26,7 @@ import (
 //   - [ErrMissingTable], when the builder was created with an empty table
 //     name. No I/O is performed in this case.
 //   - a wrapped transport or decoding failure.
-func Collect[Row any](ctx context.Context, client *Client, query FilterBuilder) ([]Row, Response, error) {
+func Collect[Row any](ctx context.Context, client *Client, query FilterBuilder[Row]) ([]Row, Response, error) {
 	responseBody, response, err := execute(ctx, client, query)
 	if err != nil {
 		return nil, Response{}, err
@@ -41,7 +41,7 @@ func Collect[Row any](ctx context.Context, client *Client, query FilterBuilder) 
 // execute sends the query and returns the raw response body alongside its
 // [Response] metadata. It is the single I/O path shared by the generic read
 // functions.
-func execute(ctx context.Context, client *Client, query FilterBuilder) ([]byte, Response, error) {
+func execute[T any](ctx context.Context, client *Client, query FilterBuilder[T]) ([]byte, Response, error) {
 	if client == nil {
 		return nil, Response{}, ErrMissingClient
 	}

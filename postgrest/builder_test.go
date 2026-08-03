@@ -44,11 +44,11 @@ func TestCollectDecodesRows(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, response, err := postgrest.Collect[instrument](
+	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.
-			From("instruments").
+			From[instrument]("instruments").
 			Select("id, name"),
 	)
 	if err != nil {
@@ -84,11 +84,11 @@ func TestCollectEmptyResultYieldsEmptySlice(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, _, err := postgrest.Collect[instrument](
+	rows, _, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.
-			From("instruments").
+			From[instrument]("instruments").
 			Select(""),
 	)
 	if err != nil {
@@ -126,11 +126,11 @@ func TestCollectReturnsResponseMetadata(t *testing.T) {
 			}))
 			defer server.Close()
 
-			_, response, err := postgrest.Collect[instrument](
+			_, response, err := postgrest.Collect(
 				t.Context(),
 				newTestClient(t, server),
 				postgrest.
-					From("instruments").
+					From[instrument]("instruments").
 					Select(""),
 			)
 			if err != nil {
@@ -157,11 +157,11 @@ func TestCollectEmptySelectMeansAllColumns(t *testing.T) {
 	}))
 	defer server.Close()
 
-	if _, _, err := postgrest.Collect[instrument](
+	if _, _, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.
-			From("instruments").
+			From[instrument]("instruments").
 			Select(""),
 	); err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -180,11 +180,11 @@ func TestCollectPreservesQuotedIdentifiersInSelect(t *testing.T) {
 	}))
 	defer server.Close()
 
-	if _, _, err := postgrest.Collect[instrument](
+	if _, _, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.
-			From("instruments").
+			From[instrument]("instruments").
 			Select(`"full name", id`),
 	); err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -203,11 +203,11 @@ func TestCollectReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, response, err := postgrest.Collect[instrument](
+	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.
-			From("missing").
+			From[instrument]("missing").
 			Select(""),
 	)
 
@@ -237,11 +237,11 @@ func TestCollectPreservesUnparsableErrorBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, _, err := postgrest.Collect[instrument](
+	_, _, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.
-			From("instruments").
+			From[instrument]("instruments").
 			Select(""),
 	)
 
@@ -271,11 +271,11 @@ func TestCollectWrapsDecodeFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, response, err := postgrest.Collect[instrument](
+	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.
-			From("instruments").
+			From[instrument]("instruments").
 			Select(""),
 	)
 
@@ -304,11 +304,11 @@ func TestCollectReportsMissingTableWithoutIO(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, _, err := postgrest.Collect[instrument](
+	_, _, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.
-			From("").
+			From[instrument]("").
 			Select("id"),
 	)
 
@@ -321,10 +321,10 @@ func TestCollectReportsMissingTableWithoutIO(t *testing.T) {
 // a nil client is rejected before anything else is inspected, so the
 // sentinel is reported instead of a panic on the absent client.
 func TestCollectReportsMissingClientWithoutIO(t *testing.T) {
-	_, _, err := postgrest.Collect[instrument](
+	_, _, err := postgrest.Collect(
 		t.Context(),
 		nil,
-		postgrest.From("instruments").Select("id"),
+		postgrest.From[instrument]("instruments").Select("id"),
 	)
 
 	if !errors.Is(err, postgrest.ErrMissingClient) {
@@ -349,11 +349,11 @@ func TestCollectHonoursContextCancellation(t *testing.T) {
 		cancel()
 	}()
 
-	_, _, err := postgrest.Collect[instrument](
+	_, _, err := postgrest.Collect(
 		ctx,
 		newTestClient(t, server),
 		postgrest.
-			From("instruments").
+			From[instrument]("instruments").
 			Select(""),
 	)
 
@@ -375,11 +375,11 @@ func TestBuildersForkIndependently(t *testing.T) {
 	defer server.Close()
 
 	client := newTestClient(t, server)
-	base := postgrest.From("instruments")
-	if _, _, err := postgrest.Collect[instrument](t.Context(), client, base.Select("id")); err != nil {
+	base := postgrest.From[instrument]("instruments")
+	if _, _, err := postgrest.Collect(t.Context(), client, base.Select("id")); err != nil {
 		t.Fatalf("first chain: %v", err)
 	}
-	if _, _, err := postgrest.Collect[instrument](t.Context(), client, base.Select("name")); err != nil {
+	if _, _, err := postgrest.Collect(t.Context(), client, base.Select("name")); err != nil {
 		t.Fatalf("second chain: %v", err)
 	}
 
