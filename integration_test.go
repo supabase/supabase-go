@@ -3,7 +3,6 @@
 package supabase_test
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"testing"
@@ -33,7 +32,7 @@ func TestIntegrationRootClientSelect(t *testing.T) {
 		Name string `json:"name"`
 	}
 	rows, response, err := postgrest.Collect[instrument](
-		context.Background(),
+		t.Context(),
 		client.
 			From("instruments").
 			Select("id, name"),

@@ -3,7 +3,6 @@
 package postgrest_test
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"os"
@@ -44,7 +43,7 @@ func TestIntegrationSelectAllColumns(t *testing.T) {
 	client := newIntegrationClient(t)
 
 	rows, response, err := postgrest.Collect[seededInstrument](
-		context.Background(),
+		t.Context(),
 		client.
 			From("instruments").
 			Select(""),
@@ -85,7 +84,7 @@ func TestIntegrationSelectColumnSubset(t *testing.T) {
 	}
 
 	rows, _, err := postgrest.Collect[nameOnly](
-		context.Background(),
+		t.Context(),
 		client.
 			From("instruments").
 			Select("name"),
@@ -112,7 +111,7 @@ func TestIntegrationMissingRelationReturnsTypedError(t *testing.T) {
 	client := newIntegrationClient(t)
 
 	_, _, err := postgrest.Collect[seededInstrument](
-		context.Background(),
+		t.Context(),
 		client.
 			From("does_not_exist").
 			Select(""),
