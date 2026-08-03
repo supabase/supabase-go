@@ -61,21 +61,14 @@ To run the whole fast tier before pushing - build and unit test plus the module-
 
 ### Running checks at the consumer floor
 
-CI proves consumer-facing behavior on two toolchains: the published floor (`go 1.22`, the oldest Go a consumer may hold us to) and current stable, on Linux runners. A local run uses whatever Go is installed, so to reproduce the floor legs name the toolchain for one run (downloaded and checksum-verified automatically on first use). On Linux that is the whole recipe:
+CI proves consumer-facing behavior on two toolchains: the published floor (`go 1.25`, the oldest Go a consumer may hold us to) and current stable, on Linux runners. A local run uses whatever Go is installed, so to reproduce the floor legs name the toolchain for one run (downloaded and checksum-verified automatically on first use). That is the whole recipe:
 
 ```bash
-GOTOOLCHAIN=go1.22.12 ./scripts/build-and-test.sh
-GOTOOLCHAIN=go1.22.12 ./scripts/telemetry-test.sh
+GOTOOLCHAIN=go1.25.12 ./scripts/build-and-test.sh
+GOTOOLCHAIN=go1.25.12 ./scripts/telemetry-test.sh
 ```
 
-On macOS 26 or later those runs abort as soon as a test binary launches, with `dyld: missing LC_UUID load command`. The dynamic loader requires every executable to carry an `LC_UUID` load command, which Go's linker emits by default only from Go 1.24 ([golang/go#68678](https://github.com/golang/go/issues/68678)). The end-of-life 1.22 line received the emission only as an opt-in behind the linker's `-B` flag ([golang/go#69991](https://github.com/golang/go/issues/69991)), so opt the whole run in through `GOFLAGS`:
-
-```bash
-GOTOOLCHAIN=go1.22.12 GOFLAGS=-ldflags=-B=gobuildid ./scripts/build-and-test.sh
-GOTOOLCHAIN=go1.22.12 GOFLAGS=-ldflags=-B=gobuildid ./scripts/telemetry-test.sh
-```
-
-`go1.22.12` is the final point release of the floor line, matching what CI's `1.22` matrix legs resolve to. `./scripts/integration-test.sh` accepts the same prefixes (see its prerequisites below). Lint, vulnerability scan and spell check have no floor legs - they are our own environment, deliberately kept on stable. The floor legs also have unique coverage value: test binaries from pre-1.24 toolchains carry no module information, so they exercise the SDK's version-unknowable telemetry fallback.
+`go1.25.12` is the newest 1.25 point release, matching what CI's `1.25` matrix legs resolve to. `./scripts/integration-test.sh` accepts the same prefixes (see its prerequisites below). Lint, vulnerability scan and spell check have no floor legs - they are our own environment, deliberately kept on stable.
 
 ### Fixing Formatting for `gofumpt`
 

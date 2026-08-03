@@ -66,10 +66,9 @@ func buildClientInformationHeaderValues() map[core.ModulePath]string {
 		}
 	} else {
 		// The binary carries no module information: either build information is
-		// absent entirely, or it lacks module records - as with binaries built
-		// without module support and test binaries from Go toolchains before 1.24.
-		// No client module's version is knowable, so synthesize a value for every
-		// possible client module.
+		// absent entirely, or it lacks module records, as with binaries built
+		// without module support. No client module's version is knowable, so
+		// synthesize a value for every possible client module.
 		for modulePath, clientName := range clientNames {
 			clientBases[modulePath] = clientName + "/0.0.0"
 		}

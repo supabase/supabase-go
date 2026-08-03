@@ -9,8 +9,8 @@ workspace_modules="$(enumerate_workspace_modules)"
 
 echo "Lint..."
 
-# Build the pinned tools standalone - GOWORK=off so the 1.22 workspace does not
-# interfere with the 1.24 tools/go module - into a throwaway bin directory.
+# Build the pinned tools standalone - GOWORK=off so the 1.25 workspace does not
+# interfere with the 1.25.0 tools/go module - into a throwaway bin directory.
 toolbin="$(mktemp -d)"
 trap 'rm -rf "${toolbin}"' EXIT
 (

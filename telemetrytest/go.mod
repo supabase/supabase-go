@@ -4,7 +4,7 @@
 // consumer build does.
 module telemetrytest
 
-go 1.22
+go 1.25
 
 // Fabricated, self-labeled versions - nothing is published and the replace
 // block resolves them to the local working tree. Each must outrank every other

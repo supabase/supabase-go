@@ -49,7 +49,7 @@ These are things within the Go ecosystem that we should embrace closely:
 
 Alongside the above there are things we should ensure we do in order to be good citizens:
 
-- **Conservative Minimum Required Go Version**: An SDK should lag the bleeding edge, typically supporting the current release and a couple before it, to avoid forcing a toolchain upgrade on consumers just to adopt us. We should also build in CI with the latest/newer toolchain versions to verify forward compatibility.
+- **Minimum Required Go Version Tracks Go's Support Window**: Our `go` directive floor is the oldest Go major release still supported by the Go project - the older of the two most recent majors - raised opportunistically after each Go release. That never claims compatibility with toolchains that no longer receive security fixes, without ever demanding the bleeding edge. We also build in CI with the latest/newer toolchain versions to verify forward compatibility.
 - **Safer Concurrency** (Go 1.22+ and bearing in mind the bullet point before this): If we set our `go.mod` minimum to at least version `1.22` then loop variables automatically receive per-iteration scope. This eliminates a classic, difficult-to-debug "footgun" where closures and goroutines accidentally capture a shared loop variable, freeing us from the historical `v := v` shadowing dance.
 - We should provide **`Equal`** methods on our immutable types, where appropriate.
 - Prudent and informed pre-allocation of slices to anticipated capacity.
