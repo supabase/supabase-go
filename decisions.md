@@ -1,6 +1,6 @@
 # Development Decisions for `supabase-go`
 
-<!-- cSpell:ignore Cheney claude iter mktemp openai pgrst pgx Seq vnd -->
+<!-- cSpell:ignore Cheney claude iter mktemp openai pgrst pgx Seq sqlc vnd -->
 
 This document has been created to capture decisions that have been made during development on this SDK which felt like worth recording for future reference.
 It's designed to be quick and friction-less to populate, a friction log inspired micro decisions list, often expected to be imperfect but with the ethos of "something is better than nothing" in terms of what we capture.
@@ -322,14 +322,15 @@ A capability id is internal `supabase/sdk` taxonomy: meaningless to someone read
 `sdk-compliance.yaml` already names the symbol in its own `symbols:` list, so the mapping is fully discoverable from that one file already as the canonical source of truth.
 Also, a second copy in the doc comment is another place for it to go stale.
 
-## The root client is fluent: `From` lives on `supabase.Client`
+## Queries are pure values and the client appears only at execution
 
 **What**:  
-The root `supabase.Client` exposes `From(table)` directly, delegating to the composed postgrest client.
+`postgrest.From` is a package-level function returning builders that carry only query state, with no client reference.
+The generic read functions take the client explicitly - `Collect[Row](ctx, client, query)`, reporting `ErrMissingClient` on nil - and the root `supabase.Client` reaches the Database through the `Database()` accessor rather than hoisting `From`.
 
 **Why**:  
-Every sibling SDK spells the hot path `supabase.from(...)` - it is the single piece of muscle memory Supabase developers carry between languages, and the examples across all SDKs start with it.
-Hoisting only `From` (the database) mirrors sibling SDKs precisely (their other domains are namespaced: `supabase.auth.*`, `supabase.storage.*`).
+A client captured in the request model would pin otherwise-pure values to a constructed query for no representational need (as raised [in review on #27](https://github.com/supabase/supabase-go/pull/27#pullrequestreview-4790009535)).
+Pure builders let query fragments live wherever values live, including package-level variables initialized before any client exists, and make the I/O dependency visible at the one call that performs I/O.
 
 ## Query builders are immutable values over an internal request model
 
@@ -386,11 +387,12 @@ The only information call-time serialization erases is which method wrote a pair
 
 **What**:  
 The builder chain is non-generic and performs no I/O.
-Execution happens only in package-level generic functions - `Collect[Row](ctx, query)` returning `([]Row, Response, error)` - which share one unexported `execute` path.
+Execution happens only in package-level generic functions - `Collect[Row](ctx, client, query)` returning `([]Row, Response, error)` - which share one unexported `execute` path.
 `Response` carries `HTTPStatus` and `Count` as exported scalar fields on a by-value record, where `Count` is `-1` when the server reported no total, following `net/http.Response.ContentLength`'s convention.
 
 **Why**:  
-Go has no parameterized methods, so a typed method "terminal" is unrepresentable on the chain, and a fully generic chain (the community postgrest-go's unreleased rewrite) threads the row type through every filter method for no gain, since decode is the only step that needs it.
+Go has no parameterized methods, so a typed read method cannot exist on a non-generic chain, and a fully generic chain (the community postgrest-go's unreleased rewrite, or a package-level `From[Row]` root as proposed [in review on #27](https://github.com/supabase/supabase-go/pull/27#pullrequestreview-4790009535)) threads the row type through every builder type to serve only the ends of the chain: decode is the only step that consumes it, Go can never check any Row against the selected columns, and because `select` is a projection language (sub-setting, renaming, aggregation, embedding) the row shape belongs to the query rather than the table - the reason pgx binds at decode (`CollectRows[T]`) and sqlc emits per-query row structs.
+The pre-client composability a generic root would also buy is delivered without generics by the pure-value builders recorded in "Queries are pure values and the client appears only at execution".
 A free generic function types the result at exactly that step: array-ness becomes the read function's return contract instead of a destination-shape convention, and the destination-pointer questions (nil-ness, preallocation) become unrepresentable.
 An `any`-typed `Execute` alongside the typed read functions was rejected as a second front door for the same job - `Collect[json.RawMessage]` covers raw per-row access.
 supabase-js and supabase-flutter execute implicitly by awaiting the builder. Go has no await, and an explicit context-first function matches the standard's context mandate, with stdlib and ecosystem precedent for the shape (`slices.Collect` and `iter.Pull` as free generic functions over non-generic values, pgx's `CollectRows[T]` and `CollectOneRow` solving typed row decoding identically for Postgres, stripe-go's range-over-`Seq2` list surface and openai-go's auto-paging).

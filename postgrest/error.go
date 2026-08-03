@@ -16,6 +16,10 @@ func (e postgrestError) Error() string { return "postgrest: " + string(e) }
 // [Collect], when the builder was created with an empty table name.
 const ErrMissingTable = postgrestError("table name is required")
 
+// ErrMissingClient is reported by the executing read function, such as
+// [Collect], when the supplied client is nil.
+const ErrMissingClient = postgrestError("client is required")
+
 // Error is the typed failure returned when PostgREST answers a query with a
 // non-2xx status.
 //

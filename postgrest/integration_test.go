@@ -44,7 +44,8 @@ func TestIntegrationSelectAllColumns(t *testing.T) {
 
 	rows, response, err := postgrest.Collect[seededInstrument](
 		t.Context(),
-		client.
+		client,
+		postgrest.
 			From("instruments").
 			Select(""),
 	)
@@ -85,7 +86,8 @@ func TestIntegrationSelectColumnSubset(t *testing.T) {
 
 	rows, _, err := postgrest.Collect[nameOnly](
 		t.Context(),
-		client.
+		client,
+		postgrest.
 			From("instruments").
 			Select("name"),
 	)
@@ -112,7 +114,8 @@ func TestIntegrationMissingRelationReturnsTypedError(t *testing.T) {
 
 	_, _, err := postgrest.Collect[seededInstrument](
 		t.Context(),
-		client.
+		client,
+		postgrest.
 			From("does_not_exist").
 			Select(""),
 	)

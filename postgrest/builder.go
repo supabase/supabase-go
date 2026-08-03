@@ -1,18 +1,28 @@
 package postgrest
 
 import (
+	"net/http"
 	"strings"
 	"unicode"
 
 	"github.com/supabase/supabase-go/postgrest/internal/request"
 )
 
+// From begins a query against the given table or view.
+// Chain a verb such as [QueryBuilder.Select], then pass the finished query,
+// together with a [Client], to a generic read function such as [Collect].
+// The returned builder is a pure value carrying only query state, so queries
+// may be composed and stored anywhere - including package-level variables -
+// before any Client exists.
+func From(table string) QueryBuilder {
+	return QueryBuilder{request: request.New(http.MethodGet, table)}
+}
+
 // QueryBuilder represents a query scoped to one table or view, ready for a verb.
 // A QueryBuilder is an immutable value - every method returns a new independent
 // builder - so builders may be stored, forked into divergent chains, and used
 // concurrently by multiple goroutines.
 type QueryBuilder struct {
-	client  *Client
 	request request.Request
 }
 
@@ -21,7 +31,6 @@ type QueryBuilder struct {
 // returns a new independent builder - so builders may be stored, forked into
 // divergent chains, and used concurrently by multiple goroutines.
 type FilterBuilder struct {
-	client  *Client
 	request request.Request
 }
 
@@ -31,10 +40,7 @@ type FilterBuilder struct {
 // inside double-quoted identifiers. An empty columns string selects all
 // columns, exactly as "*" does.
 func (q QueryBuilder) Select(columns string) FilterBuilder {
-	return FilterBuilder{
-		client:  q.client,
-		request: q.request.WithParameter("select", cleanSelectColumns(columns)),
-	}
+	return FilterBuilder{request: q.request.WithParameter("select", cleanSelectColumns(columns))}
 }
 
 // cleanSelectColumns strips whitespace from a PostgREST column list except

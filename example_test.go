@@ -41,9 +41,9 @@ func ExampleNew_invalidInput() {
 	// Output: true
 }
 
-// ExampleClient_From runs a basic Database query.
+// ExampleClient_Database runs a basic Database query.
 // It requires a reachable Supabase project, so it is compiled but not run by go test.
-func ExampleClient_From() {
+func ExampleClient_Database() {
 	type Instrument struct {
 		ID   int    `json:"id"`
 		Name string `json:"name"`
@@ -57,7 +57,8 @@ func ExampleClient_From() {
 
 	instruments, response, err := postgrest.Collect[Instrument](
 		context.Background(),
-		supabase.
+		supabase.Database(),
+		postgrest.
 			From("instruments").
 			Select("id, name"),
 	)
