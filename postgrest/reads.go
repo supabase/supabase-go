@@ -10,11 +10,11 @@ import (
 // Collect executes the query and returns every row of the result decoded into
 // Row, which is typically a struct whose fields carry json tags. Response
 // fields with no matching Row field are ignored, so Row may decode any subset
-// of the selected columns. An empty result yields an empty slice. Collect is a
-// terminal of the builder chain and the only place I/O is performed. The
-// context governs cancellation and deadline for the entire request. On success
-// it also returns a [Response] carrying the HTTP status and, when the server
-// reported one, the total row count.
+// of the selected columns. An empty result yields an empty slice. Collect is
+// the only place I/O is performed. The context governs cancellation and
+// deadline for the entire request. On success it also returns a [Response]
+// carrying the HTTP status and, when the server reported one, the total row
+// count.
 //
 // On failure the returned slice is nil, the Response is the zero value, and
 // the error is one of:
@@ -36,8 +36,8 @@ func Collect[Row any](ctx context.Context, query FilterBuilder) ([]Row, Response
 }
 
 // execute sends the query and returns the raw response body alongside its
-// [Response] metadata. It is the single I/O path shared by the generic
-// terminals.
+// [Response] metadata. It is the single I/O path shared by the generic read
+// functions.
 func execute(ctx context.Context, query FilterBuilder) ([]byte, Response, error) {
 	if query.request.Path() == "" {
 		return nil, Response{}, ErrMissingTable

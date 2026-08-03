@@ -12,8 +12,8 @@ type postgrestError string
 
 func (e postgrestError) Error() string { return "postgrest: " + string(e) }
 
-// ErrMissingTable is reported by the executing terminal, such as [Collect],
-// when the builder was created with an empty table name.
+// ErrMissingTable is reported by the executing read function, such as
+// [Collect], when the builder was created with an empty table name.
 const ErrMissingTable = postgrestError("table name is required")
 
 // Error is the typed failure returned when PostgREST answers a query with a

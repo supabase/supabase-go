@@ -36,8 +36,8 @@ func New(projectURL, apiKey string, options ...configuration.Option) (*Client, e
 }
 
 // From begins a Database query against the given table or view.
-// Chain a verb such as [postgrest.QueryBuilder.Select] and terminate with
-// a generic terminal such as [postgrest.Collect]:
+// Chain a verb such as [postgrest.QueryBuilder.Select], then pass the
+// finished query to a generic read function such as [postgrest.Collect]:
 //
 //		rows, response, err := postgrest.Collect[Instrument](
 //	     ctx,
