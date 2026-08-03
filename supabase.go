@@ -38,10 +38,10 @@ func New(projectURL, apiKey string, options ...configuration.Option) (*Client, e
 // Database returns the composed Database client, through which queries built
 // with [postgrest.From] execute:
 //
-//	rows, response, err := postgrest.Collect[Instrument](
+//	rows, response, err := postgrest.Collect(
 //	    ctx,
 //	    supabase.Database(),
-//	    postgrest.From("instruments").Select("id, name"))
+//	    postgrest.From[Instrument]("instruments").Select("id, name"))
 func (c *Client) Database() *postgrest.Client {
 	return c.database
 }
