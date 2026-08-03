@@ -42,11 +42,11 @@ type seededInstrument struct {
 func TestIntegrationSelectAllColumns(t *testing.T) {
 	client := newIntegrationClient(t)
 
-	rows, response, err := postgrest.Collect[seededInstrument](
+	rows, response, err := postgrest.Collect(
 		t.Context(),
 		client,
 		postgrest.
-			From("instruments").
+			From[seededInstrument]("instruments").
 			Select(""),
 	)
 	if err != nil {
@@ -84,11 +84,11 @@ func TestIntegrationSelectColumnSubset(t *testing.T) {
 		Name string `json:"name"`
 	}
 
-	rows, _, err := postgrest.Collect[nameOnly](
+	rows, _, err := postgrest.Collect(
 		t.Context(),
 		client,
 		postgrest.
-			From("instruments").
+			From[nameOnly]("instruments").
 			Select("name"),
 	)
 	if err != nil {
@@ -112,11 +112,11 @@ func TestIntegrationSelectColumnSubset(t *testing.T) {
 func TestIntegrationMissingRelationReturnsTypedError(t *testing.T) {
 	client := newIntegrationClient(t)
 
-	_, _, err := postgrest.Collect[seededInstrument](
+	_, _, err := postgrest.Collect(
 		t.Context(),
 		client,
 		postgrest.
-			From("does_not_exist").
+			From[seededInstrument]("does_not_exist").
 			Select(""),
 	)
 

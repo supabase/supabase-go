@@ -31,11 +31,11 @@ func TestIntegrationRootClientSelect(t *testing.T) {
 		ID   int    `json:"id"`
 		Name string `json:"name"`
 	}
-	rows, response, err := postgrest.Collect[instrument](
+	rows, response, err := postgrest.Collect(
 		t.Context(),
 		client.Database(),
 		postgrest.
-			From("instruments").
+			From[instrument]("instruments").
 			Select("id, name"),
 	)
 	if err != nil {

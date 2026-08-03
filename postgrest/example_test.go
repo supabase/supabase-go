@@ -28,11 +28,11 @@ func ExampleFrom() {
 		return
 	}
 
-	instruments, response, err := postgrest.Collect[Instrument](
+	instruments, response, err := postgrest.Collect(
 		context.Background(),
 		client,
 		postgrest.
-			From("instruments").
+			From[Instrument]("instruments").
 			Select("id, name"),
 	)
 	if err != nil {
@@ -47,19 +47,19 @@ func ExampleFrom() {
 	fmt.Println(len(instruments), response.HTTPStatus)
 }
 
+type Instrument struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 // The query is a pure value, so it may be declared once at package level,
 // before any client exists, and reused across calls.
-var instrumentsByName = postgrest.From("instruments").Select("id, name")
+var instrumentsByName = postgrest.From[Instrument]("instruments").Select("id, name")
 
 // ExampleFrom_packageLevel demonstrates that queries carry no client: this
 // one is a package-level variable, with a client supplied only at the
 // executing read function.
 func ExampleFrom_packageLevel() {
-	type Instrument struct {
-		ID   int    `json:"id"`
-		Name string `json:"name"`
-	}
-
 	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
 		fmt.Println(err)

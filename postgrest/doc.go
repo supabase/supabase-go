@@ -2,14 +2,14 @@
 // over PostgREST. A context-taking free generic function such as [Collect]
 // executes the finished query through a [Client].
 //
-// A query starts at [From], chains through an immutable builder and executes
-// with the row type it decodes into:
+// A query names the row type it decodes into at [From], chains through an
+// immutable builder and executes:
 //
-//	rows, response, err := postgrest.Collect[Instrument](
+//	rows, response, err := postgrest.Collect(
 //	    ctx,
 //	    client,
 //	    postgrest.
-//	        From("instruments").
+//	        From[Instrument]("instruments").
 //	        Select("id, name"))
 //
 // Builders are pure immutable values carrying no client reference: every step

@@ -326,7 +326,7 @@ Also, a second copy in the doc comment is another place for it to go stale.
 
 **What**:  
 `postgrest.From` is a package-level function returning builders that carry only query state, with no client reference.
-The generic read functions take the client explicitly - `Collect[Row](ctx, client, query)`, reporting `ErrMissingClient` on nil - and the root `supabase.Client` reaches the Database through the `Database()` accessor rather than hoisting `From`.
+The generic read functions take the client explicitly - `Collect(ctx, client, query)`, reporting `ErrMissingClient` on nil - and the root `supabase.Client` reaches the Database through the `Database()` accessor rather than hoisting `From`.
 
 **Why**:  
 A client captured in the request model would pin otherwise-pure values to a constructed query for no representational need (as raised [in review on #27](https://github.com/supabase/supabase-go/pull/27#pullrequestreview-4790009535)).
@@ -386,16 +386,15 @@ The only information call-time serialization erases is which method wrote a pair
 ## Reads execute in package-level generic functions, context-first
 
 **What**:  
-The builder chain is non-generic and performs no I/O.
-Execution happens only in package-level generic functions - `Collect[Row](ctx, client, query)` returning `([]Row, Response, error)` - which share one unexported `execute` path.
+The builder chain is generic from its root - `From[Row]("table")` names the row type once, threads it through `QueryBuilder[Row]` and `FilterBuilder[Row]`, performing no I/O.
+Execution happens only in package-level generic functions - `Collect(ctx, client, query)` returning `([]Row, Response, error)`, with `Row` inferred from the query - which share one unexported `execute` path.
 `Response` carries `HTTPStatus` and `Count` as exported scalar fields on a by-value record, where `Count` is `-1` when the server reported no total, following `net/http.Response.ContentLength`'s convention.
 
 **Why**:  
-Go has no parameterized methods, so a typed read method cannot exist on a non-generic chain, and a fully generic chain (the community postgrest-go's unreleased rewrite, or a package-level `From[Row]` root as proposed [in review on #27](https://github.com/supabase/supabase-go/pull/27#pullrequestreview-4790009535)) threads the row type through every builder type to serve only the ends of the chain: decode is the only step that consumes it, Go can never check any Row against the selected columns, and because `select` is a projection language (sub-setting, renaming, aggregation, embedding) the row shape belongs to the query rather than the table - the reason pgx binds at decode (`CollectRows[T]`) and sqlc emits per-query row structs.
-The pre-client composability a generic root would also buy is delivered without generics by the pure-value builders recorded in "Queries are pure values and the client appears only at execution".
-A free generic function types the result at exactly that step: array-ness becomes the read function's return contract instead of a destination-shape convention, and the destination-pointer questions (nil-ness, preallocation) become unrepresentable.
-An `any`-typed `Execute` alongside the typed read functions was rejected as a second front door for the same job - `Collect[json.RawMessage]` covers raw per-row access.
-supabase-js and supabase-flutter execute implicitly by awaiting the builder. Go has no await, and an explicit context-first function matches the standard's context mandate, with stdlib and ecosystem precedent for the shape (`slices.Collect` and `iter.Pull` as free generic functions over non-generic values, pgx's `CollectRows[T]` and `CollectOneRow` solving typed row decoding identically for Postgres, stripe-go's range-over-`Seq2` list surface and openai-go's auto-paging).
+Naming the row type at `From[Row]` lets every read function infer it like [`slices.Collect`](https://pkg.go.dev/slices#Collect), keeps package-level query variables typed so reuse sites cannot diverge and gives future write verbs compile-checked payloads (`Insert(rows ...Row)`), whereas explicit instantiation (pgx's [`CollectRows[T]`](https://pkg.go.dev/github.com/jackc/pgx/v5#CollectRows), sqlc's per-query structs) repeats an unchecked bracket at every read site.
+Typing is per-query, never per-table: `select` is a projection language, so the row shape belongs to the query (a second shape is another `From[U]`), and a per-table registry would centralize a binding Go can never check against the selected columns.
+The accepted costs - `Row` is a phantom threading through builders whose state never depends on it, and a finished query cannot fork into differently-typed decodes - stay shallow: an in-package `Retype[U](query)` is purely additive ([partial type argument lists](https://go.dev/ref/spec#Instantiations)) and `From[json.RawMessage]` covers raw rows, which is also why no `any`-typed `Execute` front door exists.
+Execution is a package-level function - methods cannot declare type parameters below go1.27, the module floor - context-first per the standard's context mandate, following `slices.Collect` and [`iter.Pull`](https://pkg.go.dev/iter#Pull) as free generic functions over values (stripe-go's range-over-`Seq2` lists and openai-go's auto-paging extend the shape to paging), and array-ness as the return contract makes destination-pointer questions (nil-ness, preallocation) unrepresentable.
 `Response` stays a plain exported-field record because it is returned by value and holds only scalars, so consumers hold independent copies and no aliasing exists to defend against, while unexported fields would stop consumers fabricating a `Response` in their own test doubles.
 This argument is scalar-dependent: a reference-typed field (headers, raw body) must not be added to `Response` without revisiting it.
 
