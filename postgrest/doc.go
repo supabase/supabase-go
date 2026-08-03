@@ -1,23 +1,26 @@
 // Package postgrest is the Supabase Database client: a chained query builder
-// over PostgREST that terminates in a context-taking generic terminal such as
-// [Collect].
+// over PostgREST. A context-taking free generic function such as [Collect]
+// executes the finished query through a [Client].
 //
-// A query starts at [Client.From], chains through an immutable builder and
-// executes with the row type it decodes into:
+// A query names the row type it decodes into at [From], chains through an
+// immutable builder and executes:
 //
-//		rows, response, err := postgrest.Collect[Instrument](
-//	     ctx,
-//	     client.
-//	         From("instruments").
-//	         Select("id, name"))
+//	rows, response, err := postgrest.Collect(
+//	    ctx,
+//	    client,
+//	    postgrest.
+//	        From[Instrument]("instruments").
+//	        Select("id, name"))
 //
-// Builders are immutable values: every step returns a new independent builder,
-// so partially-built queries may be stored, forked, and shared across
-// goroutines.
+// Builders are pure immutable values carrying no client reference: every step
+// returns a new independent builder, so queries may be declared at package
+// level before any client exists, stored, forked, and shared across
+// goroutines. The client - and with it the HTTP connection pool - enters only
+// at the executing read function.
 //
 // Collect with a named struct is the recommended default. Consumers that
 // cannot name row types at compile time - schema-driven admin tooling,
-// proxies, migration utilities - instantiate the same terminal with a dynamic
-// container instead: Collect[map[string]any] decodes rows into generic maps,
-// and Collect[json.RawMessage] defers per-row decoding entirely.
+// proxies, migration utilities - instantiate Collect with a dynamic
+// container instead: Collect[map[string]any] decodes rows into generic
+// maps, and Collect[json.RawMessage] defers per-row decoding entirely.
 package postgrest

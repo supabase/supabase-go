@@ -116,10 +116,11 @@ func exerciseRootClient(baseURL string) error {
 		return err
 	}
 
-	_, _, err = postgrest.Collect[struct{}](
+	_, _, err = postgrest.Collect(
 		context.Background(),
-		client.
-			From("probe").
+		client.Database(),
+		postgrest.
+			From[struct{}]("probe").
 			Select("id"),
 	)
 
@@ -132,10 +133,11 @@ func exercisePostgrestClient(baseURL string) error {
 		return err
 	}
 
-	_, _, err = postgrest.Collect[struct{}](
+	_, _, err = postgrest.Collect(
 		context.Background(),
-		client.
-			From("probe").
+		client,
+		postgrest.
+			From[struct{}]("probe").
 			Select("id"),
 	)
 

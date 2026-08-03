@@ -71,10 +71,11 @@ func TestCollectDecodesRows(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, response, err := postgrest.Collect[instrument](
-		context.Background(),
-		newTestClient(t, server).
-			From("instruments").
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("instruments").
 			Select("id, name"),
 	)
 	if err != nil {
@@ -108,10 +109,11 @@ func TestCollectEmptyResultYieldsEmptySlice(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, response, err := postgrest.Collect[instrument](
-		context.Background(),
-		newTestClient(t, server).
-			From("instruments").
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("instruments").
 			Select(""),
 	)
 	if err != nil {
@@ -138,10 +140,11 @@ func TestCollectPreservesRawRowBytes(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, response, err := postgrest.Collect[json.RawMessage](
-		context.Background(),
-		newTestClient(t, server).
-			From("instruments").
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[json.RawMessage]("instruments").
 			Select(""),
 	)
 	if err != nil {
@@ -180,10 +183,11 @@ func TestCollectReturnsResponseMetadata(t *testing.T) {
 			}))
 			defer server.Close()
 
-			rows, response, err := postgrest.Collect[instrument](
-				context.Background(),
-				newTestClient(t, server).
-					From("instruments").
+			rows, response, err := postgrest.Collect(
+				t.Context(),
+				newTestClient(t, server),
+				postgrest.
+					From[instrument]("instruments").
 					Select(""),
 			)
 			if err != nil {
@@ -213,10 +217,11 @@ func TestCollectEmptySelectMeansAllColumns(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, response, err := postgrest.Collect[instrument](
-		context.Background(),
-		newTestClient(t, server).
-			From("instruments").
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("instruments").
 			Select(""),
 	)
 	if err != nil {
@@ -240,10 +245,11 @@ func TestCollectPreservesQuotedIdentifiersInSelect(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, response, err := postgrest.Collect[instrument](
-		context.Background(),
-		newTestClient(t, server).
-			From("instruments").
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("instruments").
 			Select(`"full name", id`),
 	)
 	if err != nil {
@@ -267,10 +273,11 @@ func TestCollectReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, response, err := postgrest.Collect[instrument](
-		context.Background(),
-		newTestClient(t, server).
-			From("missing").
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("missing").
 			Select(""),
 	)
 
@@ -295,10 +302,11 @@ func TestCollectPreservesUnparsableErrorBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, response, err := postgrest.Collect[instrument](
-		context.Background(),
-		newTestClient(t, server).
-			From("instruments").
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("instruments").
 			Select(""),
 	)
 
@@ -329,10 +337,11 @@ func TestCollectWrapsDecodeFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, response, err := postgrest.Collect[instrument](
-		context.Background(),
-		newTestClient(t, server).
-			From("instruments").
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("instruments").
 			Select(""),
 	)
 
@@ -356,10 +365,11 @@ func TestCollectReportsMissingTableWithoutIO(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, response, err := postgrest.Collect[instrument](
-		context.Background(),
-		newTestClient(t, server).
-			From("").
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("").
 			Select("id"),
 	)
 
@@ -367,6 +377,21 @@ func TestCollectReportsMissingTableWithoutIO(t *testing.T) {
 		t.Errorf("want ErrMissingTable, got %v", err)
 	}
 	assertNoResults(t, rows, response)
+}
+
+// TestCollectReportsMissingClientWithoutIO pins ErrMissingClient's contract:
+// a nil client is rejected before anything else is inspected, so the
+// sentinel is reported instead of a panic on the absent client.
+func TestCollectReportsMissingClientWithoutIO(t *testing.T) {
+	_, _, err := postgrest.Collect(
+		t.Context(),
+		nil,
+		postgrest.From[instrument]("instruments").Select("id"),
+	)
+
+	if !errors.Is(err, postgrest.ErrMissingClient) {
+		t.Errorf("want ErrMissingClient, got %v", err)
+	}
 }
 
 // TestCollectHonoursContextCancellation pins the context contract:
@@ -380,16 +405,17 @@ func TestCollectHonoursContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	go func() {
 		<-started
 		cancel()
 	}()
 
-	rows, response, err := postgrest.Collect[instrument](
+	rows, response, err := postgrest.Collect(
 		ctx,
-		newTestClient(t, server).
-			From("instruments").
+		newTestClient(t, server),
+		postgrest.
+			From[instrument]("instruments").
 			Select(""),
 	)
 
@@ -411,8 +437,9 @@ func TestBuildersForkIndependently(t *testing.T) {
 	}))
 	defer server.Close()
 
-	base := newTestClient(t, server).From("instruments")
-	firstRows, firstResponse, err := postgrest.Collect[instrument](context.Background(), base.Select("id"))
+	client := newTestClient(t, server)
+	base := postgrest.From[instrument]("instruments")
+	firstRows, firstResponse, err := postgrest.Collect(t.Context(), client, base.Select("id"))
 	if err != nil {
 		t.Fatalf("first chain: %v", err)
 	}
@@ -420,7 +447,7 @@ func TestBuildersForkIndependently(t *testing.T) {
 		t.Errorf("len(firstRows) = %d, want 0", len(firstRows))
 	}
 	assertOKResponse(t, firstResponse)
-	secondRows, secondResponse, err := postgrest.Collect[instrument](context.Background(), base.Select("name"))
+	secondRows, secondResponse, err := postgrest.Collect(t.Context(), client, base.Select("name"))
 	if err != nil {
 		t.Fatalf("second chain: %v", err)
 	}

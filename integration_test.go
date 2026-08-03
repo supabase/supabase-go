@@ -3,7 +3,6 @@
 package supabase_test
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"testing"
@@ -15,7 +14,7 @@ import (
 // TestIntegrationRootClientSelect selects seeded rows through the root
 // client against the local Supabase stack started by
 // scripts/integration-test.sh, covering the composition of a new client,
-// From, Select and Collect.
+// Database, From, Select and Collect.
 func TestIntegrationRootClientSelect(t *testing.T) {
 	projectURL := os.Getenv("SUPABASE_URL")
 	apiKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
@@ -32,10 +31,11 @@ func TestIntegrationRootClientSelect(t *testing.T) {
 		ID   int    `json:"id"`
 		Name string `json:"name"`
 	}
-	rows, response, err := postgrest.Collect[instrument](
-		context.Background(),
-		client.
-			From("instruments").
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client.Database(),
+		postgrest.
+			From[instrument]("instruments").
 			Select("id, name"),
 	)
 	if err != nil {

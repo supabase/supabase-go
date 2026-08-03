@@ -3,7 +3,6 @@
 package postgrest_test
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"os"
@@ -43,10 +42,11 @@ type seededInstrument struct {
 func TestIntegrationSelectAllColumns(t *testing.T) {
 	client := newIntegrationClient(t)
 
-	rows, response, err := postgrest.Collect[seededInstrument](
-		context.Background(),
-		client.
-			From("instruments").
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[seededInstrument]("instruments").
 			Select(""),
 	)
 	if err != nil {
@@ -84,10 +84,11 @@ func TestIntegrationSelectColumnSubset(t *testing.T) {
 		Name string `json:"name"`
 	}
 
-	rows, response, err := postgrest.Collect[nameOnly](
-		context.Background(),
-		client.
-			From("instruments").
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[nameOnly]("instruments").
 			Select("name"),
 	)
 	if err != nil {
@@ -117,10 +118,11 @@ func TestIntegrationSelectColumnSubset(t *testing.T) {
 func TestIntegrationMissingRelationReturnsTypedError(t *testing.T) {
 	client := newIntegrationClient(t)
 
-	rows, response, err := postgrest.Collect[seededInstrument](
-		context.Background(),
-		client.
-			From("does_not_exist").
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[seededInstrument]("does_not_exist").
 			Select(""),
 	)
 

@@ -20,7 +20,7 @@ func mustParseURL(t *testing.T, raw string) *url.URL {
 
 func requestURL(t *testing.T, r request.Request) string {
 	t.Helper()
-	httpRequest, err := r.HTTPRequest(context.Background(), mustParseURL(t, "https://example.test/rest/v1"))
+	httpRequest, err := r.HTTPRequest(t.Context(), mustParseURL(t, "https://example.test/rest/v1"))
 	if err != nil {
 		t.Fatalf("HTTPRequest: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestWithParameterPreservesRepeatedKeys(t *testing.T) {
 // Accept asks for JSON.
 func TestHTTPRequestCarriesContextMethodAndAcceptHeader(t *testing.T) {
 	type contextKey struct{}
-	ctx := context.WithValue(context.Background(), contextKey{}, "present")
+	ctx := context.WithValue(t.Context(), contextKey{}, "present")
 
 	httpRequest, err := request.New(http.MethodGet, "instruments").
 		HTTPRequest(ctx, mustParseURL(t, "https://example.test/rest/v1"))
@@ -104,7 +104,7 @@ func TestHTTPRequestCarriesContextMethodAndAcceptHeader(t *testing.T) {
 // escaped at assembly time as Path documents.
 func TestPathEscaping(t *testing.T) {
 	httpRequest, err := request.New(http.MethodGet, "odd table").
-		HTTPRequest(context.Background(), mustParseURL(t, "https://example.test/rest/v1"))
+		HTTPRequest(t.Context(), mustParseURL(t, "https://example.test/rest/v1"))
 	if err != nil {
 		t.Fatalf("HTTPRequest: %v", err)
 	}

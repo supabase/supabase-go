@@ -18,8 +18,7 @@ features:
   database.query.from_table:
     status: implemented
     symbols:
-      - supabase.Client.From
-      - postgrest.Client.From
+      - postgrest.From
   database.query.select:
     status: implemented
     symbols:
