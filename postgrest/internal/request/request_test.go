@@ -77,6 +77,32 @@ func TestWithParameterPreservesRepeatedKeys(t *testing.T) {
 	}
 }
 
+func TestWithParameterReplacing(t *testing.T) {
+	requests := []request.Request{
+		request.New(http.MethodGet, "path").
+			WithParameterReplacing("key", "A"),
+
+		request.New(http.MethodGet, "path").
+			WithParameterReplacing("key", "Z").
+			WithParameterReplacing("key", "A"),
+
+		request.New(http.MethodGet, "path").
+			WithParameter("key", "Z").
+			WithParameterReplacing("key", "A"),
+
+		request.New(http.MethodGet, "path").
+			WithParameter("key", "Z").
+			WithParameterReplacing("key", "X").
+			WithParameterReplacing("key", "A"),
+	}
+
+	for _, request := range requests {
+		if got, want := requestURL(t, request), "https://example.test/rest/v1/path?key=A"; got != want {
+			t.Errorf("URL = %q, want %q", got, want)
+		}
+	}
+}
+
 // TestHTTPRequestCarriesContextMethodAndAcceptHeader pins request assembly:
 // the caller's context rides the HTTP request, the method is preserved and
 // Accept asks for JSON.

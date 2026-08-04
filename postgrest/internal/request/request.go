@@ -48,6 +48,21 @@ func (r Request) WithParameter(key, value string) Request {
 	return clone
 }
 
+// WithParameterReplacing returns a new Request carrying the given query-string
+// pair, with every existing pair for key removed first, so the key appears
+// exactly once. Use it for keys PostgREST treats as singletons, such as limit.
+func (r Request) WithParameterReplacing(key, value string) Request {
+	clone := r
+	retained := make([]parameter, 0, len(r.parameters)+1)
+	for _, pair := range r.parameters {
+		if pair.key != key {
+			retained = append(retained, pair)
+		}
+	}
+	clone.parameters = append(retained, parameter{key: key, value: value})
+	return clone
+}
+
 // HTTPRequest assembles the Request into an *http.Request against the given
 // base URL, carrying ctx. The base is not mutated. The Accept header is set
 // for JSON. Authentication headers are not injected here.
