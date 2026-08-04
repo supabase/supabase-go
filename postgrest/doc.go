@@ -17,4 +17,10 @@
 // level before any client exists, stored, forked, and shared across
 // goroutines. The client - and with it the HTTP connection pool - enters only
 // at the executing read function.
+//
+// Collect with a named struct is the recommended default. Consumers that
+// cannot name row types at compile time - schema-driven admin tooling,
+// proxies, migration utilities - instantiate Collect with a dynamic
+// container instead: Collect[map[string]any] decodes rows into generic
+// maps, and Collect[json.RawMessage] defers per-row decoding entirely.
 package postgrest

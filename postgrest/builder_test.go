@@ -30,6 +30,33 @@ func newTestClient(t *testing.T, server *httptest.Server) *postgrest.Client {
 	return postgrest.NewFromConfiguration(projectConfiguration)
 }
 
+// assertOKResponse pins the Response surface shared by the success-path
+// tests, whose handlers serve no Content-Range header: HTTP 200 with the
+// total unreported (-1). Count wiring for served headers is pinned by
+// TestCollectReturnsResponseMetadata.
+func assertOKResponse(t *testing.T, response postgrest.Response) {
+	t.Helper()
+	if response.HTTPStatus != http.StatusOK {
+		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
+	}
+	if response.Count != -1 {
+		t.Errorf("Count = %d, want -1 (no Content-Range served)", response.Count)
+	}
+}
+
+// assertNoResults pins the failure half of the return contract shared by
+// every error path: rows stay nil and Response stays the zero value, so a
+// failing call never leaks partial rows or misleading metadata.
+func assertNoResults(t *testing.T, rows []instrument, response postgrest.Response) {
+	t.Helper()
+	if rows != nil {
+		t.Errorf("rows = %+v, want nil on error", rows)
+	}
+	if response != (postgrest.Response{}) {
+		t.Errorf("response = %+v, want zero value on error", response)
+	}
+}
+
 // TestCollectDecodesRows pins the read happy path end to end: rows decode
 // into the caller's type and the request reaches the wire with the cleaned
 // select list, the /rest/v1 path, the injected apikey header and the
@@ -58,9 +85,7 @@ func TestCollectDecodesRows(t *testing.T) {
 	if len(rows) != 2 || rows[0].Name != "violin" {
 		t.Errorf("rows = %+v", rows)
 	}
-	if response.HTTPStatus != http.StatusOK {
-		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
-	}
+	assertOKResponse(t, response)
 	if got, want := observed.URL.Path, "/rest/v1/instruments"; got != want {
 		t.Errorf("path = %q, want %q", got, want)
 	}
@@ -84,7 +109,7 @@ func TestCollectEmptyResultYieldsEmptySlice(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rows, _, err := postgrest.Collect(
+	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.
@@ -100,6 +125,38 @@ func TestCollectEmptyResultYieldsEmptySlice(t *testing.T) {
 	if len(rows) != 0 {
 		t.Errorf("len(rows) = %d, want 0", len(rows))
 	}
+	assertOKResponse(t, response)
+}
+
+// TestCollectPreservesRawRowBytes pins the json.RawMessage half of the
+// documented dynamic-container contract: Collect[json.RawMessage] defers
+// per-row decoding, each element carrying its row's JSON verbatim so
+// consumers can route or decode rows individually. The map[string]any half
+// is demonstrated by ExampleCollect_schemaDriven.
+func TestCollectPreservesRawRowBytes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`[{"id":1,"name":"violin"},{"id":2,"name":"flute"}]`))
+	}))
+	defer server.Close()
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.
+			From[json.RawMessage]("instruments").
+			Select(""),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("row count = %d, want 2", len(rows))
+	}
+	if got, want := string(rows[0]), `{"id":1,"name":"violin"}`; got != want {
+		t.Errorf("rows[0] = %s, want %s (row bytes must pass through verbatim)", got, want)
+	}
+	assertOKResponse(t, response)
 }
 
 // TestCollectReturnsResponseMetadata pins Response's wiring from the
@@ -126,7 +183,7 @@ func TestCollectReturnsResponseMetadata(t *testing.T) {
 			}))
 			defer server.Close()
 
-			_, response, err := postgrest.Collect(
+			rows, response, err := postgrest.Collect(
 				t.Context(),
 				newTestClient(t, server),
 				postgrest.
@@ -135,6 +192,9 @@ func TestCollectReturnsResponseMetadata(t *testing.T) {
 			)
 			if err != nil {
 				t.Fatalf("Collect: %v", err)
+			}
+			if len(rows) != 2 {
+				t.Errorf("row count = %d, want 2", len(rows))
 			}
 			if response.Count != testCase.wantCount {
 				t.Errorf("Count = %d, want %d", response.Count, testCase.wantCount)
@@ -157,15 +217,20 @@ func TestCollectEmptySelectMeansAllColumns(t *testing.T) {
 	}))
 	defer server.Close()
 
-	if _, _, err := postgrest.Collect(
+	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.
 			From[instrument]("instruments").
 			Select(""),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
+	if len(rows) != 0 {
+		t.Errorf("len(rows) = %d, want 0", len(rows))
+	}
+	assertOKResponse(t, response)
 }
 
 // TestCollectPreservesQuotedIdentifiersInSelect pins the other half of
@@ -180,15 +245,20 @@ func TestCollectPreservesQuotedIdentifiersInSelect(t *testing.T) {
 	}))
 	defer server.Close()
 
-	if _, _, err := postgrest.Collect(
+	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.
 			From[instrument]("instruments").
 			Select(`"full name", id`),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
+	if len(rows) != 0 {
+		t.Errorf("len(rows) = %d, want 0", len(rows))
+	}
+	assertOKResponse(t, response)
 }
 
 // TestCollectReturnsTypedErrorForPostgRESTFailure pins the failure half of
@@ -218,12 +288,7 @@ func TestCollectReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	if typedError.HTTPStatus != http.StatusNotFound || typedError.Code != "42P01" {
 		t.Errorf("typedError = %+v", typedError)
 	}
-	if rows != nil {
-		t.Errorf("rows = %+v, want nil on error", rows)
-	}
-	if response != (postgrest.Response{}) {
-		t.Errorf("response = %+v, want zero value on error", response)
-	}
+	assertNoResults(t, rows, response)
 }
 
 // TestCollectPreservesUnparsableErrorBody pins newError's fallback: a
@@ -237,7 +302,7 @@ func TestCollectPreservesUnparsableErrorBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, _, err := postgrest.Collect(
+	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.
@@ -258,6 +323,7 @@ func TestCollectPreservesUnparsableErrorBody(t *testing.T) {
 	if typedError.Code != "" {
 		t.Errorf("Code = %q, want empty for an unparsable body", typedError.Code)
 	}
+	assertNoResults(t, rows, response)
 }
 
 // TestCollectWrapsDecodeFailure pins the remaining failure class: a 2xx
@@ -286,12 +352,7 @@ func TestCollectWrapsDecodeFailure(t *testing.T) {
 	if errors.As(err, &typedError) {
 		t.Errorf("decode failure must not be an *Error: %v", typedError)
 	}
-	if rows != nil {
-		t.Errorf("rows = %+v, want nil on error", rows)
-	}
-	if response != (postgrest.Response{}) {
-		t.Errorf("response = %+v, want zero value on error", response)
-	}
+	assertNoResults(t, rows, response)
 }
 
 // TestCollectReportsMissingTableWithoutIO pins ErrMissingTable's contract:
@@ -304,7 +365,7 @@ func TestCollectReportsMissingTableWithoutIO(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, _, err := postgrest.Collect(
+	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.
@@ -315,6 +376,7 @@ func TestCollectReportsMissingTableWithoutIO(t *testing.T) {
 	if !errors.Is(err, postgrest.ErrMissingTable) {
 		t.Errorf("want ErrMissingTable, got %v", err)
 	}
+	assertNoResults(t, rows, response)
 }
 
 // TestCollectReportsMissingClientWithoutIO pins ErrMissingClient's contract:
@@ -349,7 +411,7 @@ func TestCollectHonoursContextCancellation(t *testing.T) {
 		cancel()
 	}()
 
-	_, _, err := postgrest.Collect(
+	rows, response, err := postgrest.Collect(
 		ctx,
 		newTestClient(t, server),
 		postgrest.
@@ -360,6 +422,7 @@ func TestCollectHonoursContextCancellation(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("want context.Canceled in chain, got %v", err)
 	}
+	assertNoResults(t, rows, response)
 }
 
 // TestBuildersForkIndependently pins builder immutability at the wire: one
@@ -376,12 +439,22 @@ func TestBuildersForkIndependently(t *testing.T) {
 
 	client := newTestClient(t, server)
 	base := postgrest.From[instrument]("instruments")
-	if _, _, err := postgrest.Collect(t.Context(), client, base.Select("id")); err != nil {
+	firstRows, firstResponse, err := postgrest.Collect(t.Context(), client, base.Select("id"))
+	if err != nil {
 		t.Fatalf("first chain: %v", err)
 	}
-	if _, _, err := postgrest.Collect(t.Context(), client, base.Select("name")); err != nil {
+	if len(firstRows) != 0 {
+		t.Errorf("len(firstRows) = %d, want 0", len(firstRows))
+	}
+	assertOKResponse(t, firstResponse)
+	secondRows, secondResponse, err := postgrest.Collect(t.Context(), client, base.Select("name"))
+	if err != nil {
 		t.Fatalf("second chain: %v", err)
 	}
+	if len(secondRows) != 0 {
+		t.Errorf("len(secondRows) = %d, want 0", len(secondRows))
+	}
+	assertOKResponse(t, secondResponse)
 
 	first, second := <-selects, <-selects
 	if first != "id" || second != "name" {

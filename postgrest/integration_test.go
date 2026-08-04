@@ -84,7 +84,7 @@ func TestIntegrationSelectColumnSubset(t *testing.T) {
 		Name string `json:"name"`
 	}
 
-	rows, _, err := postgrest.Collect(
+	rows, response, err := postgrest.Collect(
 		t.Context(),
 		client,
 		postgrest.
@@ -93,6 +93,12 @@ func TestIntegrationSelectColumnSubset(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
+	}
+	if response.HTTPStatus != http.StatusOK {
+		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
+	}
+	if response.Count != -1 {
+		t.Errorf("Count = %d, want -1 (no count requested)", response.Count)
 	}
 	if len(rows) != 3 {
 		t.Fatalf("row count = %d, want 3 (seed drifted?)", len(rows))
@@ -112,7 +118,7 @@ func TestIntegrationSelectColumnSubset(t *testing.T) {
 func TestIntegrationMissingRelationReturnsTypedError(t *testing.T) {
 	client := newIntegrationClient(t)
 
-	_, _, err := postgrest.Collect(
+	rows, response, err := postgrest.Collect(
 		t.Context(),
 		client,
 		postgrest.
@@ -129,5 +135,11 @@ func TestIntegrationMissingRelationReturnsTypedError(t *testing.T) {
 	}
 	if typedError.HTTPStatus != http.StatusNotFound {
 		t.Errorf("HTTPStatus = %d, want 404", typedError.HTTPStatus)
+	}
+	if rows != nil {
+		t.Errorf("rows = %+v, want nil on error", rows)
+	}
+	if response != (postgrest.Response{}) {
+		t.Errorf("response = %+v, want zero value on error", response)
 	}
 }

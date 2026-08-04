@@ -47,6 +47,34 @@ func ExampleFrom() {
 	fmt.Println(len(instruments), response.HTTPStatus)
 }
 
+// ExampleCollect_schemaDriven demonstrates the dynamic escape hatch: when row
+// shapes are not known at compile time, instantiate Collect with a generic
+// container instead of a named struct.
+func ExampleCollect_schemaDriven() {
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	rows, response, err := postgrest.Collect(
+		context.Background(),
+		client,
+		postgrest.
+			From[map[string]any]("instruments").
+			Select(""),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	for _, row := range rows {
+		fmt.Println(row["name"])
+	}
+	fmt.Println(response.HTTPStatus)
+}
+
 type Instrument struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
