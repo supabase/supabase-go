@@ -100,6 +100,84 @@ func TestSelectColumnSubset(t *testing.T) {
 	}
 }
 
+// TestCollectAppliesLimit proves that the [postgrest.Limit] method applies the
+// specified limit when that limit is more than one and that limit is less than
+// the number of rows in the seeded data.
+func TestCollectAppliesLimit(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[seededInstrument]("instruments").
+			Select("").
+			Limit(2), // the function under test
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+
+	// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+	testkit.AssertOKResponse(t, response)
+	if len(rows) != 2 {
+		t.Fatalf("row count = %d, want 2 (seed drifted or wrong limit applied?)", len(rows))
+	}
+}
+
+func TestCollectAppliesZeroLimit(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[seededInstrument]("instruments").
+			Select("").
+			Limit(0), // the function under test
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+
+	// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+	testkit.AssertOKResponse(t, response)
+	if len(rows) != 0 {
+		t.Fatalf("row count = %d, want 0 (wrong limit applied?)", len(rows))
+	}
+}
+
+func TestCollectForwardsNegativeLimit(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[seededInstrument]("instruments").
+			Select("").
+			Limit(-1), // the function under test
+	)
+
+	var typedError *postgrest.Error
+	if !errors.As(err, &typedError) {
+		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+	}
+	if typedError.Code != "PGRST103" {
+		t.Errorf("Code = %q, want PGRST103 (invalid range was specified for Limits and Pagination)", typedError.Code)
+	}
+	if typedError.HTTPStatus != http.StatusRequestedRangeNotSatisfiable {
+		t.Errorf("HTTPStatus = %d, want 416", typedError.HTTPStatus)
+	}
+
+	if rows != nil {
+		t.Errorf("rows = %+v, want nil on error", rows)
+	}
+	if response != (postgrest.Response{}) {
+		t.Errorf("response = %+v, want zero value on error", response)
+	}
+}
+
 // TestMissingRelationReturnsTypedError proves error parsing against a real
 // PostgREST error response. The stack is version-pinned by the harness, so
 // the exact protocol shape (PGRST205, HTTP 404) is asserted deliberately: a

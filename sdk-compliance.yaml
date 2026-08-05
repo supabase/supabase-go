@@ -23,6 +23,10 @@ features:
     status: implemented
     symbols:
       - postgrest.QueryBuilder.Select
+  database.using_modifiers.limit:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Limit
   database.using_modifiers.request_cancellation:
     status: implemented
     symbols:
