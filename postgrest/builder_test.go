@@ -12,6 +12,7 @@ import (
 	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest"
+	"github.com/supabase/supabase-go/postgrest/internal/testkit"
 )
 
 type instrument struct {
@@ -28,33 +29,6 @@ func newTestClient(t *testing.T, server *httptest.Server) *postgrest.Client {
 		t.Fatalf("configuration.New: %v", err)
 	}
 	return postgrest.NewFromConfiguration(projectConfiguration)
-}
-
-// assertOKResponse pins the Response surface shared by the success-path
-// tests, whose handlers serve no Content-Range header: HTTP 200 with the
-// total unreported (-1). Count wiring for served headers is pinned by
-// TestCollectReturnsResponseMetadata.
-func assertOKResponse(t *testing.T, response postgrest.Response) {
-	t.Helper()
-	if response.HTTPStatus != http.StatusOK {
-		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
-	}
-	if response.Count != -1 {
-		t.Errorf("Count = %d, want -1 (no Content-Range served)", response.Count)
-	}
-}
-
-// assertNoResults pins the failure half of the return contract shared by
-// every error path: rows stay nil and Response stays the zero value, so a
-// failing call never leaks partial rows or misleading metadata.
-func assertNoResults(t *testing.T, rows []instrument, response postgrest.Response) {
-	t.Helper()
-	if rows != nil {
-		t.Errorf("rows = %+v, want nil on error", rows)
-	}
-	if response != (postgrest.Response{}) {
-		t.Errorf("response = %+v, want zero value on error", response)
-	}
 }
 
 // TestCollectDecodesRows pins the read happy path end to end: rows decode
@@ -85,7 +59,7 @@ func TestCollectDecodesRows(t *testing.T) {
 	if len(rows) != 2 || rows[0].Name != "violin" {
 		t.Errorf("rows = %+v", rows)
 	}
-	assertOKResponse(t, response)
+	testkit.AssertOKResponse(t, response)
 	if got, want := observed.URL.Path, "/rest/v1/instruments"; got != want {
 		t.Errorf("path = %q, want %q", got, want)
 	}
@@ -125,7 +99,7 @@ func TestCollectEmptyResultYieldsEmptySlice(t *testing.T) {
 	if len(rows) != 0 {
 		t.Errorf("len(rows) = %d, want 0", len(rows))
 	}
-	assertOKResponse(t, response)
+	testkit.AssertOKResponse(t, response)
 }
 
 // TestCollectPreservesRawRowBytes pins the json.RawMessage half of the
@@ -156,7 +130,7 @@ func TestCollectPreservesRawRowBytes(t *testing.T) {
 	if got, want := string(rows[0]), `{"id":1,"name":"violin"}`; got != want {
 		t.Errorf("rows[0] = %s, want %s (row bytes must pass through verbatim)", got, want)
 	}
-	assertOKResponse(t, response)
+	testkit.AssertOKResponse(t, response)
 }
 
 // TestCollectReturnsResponseMetadata pins Response's wiring from the
@@ -230,7 +204,7 @@ func TestCollectEmptySelectMeansAllColumns(t *testing.T) {
 	if len(rows) != 0 {
 		t.Errorf("len(rows) = %d, want 0", len(rows))
 	}
-	assertOKResponse(t, response)
+	testkit.AssertOKResponse(t, response)
 }
 
 // TestCollectPreservesQuotedIdentifiersInSelect pins the other half of
@@ -258,7 +232,7 @@ func TestCollectPreservesQuotedIdentifiersInSelect(t *testing.T) {
 	if len(rows) != 0 {
 		t.Errorf("len(rows) = %d, want 0", len(rows))
 	}
-	assertOKResponse(t, response)
+	testkit.AssertOKResponse(t, response)
 }
 
 // TestCollectReturnsTypedErrorForPostgRESTFailure pins the failure half of
@@ -288,7 +262,7 @@ func TestCollectReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	if typedError.HTTPStatus != http.StatusNotFound || typedError.Code != "42P01" {
 		t.Errorf("typedError = %+v", typedError)
 	}
-	assertNoResults(t, rows, response)
+	testkit.AssertNoResults(t, rows, response)
 }
 
 // TestCollectPreservesUnparsableErrorBody pins newError's fallback: a
@@ -323,7 +297,7 @@ func TestCollectPreservesUnparsableErrorBody(t *testing.T) {
 	if typedError.Code != "" {
 		t.Errorf("Code = %q, want empty for an unparsable body", typedError.Code)
 	}
-	assertNoResults(t, rows, response)
+	testkit.AssertNoResults(t, rows, response)
 }
 
 // TestCollectWrapsDecodeFailure pins the remaining failure class: a 2xx
@@ -352,7 +326,7 @@ func TestCollectWrapsDecodeFailure(t *testing.T) {
 	if errors.As(err, &typedError) {
 		t.Errorf("decode failure must not be an *Error: %v", typedError)
 	}
-	assertNoResults(t, rows, response)
+	testkit.AssertNoResults(t, rows, response)
 }
 
 // TestCollectReportsMissingTableWithoutIO pins ErrMissingTable's contract:
@@ -376,7 +350,7 @@ func TestCollectReportsMissingTableWithoutIO(t *testing.T) {
 	if !errors.Is(err, postgrest.ErrMissingTable) {
 		t.Errorf("want ErrMissingTable, got %v", err)
 	}
-	assertNoResults(t, rows, response)
+	testkit.AssertNoResults(t, rows, response)
 }
 
 // TestCollectReportsMissingClientWithoutIO pins ErrMissingClient's contract:
@@ -422,7 +396,7 @@ func TestCollectHonoursContextCancellation(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("want context.Canceled in chain, got %v", err)
 	}
-	assertNoResults(t, rows, response)
+	testkit.AssertNoResults(t, rows, response)
 }
 
 // TestBuildersForkIndependently pins builder immutability at the wire: one
@@ -446,7 +420,7 @@ func TestBuildersForkIndependently(t *testing.T) {
 	if len(firstRows) != 0 {
 		t.Errorf("len(firstRows) = %d, want 0", len(firstRows))
 	}
-	assertOKResponse(t, firstResponse)
+	testkit.AssertOKResponse(t, firstResponse)
 	secondRows, secondResponse, err := postgrest.Collect(t.Context(), client, base.Select("name"))
 	if err != nil {
 		t.Fatalf("second chain: %v", err)
@@ -454,7 +428,7 @@ func TestBuildersForkIndependently(t *testing.T) {
 	if len(secondRows) != 0 {
 		t.Errorf("len(secondRows) = %d, want 0", len(secondRows))
 	}
-	assertOKResponse(t, secondResponse)
+	testkit.AssertOKResponse(t, secondResponse)
 
 	first, second := <-selects, <-selects
 	if first != "id" || second != "name" {
