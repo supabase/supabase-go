@@ -429,6 +429,7 @@ Distinguishing "the server answered with an error" (`*Error`) from "we never got
 CI's integration job and `scripts/integration-test.sh` run the same script, which starts a local stack using the Supabase CLI, a committed minimal `config.toml` (only db, api and auth enabled), a committed schema migration and a committed data-only `seed.sql`.
 The CLI is the pinned release binary, verified against a committed SHA-256 and installed into Go's own bin directory (GOBIN, else GOPATH/bin), never taken from npm.
 Integration tests are build-tagged `integration`, env-gated and run under `-race`.
+They live in test-only `integrationtest` packages beside the code they exercise, consuming only the public API, and selection is by the tag alone: the script passes no `-run` name filter, so the hermetic unit tests compiled under the tag simply run again in the integration job.
 The CI job runs the same `["1.25", "stable"]` matrix as build-and-test; `go vet -tags integration` in the unit script additionally keeps the tagged file compiling for fast local signal.
 
 **Why**:  
@@ -439,6 +440,8 @@ The auth service stays enabled despite no test calling it, because `supabase sta
 Schema lives in `migrations/` and only data in `seed.sql` because the CLI applies the seed as a single batch whose statements are prepared before earlier ones execute, so DDL cannot ride with inserts that depend on it (SQLSTATE 42P01 on a fresh stack) - the same layout as the CLI repository's own e2e project and the Swift SDK's.
 The script runs the CLI against a disposable `mktemp -d` copy of `integration/` because the CLI writes scratch state (`supabase/.branches`, `supabase/.temp`) into whatever project directory it runs: the copy keeps committed trees pristine by construction (no scratch to gitignore, unlike upstream projects that gitignore it inside a writable tree) and lets the harness run from a read-only checkout, while `stop` still finds the stack because the CLI identifies it by `config.toml`'s `project_id`, not by path.
 Disabling every other unused service attacks the block's stated risk head-on: this harness's startup time and flakiness set the floor for all future CI.
+A name-anchored `-run` filter (`^TestIntegration`) would spare the unit re-run, but its failure mode is silence: a tagged test named outside the anchor compiles cleanly, never runs and lets the suite pass vacuously, whereas the re-run it prevents is hermetic and costs seconds.
+The dedicated test-only package makes the consumer stance structural - every test package is external, so unexported access never exists to lose - and keeps the integration namespace decoupled from the unit test files, so suite selection never depends on function names and names never collide across suites.
 The floor leg exists because the published `go 1.25` directive is a compatibility promise to consumers, and only a live-stack run proves that promise end to end on the floor toolchain; the legs run in parallel so wall-clock cost is unchanged.
 
 ## `X-Client-Info` resolution is proven by an out-of-tree consumer program

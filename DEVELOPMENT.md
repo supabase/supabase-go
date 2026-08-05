@@ -102,7 +102,7 @@ The fast tier above needs only the repository's own toolchains (Go, plus Node fo
 
 The script starts the stack against a disposable copy of `integration/`, seeds it, runs the `integration`-tagged tests under `-race` and always stops the stack on exit, including on failure. A plain `go test ./...` never runs these tests - they are build-tagged and environment-gated - so the fast tier stays Docker-free by construction.
 
-Integration test functions are named `TestIntegrationXxx`. The script selects them with `-run '^TestIntegration'`, so a tagged test named outside that prefix will never run.
+Integration tests live in test-only `integrationtest` packages and are selected by the build tag alone - the script passes no `-run` name filter - so every test compiled under the tag runs, the unit tests included.
 
 ### Telemetry header test
 

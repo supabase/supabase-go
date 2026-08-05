@@ -26,6 +26,7 @@ gorelease
 goroutines
 govulncheck
 GOWORK
+integrationtest
 jsonv
 ldflags
 mockability
