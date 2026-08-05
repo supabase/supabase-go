@@ -104,6 +104,8 @@ The script starts the stack against a disposable copy of `integration/`, seeds i
 
 Integration tests live in test-only `integrationtest` packages and are selected by the build tag alone - the script passes no `-run` name filter - so every test compiled under the tag runs, the unit tests included.
 
+The committed [`.vscode/settings.json`](.vscode/settings.json) sets `go.buildTags: integration` so the language server evaluates the tag and gives the tagged files full IDE support - otherwise `go list` attributes them to no package and completion and navigation go dark in the `integrationtest` directories. The setting scopes the tag to the editor, leaving command-line builds and the fast tier untouched - avoid a shell-wide `GOFLAGS=-tags=integration` for the same purpose, since that would pull the env-gated integration tests into every plain `go test ./...`. Running an integration test from the editor's test lens fails fast with the env guidance unless the stack is up and its variables are exported in the editor's environment.
+
 ### Telemetry header test
 
 Suites in the workspace always see the `(devel)` sentinel in the `X-Client-Info` header, because an in-tree build cannot resolve SDK module versions from build information. The consumer-view check covers the resolution real consumers exercise: the `telemetrytest/` module requires the SDK modules at fabricated versions, `replace`s them to the local tree and asserts the exact header every entry point sends. A second leg rebuilds the same program in GOPATH mode, where binaries carry no module records, and asserts the version-unknowable `0.0.0` fallback. It needs only the Go toolchain and runs as part of the fast tier via `./scripts/check-fast.sh`, or alone:
