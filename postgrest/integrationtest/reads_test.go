@@ -11,6 +11,7 @@ import (
 	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest"
+	"github.com/supabase/supabase-go/postgrest/internal/testkit"
 )
 
 // newIntegrationClient wires a client at the local Supabase stack started by
@@ -53,13 +54,8 @@ func TestSelectAllColumns(t *testing.T) {
 		t.Fatalf("Collect: %v", err)
 	}
 
-	if response.HTTPStatus != http.StatusOK {
-		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
-	}
 	// No count was requested, so PostgREST reports an unknown total ("0-2/*").
-	if response.Count != -1 {
-		t.Errorf("Count = %d, want -1 (no count requested)", response.Count)
-	}
+	testkit.AssertOKResponse(t, response)
 	if len(rows) != 3 {
 		t.Fatalf("row count = %d, want 3 (seed drifted?)", len(rows))
 	}
@@ -93,12 +89,7 @@ func TestSelectColumnSubset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
-	if response.HTTPStatus != http.StatusOK {
-		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
-	}
-	if response.Count != -1 {
-		t.Errorf("Count = %d, want -1 (no count requested)", response.Count)
-	}
+	testkit.AssertOKResponse(t, response)
 	if len(rows) != 3 {
 		t.Fatalf("row count = %d, want 3 (seed drifted?)", len(rows))
 	}
