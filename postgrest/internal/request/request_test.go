@@ -105,6 +105,94 @@ func TestWithParameterReplacing(t *testing.T) {
 	}
 }
 
+func TestWithParameterJoining(t *testing.T) {
+	testCases := []struct {
+		name    string
+		perform func(request.Request) request.Request
+		want    string
+	}{
+		{
+			name: "single call",
+			perform: func(request request.Request) request.Request {
+				return request.WithParameterJoining("key", "A")
+			},
+			want: "A",
+		},
+		{
+			name: "multiple calls with discrete values",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameterJoining("key", "A").
+					WithParameterJoining("key", "B").
+					WithParameterJoining("key", "C")
+			},
+			want: "A,B,C",
+		},
+		{
+			name: "multiple calls with same value",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameterJoining("key", "A").
+					WithParameterJoining("key", "A")
+			},
+			want: "A,A",
+		},
+		{
+			name: "multiple calls seeded by WithParameter",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameter("key", "A").
+					WithParameterJoining("key", "B1").
+					WithParameterJoining("key", "B2")
+			},
+			want: "A,B1,B2",
+		},
+		{
+			name: "multiple calls seeded by WithParameterReplacing",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameterReplacing("key", "A").
+					WithParameterJoining("key", "B1").
+					WithParameterJoining("key", "B2")
+			},
+			want: "A,B1,B2",
+		},
+		{
+			name: "multiple calls seeded by WithParameter then WithParameterReplacing",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameter("key", "A").
+					WithParameterReplacing("key", "C").
+					WithParameterJoining("key", "B1").
+					WithParameterJoining("key", "B2")
+			},
+			want: "C,B1,B2",
+		},
+		{
+			name: "multiple calls seeded by WithParameter twice",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameter("key", "A1").
+					WithParameter("key", "A2").        // now: key=A1&key=A2
+					WithParameterJoining("key", "B1"). // now: key=A1,A2,B1
+					WithParameterJoining("key", "B2")
+			},
+			want: "A1,A2,B1,B2",
+		},
+	}
+
+	base := request.New(http.MethodGet, "path")
+	synthesize := func(value string) string { return "https://example.test/rest/v1/path?key=" + value }
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got, want := requestURL(t, testCase.perform(base)), synthesize(testCase.want); got != want {
+				t.Errorf("URL = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 // TestHTTPRequestCarriesContextMethodAndAcceptHeader pins request assembly:
 // the caller's context rides the HTTP request, the method is preserved and
 // Accept asks for JSON.
