@@ -1,6 +1,6 @@
 # Development Decisions for `supabase-go`
 
-<!-- cSpell:ignore Cheney claude iter mktemp openai pgrst pgx Seq sqlc vnd -->
+<!-- cSpell:ignore Cheney claude Cname iter mktemp openai pgrst pgx Seq sqlc vnd WHATWG -->
 
 This document has been created to capture decisions that have been made during development on this SDK which felt like worth recording for future reference.
 It's designed to be quick and friction-less to populate, a friction log inspired micro decisions list, often expected to be imperfect but with the ethos of "something is better than nothing" in terms of what we capture.
@@ -358,6 +358,33 @@ Every sibling SDK stores the same multimap shape: [`postgrest-js`](https://githu
 Between the two faithful shapes, the slice of pairs was preferred over `map[string][]string` because it keeps the model free of reference-typed fields: a plain struct copy is safe (pairs are immutable values; writes append after `slices.Clone`), whereas a map field aliases on copy, `maps.Clone` is shallow over the value slices, and one forgotten deep clone in a future `With*` method is a data race - the exact hazard the model exists to remove (supabase-py needed a third-party persistent-collections library to make the map shape safe; the slice gets the same guarantee from the stdlib).
 Keys that must not repeat, such as `select`, are enforced structurally in the public layer: `Select` consumes the `QueryBuilder` and returns a `FilterBuilder` with no `Select` method, so a duplicate is unrepresentable before it ever reaches the model.
 Singleton keys take replace-semantics through `WithParameterReplacing`, which `Limit` uses so that a repeated call replaces the earlier value - the last-write-wins behavior every sibling SDK implements, and the safe choice given PostgREST documents no behavior for a repeated limit key.
+
+## The query string is rendered by an in-model RFC 3986 writer, not url.Values.Encode
+
+**What**:  
+`HTTPRequest` renders parameters through `rawQuery` - pairs in insertion order, each key and value escaped by `escapeQueryComponent` - which percent-encodes only what the pair grammar reads as structure (`&`, `=`, `+`, `%`, `#`), what RFC 3986's query production forbids (spaces, double quotes, controls, non-ASCII octets) and the historical pair separator `;`.
+The remaining query characters - the commas, parentheses, dots, colons and asterisks PostgREST's dialect leans on - pass through literally, and a space renders `%20`, never `+`.
+
+**Why**:  
+`url.Values.Encode` is form-encoding: it escapes every byte outside the unreserved set and sorts pairs by key, so PostgREST queries render as `select=id%2Cname` noise in logs and tests, in an order no caller wrote, and measurably longer in a comma-dense dialect (three bytes per comma across select lists, in-lists and multi-column order values).
+RFC 3986 permits the sub-delimiters literally in a query, PostgREST URL-decodes before parsing - both spellings are identical to the server, as the sibling SDKs prove by shipping both - and PostgREST's documentation writes the literal form throughout, so readability, size and order fidelity are the only stakes and the writer buys all three.
+The re-sort this replaces was never a bug: PostgREST reads each parameter out by name, so cross-key order is semantically inert, and the orders it does assign meaning to - repetition and within-key sequence - were already preserved because `Encode` sorts keys only; insertion-order rendering makes the wire read as the model's documented order, nothing more.
+`+` and `;` are escaped despite being sub-delimiters because form-decoders - PostgREST's own query parsing included - read `+` as a space, and Go's `url.ParseQuery` rejects `;` outright.
+`RawQuery` is the documented home for pre-encoded query text and round-trips byte-for-byte through `url.Parse`, so the writer composes with `http.NewRequestWithContext` without re-encoding.
+The escaper is octet-oriented rather than rune-oriented because percent-encoding is defined on octets (RFC 3986 section 2.5's UTF-8-then-escape rule), so any string renders losslessly - arbitrary non-UTF-8 bytes included - where a rune-based walk would silently corrupt invalid sequences to U+FFFD.
+
+## A space renders %20, never form-encoding's +
+
+**What**:  
+`escapeQueryComponent` percent-encodes a space as `%20`.
+It never emits `+`, which is data on this wire and always travels as `%2B`.
+
+**Why**:  
+Spaces genuinely occur in these queries - quoted identifiers such as `"full name"` are a promised `Select` path - and both spellings decode to a space at PostgREST, which parses its query string with http-types' plus-replacing decoder ("It decodes '+' characters to ' '" - `HTTP.parseQueryReplacePlus True`, [`QueryParams.hs:157`](https://github.com/PostgREST/postgrest/blob/426e15bbb4b03ff041fb6b4bc16694b3fa094fcd/src/library/PostgREST/ApiRequest/QueryParams.hs#L157)), so the choice is about which encoding family the renderer belongs to, not correctness against this server.
+`%20` is the uniform unsafe-octet rule's own output, where `+` would need a dedicated special-case branch importing the one convention that belongs to form-encoding (the WHATWG form-urlencoded serializer: "0x20 (SP), then append U+002B (+)", [URL Standard](https://url.spec.whatwg.org/#concept-urlencoded-serializer)) into an RFC 3986 renderer.
+`%20` is also the only decoder-invariant spelling: it means a space under both RFC 3986 percent-decoding and form-decoding, while `+` means a space only under form-decoding and is a literal plus under RFC 3986 ([section 2.2](https://www.rfc-editor.org/rfc/rfc3986#section-2.2)).
+Precedent agrees where a query encoding must be unambiguous: supabase-swift pins the same quoted-identifier case as `%22first%20name%22` ([`PostgrestTransformBuilderTests.swift:34`](https://github.com/supabase/supabase-swift/blob/ebef170a4a6820d064e5909dd4f54e4341f12eb5/Tests/PostgRESTTests/PostgrestTransformBuilderTests.swift#L34)) and AWS SigV4's canonical request rules state "The space character is a reserved character and must be encoded as \"%20\" (and not as \"+\")" ([Create a signed request](https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html)).
+The `+` spelling was rejected for the extra branch it demands, the decoder-dependence it retains for one character and the divergence from the sibling norm this rendering already follows - its only return would have been one fewer flipped pin in the tests.
 
 ## Builder phases are distinct concrete types (typestate); no interfaces, no embedding
 
