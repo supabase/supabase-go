@@ -9,8 +9,6 @@ import (
 	"github.com/supabase/supabase-go/postgrest/internal/request"
 )
 
-// cSpell:ignore Cname Csection Aorchestral
-
 func mustParseURL(t *testing.T, raw string) *url.URL {
 	t.Helper()
 	parsed, err := url.Parse(raw)
