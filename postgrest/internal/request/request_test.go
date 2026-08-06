@@ -199,8 +199,20 @@ func TestQueryStringRendering(t *testing.T) {
 		{
 			name:  "non-ASCII octets",
 			key:   "name",
-			value: "eq.\u00e9",
+			value: "eq.é",
 			want:  "name=eq.%C3%A9",
+		},
+		{
+			name:  "four-byte UTF-8 emoji",
+			key:   "name",
+			value: "eq.💩",
+			want:  "name=eq.%F0%9F%92%A9",
+		},
+		{
+			name:  "invalid UTF-8 octet",
+			key:   "value",
+			value: "\xff",
+			want:  "value=%FF",
 		},
 	}
 	for _, testCase := range testCases {
