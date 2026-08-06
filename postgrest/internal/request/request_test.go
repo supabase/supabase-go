@@ -141,7 +141,7 @@ func TestPathEscaping(t *testing.T) {
 	}
 }
 
-// TestQueryStringRendering pins the exact query text HTTPRequest renders for
+// TestQueryStringRendering asserts the exact query text HTTPRequest renders for
 // single parameter pairs, characters of PostgREST's dialect included.
 func TestQueryStringRendering(t *testing.T) {
 	testCases := []struct {
@@ -150,15 +150,60 @@ func TestQueryStringRendering(t *testing.T) {
 		value string
 		want  string
 	}{
-		{name: "select list comma", key: "select", value: "id,name", want: "select=id%2Cname"},
-		{name: "order terms", key: "order", value: "acquired_year.desc,name", want: "order=acquired_year.desc%2Cname"},
-		{name: "embed alias and parentheses", key: "select", value: "name,section:orchestral_sections(name)", want: "select=name%2Csection%3Aorchestral_sections%28name%29"},
-		{name: "wildcard", key: "select", value: "*", want: "select=%2A"},
-		{name: "quoted in-list", key: "name", value: `in.("x","y")`, want: "name=in.%28%22x%22%2C%22y%22%29"},
-		{name: "quoted identifier with space", key: "select", value: `"full name"`, want: "select=%22full+name%22"},
-		{name: "structural characters", key: "value", value: "a&b=c+d%e", want: "value=a%26b%3Dc%2Bd%25e"},
-		{name: "semicolon", key: "value", value: "a;b", want: "value=a%3Bb"},
-		{name: "non-ASCII octets", key: "name", value: "eq.\u00e9", want: "name=eq.%C3%A9"},
+		{
+			name:  "select list comma",
+			key:   "select",
+			value: "id,name",
+			want:  "select=id%2Cname",
+		},
+		{
+			name:  "order terms",
+			key:   "order",
+			value: "acquired_year.desc,name",
+			want:  "order=acquired_year.desc%2Cname",
+		},
+		{
+			name:  "embed alias and parentheses",
+			key:   "select",
+			value: "name,section:orchestral_sections(name)",
+			want:  "select=name%2Csection%3Aorchestral_sections%28name%29",
+		},
+		{
+			name:  "wildcard",
+			key:   "select",
+			value: "*",
+			want:  "select=%2A",
+		},
+		{
+			name:  "quoted in-list",
+			key:   "name",
+			value: `in.("x","y")`,
+			want:  "name=in.%28%22x%22%2C%22y%22%29",
+		},
+		{
+			name:  "quoted identifier with space",
+			key:   "select",
+			value: `"full name"`,
+			want:  "select=%22full+name%22",
+		},
+		{
+			name:  "structural characters",
+			key:   "value",
+			value: "a&b=c+d%e",
+			want:  "value=a%26b%3Dc%2Bd%25e",
+		},
+		{
+			name:  "semicolon",
+			key:   "value",
+			value: "a;b",
+			want:  "value=a%3Bb",
+		},
+		{
+			name:  "non-ASCII octets",
+			key:   "name",
+			value: "eq.\u00e9",
+			want:  "name=eq.%C3%A9",
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -171,7 +216,7 @@ func TestQueryStringRendering(t *testing.T) {
 	}
 }
 
-// TestQueryStringPairOrdering pins the order pairs render in: alphabetical by
+// TestQueryStringPairOrdering asserts the order pairs render in: alphabetical by
 // key, regardless of the order they were added in.
 func TestQueryStringPairOrdering(t *testing.T) {
 	rendered := requestURL(t, request.New(http.MethodGet, "instruments").
