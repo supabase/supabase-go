@@ -58,10 +58,10 @@ func TestForksFromSharedIntermediateAreIndependent(t *testing.T) {
 	first := intermediate.WithParameter("limit", "1")
 	second := intermediate.WithParameter("offset", "2")
 
-	if got, want := requestURL(t, first), "https://example.test/rest/v1/instruments?limit=1&select=id"; got != want {
+	if got, want := requestURL(t, first), "https://example.test/rest/v1/instruments?select=id&limit=1"; got != want {
 		t.Errorf("first chain URL = %q, want %q", got, want)
 	}
-	if got, want := requestURL(t, second), "https://example.test/rest/v1/instruments?offset=2&select=id"; got != want {
+	if got, want := requestURL(t, second), "https://example.test/rest/v1/instruments?select=id&offset=2"; got != want {
 		t.Errorf("second chain URL = %q, want %q", got, want)
 	}
 }
@@ -154,37 +154,37 @@ func TestQueryStringRendering(t *testing.T) {
 			name:  "select list comma",
 			key:   "select",
 			value: "id,name",
-			want:  "select=id%2Cname",
+			want:  "select=id,name",
 		},
 		{
 			name:  "order terms",
 			key:   "order",
 			value: "acquired_year.desc,name",
-			want:  "order=acquired_year.desc%2Cname",
+			want:  "order=acquired_year.desc,name",
 		},
 		{
 			name:  "embed alias and parentheses",
 			key:   "select",
 			value: "name,section:orchestral_sections(name)",
-			want:  "select=name%2Csection%3Aorchestral_sections%28name%29",
+			want:  "select=name,section:orchestral_sections(name)",
 		},
 		{
 			name:  "wildcard",
 			key:   "select",
 			value: "*",
-			want:  "select=%2A",
+			want:  "select=*",
 		},
 		{
 			name:  "quoted in-list",
 			key:   "name",
 			value: `in.("x","y")`,
-			want:  "name=in.%28%22x%22%2C%22y%22%29",
+			want:  "name=in.(%22x%22,%22y%22)",
 		},
 		{
 			name:  "quoted identifier with space",
 			key:   "select",
 			value: `"full name"`,
-			want:  "select=%22full+name%22",
+			want:  "select=%22full%20name%22",
 		},
 		{
 			name:  "structural characters",
@@ -216,14 +216,13 @@ func TestQueryStringRendering(t *testing.T) {
 	}
 }
 
-// TestQueryStringPairOrdering asserts the order pairs render in: alphabetical by
-// key, regardless of the order they were added in.
+// TestQueryStringPairOrdering asserts the order pairs render in.
 func TestQueryStringPairOrdering(t *testing.T) {
 	rendered := requestURL(t, request.New(http.MethodGet, "instruments").
 		WithParameter("select", "id").
 		WithParameter("order", "name").
 		WithParameter("limit", "1"))
-	if got, want := rendered, "https://example.test/rest/v1/instruments?limit=1&order=name&select=id"; got != want {
+	if got, want := rendered, "https://example.test/rest/v1/instruments?select=id&order=name&limit=1"; got != want {
 		t.Errorf("URL = %q, want %q", got, want)
 	}
 }

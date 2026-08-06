@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 )
 
 // parameter is one key/value pair of a request's query string.
@@ -68,17 +69,67 @@ func (r Request) WithParameterReplacing(key, value string) Request {
 // for JSON. Authentication headers are not injected here.
 func (r Request) HTTPRequest(ctx context.Context, base *url.URL) (*http.Request, error) {
 	target := base.JoinPath(r.path)
-
-	queryValues := url.Values{}
-	for _, pair := range r.parameters {
-		queryValues.Add(pair.key, pair.value)
-	}
-	target.RawQuery = queryValues.Encode()
-
+	target.RawQuery = rawQuery(r.parameters)
 	httpRequest, err := http.NewRequestWithContext(ctx, r.method, target.String(), nil)
 	if err != nil {
 		return nil, err
 	}
 	httpRequest.Header.Set("Accept", "application/json")
 	return httpRequest, nil
+}
+
+// rawQuery renders parameters as the request's query-string text: pairs in
+// insertion order, joined by &, each key and value escaped independently by
+// escapeQueryComponent. Rendering no parameters yields the empty string, so
+// the assembled URL carries no ?.
+func rawQuery(parameters []parameter) string {
+	var text strings.Builder
+	for index, pair := range parameters {
+		if index > 0 {
+			text.WriteByte('&')
+		}
+		text.WriteString(escapeQueryComponent(pair.key))
+		text.WriteByte('=')
+		text.WriteString(escapeQueryComponent(pair.value))
+	}
+	return text.String()
+}
+
+// upperHexDigits indexes the digits of percent-escapes.
+const upperHexDigits = "0123456789ABCDEF"
+
+// escapeQueryComponent percent-encodes s for use as one key or value of the
+// query string. It operates on octets: any byte sequence, valid UTF-8 or
+// not, renders unambiguously and percent-decodes back to the exact input
+// bytes. Octets the pair grammar reads as structure (& = + % #), octets
+// RFC 3986 bars from a query (spaces, double quotes, controls, non-ASCII)
+// and the historical pair separator ; are escaped; the remaining query
+// characters, commas and parentheses included, pass through literally.
+func escapeQueryComponent(s string) string {
+	var escaped strings.Builder
+	for _, octet := range []byte(s) {
+		if queryOctetSafe(octet) {
+			escaped.WriteByte(octet)
+			continue
+		}
+		escaped.WriteByte('%')
+		escaped.WriteByte(upperHexDigits[octet>>4])
+		escaped.WriteByte(upperHexDigits[octet&0x0F])
+	}
+	return escaped.String()
+}
+
+// queryOctetSafe reports whether octet may appear literally in a query
+// component key or value.
+func queryOctetSafe(octet byte) bool {
+	if 'a' <= octet && octet <= 'z' || 'A' <= octet && octet <= 'Z' || '0' <= octet && octet <= '9' {
+		return true
+	}
+	switch octet {
+	case '-', '.', '_', '~', // RFC 3986 unreserved marks
+		'!', '$', '\'', '(', ')', '*', ',', // sub-delimiters that are data within a pair
+		':', '@', '/', '?': // the query production's extra characters
+		return true
+	}
+	return false
 }
