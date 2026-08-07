@@ -84,6 +84,21 @@ func (r Request) WithParameterJoining(key, value string) Request {
 	return clone
 }
 
+// WithParameterValueAppended returns a new Request whose last pair for key
+// carries its value with addition appended verbatim. When key is absent the
+// Request is returned unchanged.
+func (r Request) WithParameterValueAppended(key, addition string) Request {
+	clone := r
+	clone.parameters = slices.Clone(r.parameters)
+	for index := len(clone.parameters) - 1; index >= 0; index-- {
+		if clone.parameters[index].key == key {
+			clone.parameters[index].value += addition
+			break
+		}
+	}
+	return clone
+}
+
 // HTTPRequest assembles the Request into an *http.Request against the given
 // base URL, carrying ctx. The base is not mutated. The Accept header is set
 // for JSON. Authentication headers are not injected here.

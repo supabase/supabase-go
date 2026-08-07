@@ -193,6 +193,61 @@ func TestWithParameterJoining(t *testing.T) {
 	}
 }
 
+func TestWithParameterValueAppended(t *testing.T) {
+	testCases := []struct {
+		name    string
+		perform func(request.Request) request.Request
+		want    string
+	}{
+		{
+			name: "single call when key does not exist",
+			perform: func(request request.Request) request.Request {
+				return request.WithParameterValueAppended("key", "A")
+			},
+			want: "",
+		},
+		{
+			name: "multiple calls when key does not exist",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameterValueAppended("key", "A").
+					WithParameterValueAppended("key", "B")
+			},
+			want: "",
+		},
+		{
+			name: "single call when only one instance of key",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameter("key", "A").
+					WithParameterValueAppended("key", "B")
+			},
+			want: "?key=AB",
+		},
+		{
+			name: "single call when multiple instances of key",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameter("key", "A").
+					WithParameter("key", "B").
+					WithParameterValueAppended("key", "C")
+			},
+			want: "?key=A&key=BC",
+		},
+	}
+
+	base := request.New(http.MethodGet, "path")
+	synthesize := func(value string) string { return "https://example.test/rest/v1/path" + value }
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got, want := requestURL(t, testCase.perform(base)), synthesize(testCase.want); got != want {
+				t.Errorf("URL = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 // TestHTTPRequestCarriesContextMethodAndAcceptHeader pins request assembly:
 // the caller's context rides the HTTP request, the method is preserved and
 // Accept asks for JSON.
