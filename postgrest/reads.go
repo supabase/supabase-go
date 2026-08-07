@@ -5,7 +5,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+
+	"github.com/supabase/supabase-go/postgrest/internal/request"
 )
+
+// queryState carries a query's accumulated request through the sealed
+// [Query] interface. Its type parameter binds the row type the query
+// decodes into, keeping Query[A] and Query[B] distinct interface types and
+// Row inferable at read-function call sites.
+type queryState[Row any] struct {
+	request request.Request
+}
+
+// Query is a fully-specified query awaiting execution by a read function
+// such as [Collect]. Every builder state in this package satisfies it;
+// nothing outside the package can, as its method is unexported.
+type Query[Row any] interface {
+	// state returns the query's accumulated request, bound to its row type.
+	state() queryState[Row]
+}
 
 // Collect executes the query through client and returns every row of the
 // result decoded into Row, which is typically a struct whose fields carry
@@ -28,7 +46,7 @@ import (
 //   - [ErrMissingTable], when the builder was created with an empty table
 //     name. No I/O is performed in this case.
 //   - a wrapped transport or decoding failure.
-func Collect[Row any](ctx context.Context, client *Client, query FilterBuilder[Row]) ([]Row, Response, error) {
+func Collect[Row any](ctx context.Context, client *Client, query Query[Row]) ([]Row, Response, error) {
 	responseBody, response, err := execute(ctx, client, query)
 	if err != nil {
 		return nil, Response{}, err
@@ -40,18 +58,24 @@ func Collect[Row any](ctx context.Context, client *Client, query FilterBuilder[R
 	return rows, response, nil
 }
 
+// state implements [Query].
+func (f FilterBuilder[T]) state() queryState[T] {
+	return queryState[T](f)
+}
+
 // execute sends the query and returns the raw response body alongside its
 // [Response] metadata. It is the single I/O path shared by the generic read
 // functions.
-func execute[T any](ctx context.Context, client *Client, query FilterBuilder[T]) ([]byte, Response, error) {
+func execute[T any](ctx context.Context, client *Client, query Query[T]) ([]byte, Response, error) {
 	if client == nil {
 		return nil, Response{}, ErrMissingClient
 	}
-	if query.request.Path() == "" {
+	requestState := query.state().request
+	if requestState.Path() == "" {
 		return nil, Response{}, ErrMissingTable
 	}
 
-	httpRequest, err := query.request.HTTPRequest(ctx, client.baseURL)
+	httpRequest, err := requestState.HTTPRequest(ctx, client.baseURL)
 	if err != nil {
 		return nil, Response{}, fmt.Errorf("postgrest: building request: %w", err)
 	}

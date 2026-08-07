@@ -386,17 +386,21 @@ Spaces genuinely occur in these queries - quoted identifiers such as `"full name
 Precedent agrees where a query encoding must be unambiguous: supabase-swift pins the same quoted-identifier case as `%22first%20name%22` ([`PostgrestTransformBuilderTests.swift:34`](https://github.com/supabase/supabase-swift/blob/ebef170a4a6820d064e5909dd4f54e4341f12eb5/Tests/PostgRESTTests/PostgrestTransformBuilderTests.swift#L34)) and AWS SigV4's canonical request rules state "The space character is a reserved character and must be encoded as \"%20\" (and not as \"+\")" ([Create a signed request](https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html)).
 The `+` spelling was rejected for the extra branch it demands, the decoder-dependence it retains for one character and the divergence from the sibling norm this rendering already follows - its only return would have been one fewer flipped pin in the tests.
 
-## Builder phases are distinct concrete types (typestate); no interfaces, no embedding
+## Builder phases are distinct concrete types (typestate); no embedding, interfaces only at the terminals
 
 **What**:  
-`From` returns a concrete `QueryBuilder`; `Select` returns a concrete `FilterBuilder`; there is no builder interface and no embedded base-builder type.
+`From` returns a concrete `QueryBuilder`; `Select` returns a concrete `FilterBuilder`; every builder method returns a concrete type, never an interface, and there is no embedded base-builder type.
+The read functions accept the sealed `Query` interface, whose one unexported method returns a `queryState` token binding the row type; builder states satisfy it and nothing outside the package can.
 The two structs have identical definitions on purpose: a builder type's identity is its method set - which chain steps are legal from here - not its field set.
 
 **Why**:  
 The types encode the phase of the chain, so illegal chains are compile errors: `Select` twice is unrepresentable, because `Select` consumes the `QueryBuilder` and `FilterBuilder` has no `Select`.
 Every sibling SDK accepts the double call and resolves it silently, last write wins (postgrest-js `searchParams.set('select', ...)`, supabase-swift `appendOrUpdate`, postgrest-dart `overrideSearchParams`, supabase-py via inheritance).
 They re-expose select after a verb because mutations need a "return these columns" variant; when this SDK's write verbs land, that variant will appear deliberately on the mutation builders' types with replace semantics.
-Interfaces in the chain would hide the fluent surface from godoc and autocomplete without buying substitutability we need; the mockability seam is the injected HTTP client, not the builders.
+Interface-typed returns would hide the fluent surface from godoc and autocomplete without buying substitutability we need, so chain methods return concrete types and the read functions instead accept the sealed `Query` interface - interfaces in, concrete types out, the posture Google's Go style guidance names outright, with the interface living in the package that consumes query values.
+A type parameter no method signature mentions is inert - `Query[Instrument]` and `Query[Section]` would define identical type sets and so be the same type, letting a wrong-row `Collect[Section](instrumentsQuery)` compile while `Row` inference fails at every call site - so the row type is bound where the read path already has a genuine method, `state`'s return type, keeping the public interface free of never-called members (a dedicated phantom anchor method was drafted and rejected for exactly that deadness).
+Inference through interface method signatures is defined behavior since Go 1.21, below the module floor.
+The mockability seam remains the injected HTTP client, not the builders.
 Embedding is rejected twice over: promoted methods return the embedded type, which severs a fluent chain (`.Limit()` would return the base, losing `.Eq()`), and promotion would leak phase methods across the boundary (`Select` would surface on `FilterBuilder`), destroying the typestate guarantee.
 
 ## Builder state serializes immediately into the request model
