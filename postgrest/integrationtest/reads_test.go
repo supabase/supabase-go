@@ -179,38 +179,36 @@ func TestCollectForwardsNegativeLimit(t *testing.T) {
 }
 
 func TestCollectAppliesSingleColumnOrder(t *testing.T) {
-	const fieldName = "acquired_year"
-
 	testCases := []struct {
 		name    string
-		perform func(builder postgrest.FilterBuilder[seededInstrument]) postgrest.Query[seededInstrument]
+		perform func(builder postgrest.OrderedFilterBuilder[seededInstrument]) postgrest.Query[seededInstrument]
 		want    []string
 	}{
 		{
 			name: "implicit defaults",
-			perform: func(builder postgrest.FilterBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
-				return builder.Order(fieldName)
+			perform: func(builder postgrest.OrderedFilterBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
+				return builder
 			},
 			want: []string{"violin", "viola", "cello"}, // 2015, 2020, null
 		},
 		{
 			name: "descending",
-			perform: func(builder postgrest.FilterBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
-				return builder.Order(fieldName).Descending() // .desc
+			perform: func(builder postgrest.OrderedFilterBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
+				return builder.Descending() // .desc
 			},
 			want: []string{"cello", "viola", "violin"}, // null, 2020, 2015
 		},
 		{
 			name: "ascending with nulls first",
-			perform: func(builder postgrest.FilterBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
-				return builder.Order(fieldName).NullsFirst() // .nullsfirst
+			perform: func(builder postgrest.OrderedFilterBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
+				return builder.NullsFirst() // .nullsfirst
 			},
 			want: []string{"cello", "violin", "viola"}, // null, 2015, 2020
 		},
 		{
 			name: "descending with nulls last",
-			perform: func(builder postgrest.FilterBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
-				return builder.Order(fieldName).Descending().NullsLast() // .desc.nullslast
+			perform: func(builder postgrest.OrderedFilterBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
+				return builder.Descending().NullsLast() // .desc.nullslast
 			},
 			want: []string{"viola", "violin", "cello"}, // 2020, 2015, null
 		},
@@ -225,7 +223,8 @@ func TestCollectAppliesSingleColumnOrder(t *testing.T) {
 				client,
 				testCase.perform(postgrest.
 					From[seededInstrument]("instruments").
-					Select("")),
+					Select("").
+					Order("acquired_year")),
 			)
 			if err != nil {
 				t.Fatalf("Collect: %v", err)
