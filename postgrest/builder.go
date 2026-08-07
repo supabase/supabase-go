@@ -35,19 +35,19 @@ type FilterBuilder[T any] struct {
 	request request.Request
 }
 
-// OrderedBuilder represents a query whose newest order column may still
+// OrderedFilterBuilder represents a query whose newest order column may still
 // take a direction and a null placement. Descending and NullsFirst refine
 // that column; every other method is that of the embedded [FilterBuilder]
 // and ends the refinement.
-type OrderedBuilder[T any] struct {
+type OrderedFilterBuilder[T any] struct {
 	FilterBuilder[T]
 }
 
-// OrderedDescendingBuilder represents a query whose newest order column
+// OrderedDescendingFilterBuilder represents a query whose newest order column
 // sorts descending and may still take a null placement.
 // NullsLast refines that column; every other method is that of the embedded
 // [FilterBuilder] and ends the refinement.
-type OrderedDescendingBuilder[T any] struct {
+type OrderedDescendingFilterBuilder[T any] struct {
 	FilterBuilder[T]
 }
 
@@ -67,30 +67,30 @@ func (f FilterBuilder[T]) Limit(count int) FilterBuilder[T] {
 }
 
 // Order sorts the result by column, ascending with nulls last unless
-// refined through the returned [OrderedBuilder]. The column is sent
+// refined through the returned [OrderedFilterBuilder]. The column is sent
 // verbatim as one PostgREST order term, so an invalid column is rejected by
 // the server rather than rewritten. Calling Order again on the same chain
 // appends a lower-precedence sort column to the same query.
-func (f FilterBuilder[T]) Order(column string) OrderedBuilder[T] {
-	return OrderedBuilder[T]{FilterBuilder[T]{request: f.request.WithParameterJoining("order", column)}}
+func (f FilterBuilder[T]) Order(column string) OrderedFilterBuilder[T] {
+	return OrderedFilterBuilder[T]{FilterBuilder[T]{request: f.request.WithParameterJoining("order", column)}}
 }
 
 // Descending sorts the newest order column from highest to lowest value and
 // places rows holding a null in it before every non-null row, unless the
 // returned builder's NullsLast says otherwise.
-func (o OrderedBuilder[T]) Descending() OrderedDescendingBuilder[T] {
-	return OrderedDescendingBuilder[T]{FilterBuilder[T]{request: o.request.WithParameterValueAppended("order", ".desc")}}
+func (o OrderedFilterBuilder[T]) Descending() OrderedDescendingFilterBuilder[T] {
+	return OrderedDescendingFilterBuilder[T]{FilterBuilder[T]{request: o.request.WithParameterValueAppended("order", ".desc")}}
 }
 
 // NullsFirst places rows holding a null in the newest order column before
 // every non-null row.
-func (o OrderedBuilder[T]) NullsFirst() FilterBuilder[T] {
+func (o OrderedFilterBuilder[T]) NullsFirst() FilterBuilder[T] {
 	return FilterBuilder[T]{request: o.request.WithParameterValueAppended("order", ".nullsfirst")}
 }
 
 // NullsLast places rows holding a null in the newest order column after
 // every non-null row.
-func (o OrderedDescendingBuilder[T]) NullsLast() FilterBuilder[T] {
+func (o OrderedDescendingFilterBuilder[T]) NullsLast() FilterBuilder[T] {
 	return FilterBuilder[T]{request: o.request.WithParameterValueAppended("order", ".nullslast")}
 }
 

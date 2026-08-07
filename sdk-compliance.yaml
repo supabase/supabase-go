@@ -31,9 +31,9 @@ features:
     status: implemented
     symbols:
       - postgrest.FilterBuilder.Order
-      - postgrest.OrderedBuilder.Descending
-      - postgrest.OrderedBuilder.NullsFirst
-      - postgrest.OrderedDescendingBuilder.NullsLast
+      - postgrest.OrderedFilterBuilder.Descending
+      - postgrest.OrderedFilterBuilder.NullsFirst
+      - postgrest.OrderedDescendingFilterBuilder.NullsLast
   database.using_modifiers.request_cancellation:
     status: implemented
     symbols:
