@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/supabase/supabase-go/core"
@@ -31,8 +32,12 @@ func newIntegrationClient(t *testing.T) *postgrest.Client {
 	return postgrest.NewFromConfiguration(projectConfiguration)
 }
 
+type seededEntity struct {
+	ID int `json:"id"`
+}
+
 type seededInstrument struct {
-	ID   int    `json:"id"`
+	seededEntity
 	Name string `json:"name"`
 }
 
@@ -240,6 +245,95 @@ func TestCollectAppliesSingleColumnOrder(t *testing.T) {
 				if testCase.want[index] != row.Name {
 					t.Errorf("Row %d, want %q, got %q", index, testCase.want[index], row.Name)
 				}
+			}
+		})
+	}
+}
+
+func TestCollectAppliesMultiColumnOrder(t *testing.T) {
+	testCases := []struct {
+		name    string
+		perform func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity]
+		want    []int
+	}{
+		{
+			// Tie-break activates the second term
+			name: "order order",
+			perform: func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Order("section").Order("seat") // order=section,seat
+			},
+			want: []int{4, 2, 1, 3, 5, 6},
+		},
+		{
+			// A refinement binds the newest term, not the first
+			name: "order order descending",
+			perform: func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Order("section").Order("seat").Descending() // order=section,seat.desc
+			},
+			want: []int{2, 4, 3, 1, 6, 5},
+		},
+		{
+			// A refined first term keeps its refinement when a second term follows
+			name: "order descending order",
+			perform: func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Order("section").Descending().Order("seat") // order=section.desc,seat
+			},
+			want: []int{5, 6, 1, 3, 4, 2},
+		},
+		{
+			// Null placement defaults inside a lower-precedence term
+			name: "order order nulls",
+			perform: func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Order("section").Order("rating") // order=section,rating
+			},
+			want: []int{4, 2, 3, 1, 6, 5},
+		},
+		{
+			// NullsFirst refines the lower-precedence term
+			name: "order order nulls refine",
+			perform: func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Order("section").Order("rating").NullsFirst() // order=section,rating.nullsfirst
+			},
+			want: []int{2, 4, 3, 1, 5, 6},
+		},
+		{
+			// Nulls at the first term with the second term ordering the null group
+			name: "order order nulls 2",
+			perform: func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Order("rating").Order("tenure") // order=rating,tenure
+			},
+			want: []int{6, 3, 4, 1, 5, 2},
+		},
+	}
+
+	client := newIntegrationClient(t)
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			rows, response, err := postgrest.Collect(
+				t.Context(),
+				client,
+				testCase.perform(postgrest.
+					From[seededEntity]("players").
+					Select("id")),
+			)
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+			testkit.AssertOKResponse(t, response)
+			if len(rows) != 6 {
+				t.Fatalf("row count = %d, want 6 (seed drifted?)", len(rows))
+			}
+
+			rowIds := make([]int, len(rows))
+			for index, row := range rows {
+				rowIds[index] = row.ID
+			}
+
+			if !slices.Equal(testCase.want, rowIds) {
+				t.Errorf("want %q, got %q", testCase.want, rowIds)
 			}
 		})
 	}

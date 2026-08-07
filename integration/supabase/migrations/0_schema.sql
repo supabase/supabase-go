@@ -17,3 +17,20 @@ create policy "anonymous can read instruments"
     using (true);
 
 grant select on table public.instruments to anon;
+
+create table public.players (
+    id integer not null primary key,
+    section integer not null,
+    seat integer not null,
+    rating integer,
+    tenure integer
+);
+
+alter table public.players enable row level security;
+
+create policy "anonymous can read players"
+    on public.players for select
+    to anon
+    using (true);
+
+grant select on table public.players to anon;
