@@ -32,6 +32,8 @@ ldflags
 mockability
 multimap
 nativeness
+nullsfirst
+nullslast
 oapi
 omitempty
 omitzero

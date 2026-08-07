@@ -178,6 +178,74 @@ func TestCollectForwardsNegativeLimit(t *testing.T) {
 	}
 }
 
+func TestCollectAppliesSingleColumnOrder(t *testing.T) {
+	const fieldName = "acquired_year"
+
+	testCases := []struct {
+		name    string
+		perform func(builder postgrest.FilterBuilder[seededInstrument]) postgrest.Query[seededInstrument]
+		want    []string
+	}{
+		{
+			name: "implicit defaults",
+			perform: func(builder postgrest.FilterBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
+				return builder.Order(fieldName)
+			},
+			want: []string{"violin", "viola", "cello"}, // 2015, 2020, null
+		},
+		{
+			name: "descending",
+			perform: func(builder postgrest.FilterBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
+				return builder.Order(fieldName).Descending() // .desc
+			},
+			want: []string{"cello", "viola", "violin"}, // null, 2020, 2015
+		},
+		{
+			name: "ascending with nulls first",
+			perform: func(builder postgrest.FilterBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
+				return builder.Order(fieldName).NullsFirst() // .nullsfirst
+			},
+			want: []string{"cello", "violin", "viola"}, // null, 2015, 2020
+		},
+		{
+			name: "descending with nulls last",
+			perform: func(builder postgrest.FilterBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
+				return builder.Order(fieldName).Descending().NullsLast() // .desc.nullslast
+			},
+			want: []string{"viola", "violin", "cello"}, // 2020, 2015, null
+		},
+	}
+
+	client := newIntegrationClient(t)
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			rows, response, err := postgrest.Collect(
+				t.Context(),
+				client,
+				testCase.perform(postgrest.
+					From[seededInstrument]("instruments").
+					Select("")),
+			)
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+			testkit.AssertOKResponse(t, response)
+			if len(rows) != 3 {
+				t.Fatalf("row count = %d, want 3 (seed drifted?)", len(rows))
+			}
+
+			for index, row := range rows {
+				if testCase.want[index] != row.Name {
+					t.Errorf("Row %d, want %q, got %q", index, testCase.want[index], row.Name)
+				}
+			}
+		})
+	}
+}
+
 // TestMissingRelationReturnsTypedError proves error parsing against a real
 // PostgREST error response. The stack is version-pinned by the harness, so
 // the exact protocol shape (PGRST205, HTTP 404) is asserted deliberately: a
