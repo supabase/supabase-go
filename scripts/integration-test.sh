@@ -106,9 +106,9 @@ eval "$("${SUPABASE_CLI}" --workdir "${project_directory}" status -o env)"
 
 # The modules with integration-tagged tests - deliberately a curated subset of
 # the workspace (core has none), so this is NOT derived from go.work like the
-# build/lint/vuln lists are. The -run filter is anchored so it selects exactly
-# the TestIntegration-prefixed functions and can never match a unit test
-# compiled into the same package.
+# build/lint/vuln lists are. Selection is by the integration build tag alone -
+# no -run name filter - so a tagged test can never be silently skipped by its
+# name. The hermetic unit tests compiled under the tag simply run again here.
 modules=(. postgrest)
 
 echo "==> running integration tests (-race, tag: integration)"
@@ -118,7 +118,7 @@ for module in "${modules[@]}"; do
     cd "${module}"
     SUPABASE_URL="${API_URL}" \
     SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
-      go test -race -shuffle=on -tags integration -run '^TestIntegration' ./...
+      go test -v -race -shuffle=on -tags integration ./...
   )
 done
 

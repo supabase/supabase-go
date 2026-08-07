@@ -1,6 +1,6 @@
 //go:build integration
 
-package supabase_test
+package integrationtest
 
 import (
 	"net/http"
@@ -11,11 +11,10 @@ import (
 	"github.com/supabase/supabase-go/postgrest"
 )
 
-// TestIntegrationRootClientSelect selects seeded rows through the root
-// client against the local Supabase stack started by
-// scripts/integration-test.sh, covering the composition of a new client,
-// Database, From, Select and Collect.
-func TestIntegrationRootClientSelect(t *testing.T) {
+// TestRootClientSelect selects seeded rows through the root client against
+// the local Supabase stack started by scripts/integration-test.sh, covering
+// the composition of a new client, Database, From, Select and Collect.
+func TestRootClientSelect(t *testing.T) {
 	projectURL := os.Getenv("SUPABASE_URL")
 	apiKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
 	if projectURL == "" || apiKey == "" {

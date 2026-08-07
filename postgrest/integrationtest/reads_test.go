@@ -1,6 +1,6 @@
 //go:build integration
 
-package postgrest_test
+package integrationtest
 
 import (
 	"errors"
@@ -35,11 +35,11 @@ type seededInstrument struct {
 	Name string `json:"name"`
 }
 
-// TestIntegrationSelectAllColumns proves the read path against real
-// PostgREST: seeded rows decode, the status is 200 and a request without a
-// count preference reports an unknown total as -1, confirming live the
-// Content-Range behavior the unit tests synthesize.
-func TestIntegrationSelectAllColumns(t *testing.T) {
+// TestSelectAllColumns proves the read path against real PostgREST: seeded
+// rows decode, the status is 200 and a request without a count preference
+// reports an unknown total as -1, confirming live the Content-Range behavior
+// the unit tests synthesize.
+func TestSelectAllColumns(t *testing.T) {
 	client := newIntegrationClient(t)
 
 	rows, response, err := postgrest.Collect(
@@ -74,10 +74,9 @@ func TestIntegrationSelectAllColumns(t *testing.T) {
 	}
 }
 
-// TestIntegrationSelectColumnSubset proves the cleaned select list is
-// accepted by the real server and that a narrower row type decodes the
-// projection.
-func TestIntegrationSelectColumnSubset(t *testing.T) {
+// TestSelectColumnSubset proves the cleaned select list is accepted by the
+// real server and that a narrower row type decodes the projection.
+func TestSelectColumnSubset(t *testing.T) {
 	client := newIntegrationClient(t)
 
 	type nameOnly struct {
@@ -110,12 +109,11 @@ func TestIntegrationSelectColumnSubset(t *testing.T) {
 	}
 }
 
-// TestIntegrationMissingRelationReturnsTypedError proves error parsing
-// against a real PostgREST error response. The stack is version-pinned by
-// the harness, so the exact protocol shape (PGRST205, HTTP 404) is asserted
-// deliberately: a failure here on a pin bump is upstream drift worth
-// reviewing.
-func TestIntegrationMissingRelationReturnsTypedError(t *testing.T) {
+// TestMissingRelationReturnsTypedError proves error parsing against a real
+// PostgREST error response. The stack is version-pinned by the harness, so
+// the exact protocol shape (PGRST205, HTTP 404) is asserted deliberately: a
+// failure here on a pin bump is upstream drift worth reviewing.
+func TestMissingRelationReturnsTypedError(t *testing.T) {
 	client := newIntegrationClient(t)
 
 	rows, response, err := postgrest.Collect(
