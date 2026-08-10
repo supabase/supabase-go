@@ -2,6 +2,8 @@
 
 package integrationtest
 
+// cSpell:ignore Fworld Fleading
+
 import (
 	"errors"
 	"net/http"
@@ -36,9 +38,13 @@ type seededEntity struct {
 	ID int `json:"id"`
 }
 
-type seededInstrument struct {
+type namedEntity struct {
 	seededEntity
 	Name string `json:"name"`
+}
+
+type seededInstrument struct {
+	namedEntity
 }
 
 // TestSelectAllColumns proves the read path against real PostgREST: seeded
@@ -360,6 +366,174 @@ func TestMissingRelationReturnsTypedError(t *testing.T) {
 	}
 	if typedError.Code != "PGRST205" {
 		t.Errorf("Code = %q, want PGRST205 (unknown relation)", typedError.Code)
+	}
+	if typedError.HTTPStatus != http.StatusNotFound {
+		t.Errorf("HTTPStatus = %d, want 404", typedError.HTTPStatus)
+	}
+	if rows != nil {
+		t.Errorf("rows = %+v, want nil on error", rows)
+	}
+	if response != (postgrest.Response{}) {
+		t.Errorf("response = %+v, want zero value on error", response)
+	}
+}
+
+func TestDelimitedIdentifierTableNames(t *testing.T) {
+	testCases := []struct {
+		name        string
+		shapedInput string // TODO remove once path escaping fixed
+		table       string
+	}{
+		{
+			name:        "embedded space",
+			shapedInput: "odd%20table",
+			table:       "odd table",
+		},
+		{
+			name:  "risk of leaking tail into query string",
+			table: "a?b",
+		},
+		{
+			name:        "should not allow route to RPC",
+			shapedInput: "rpc%2Fd",
+			table:       "rpc/d",
+		},
+		{
+			name:        "should not collapse double slash",
+			shapedInput: "hello%2F%2Fworld",
+			table:       "hello//world",
+		},
+		{
+			name:        "should not swallow leading slash",
+			shapedInput: "%2Fleading",
+			table:       "/leading",
+		},
+		{
+			name:        "trailing slash",
+			shapedInput: "trailing%2F",
+			table:       "trailing/",
+		},
+		{
+			name:        "embedded ampersand",
+			shapedInput: "e&f",
+			table:       "e&f",
+		},
+		{
+			name:        "double double dot",
+			shapedInput: "..%2F..",
+			table:       "../..",
+		},
+		{
+			name:        "embedded double dot should not cancel leading part",
+			shapedInput: "g%2F..%2Fh",
+			table:       "g/../h",
+		},
+		{
+			name:        "trailing percent style name",
+			shapedInput: "50%25off",
+			table:       "50%off",
+		},
+		{
+			name:  "double quote",
+			table: `"`,
+		},
+		{
+			name:  "single quote",
+			table: "'",
+		},
+		{
+			name:  "backtick",
+			table: "`",
+		},
+	}
+
+	client := newIntegrationClient(t)
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			table := testCase.table
+			if testCase.shapedInput != "" {
+				table = testCase.shapedInput
+			}
+
+			rows, response, err := postgrest.Collect(
+				t.Context(),
+				client,
+				postgrest.
+					From[namedEntity](table).
+					Select("name"),
+			)
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+			testkit.AssertOKResponse(t, response)
+			if len(rows) != 1 {
+				t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
+			}
+
+			if rows[0].Name != testCase.table {
+				t.Errorf("want %q, got %q", testCase.table, rows[0].Name)
+			}
+		})
+	}
+}
+
+func TestDelimitedIdentifierTableNameSingleDot(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[struct{}]("%2E"). // TODO use "." once path escaping fixed
+			Select(""),
+	)
+
+	if rows != nil {
+		t.Errorf("rows = %+v, want nil on error", rows)
+	}
+	if response != (postgrest.Response{}) {
+		t.Errorf("response = %+v, want zero value on error", response)
+	}
+	if err == nil {
+		t.Fatal("Collect: want an error - Kong normalizes `.` to the PostgREST OpenAPI root")
+	}
+	// The root answers HTTP 200 with the OpenAPI object, so the SDK fails while
+	// decoding it into a row slice rather than returning an *Error. A decode
+	// failure (not an HTTP error) is the observable signature of `.` here, and
+	// the contrast with the double-dot 404 is the point of having both tests
+	// (see TestDelimitedIdentifierTableNameDoubleDot).
+	var typedError *postgrest.Error
+	if errors.As(err, &typedError) {
+		t.Fatalf("got *postgrest.Error %v, want a decoding error (200 OpenAPI object)", typedError)
+	}
+}
+
+func TestDelimitedIdentifierTableNameDoubleDot(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[struct{}]("%2E%2E"). // TODO use ".." once path escaping fixed
+			Select(""),
+	)
+
+	var typedError *postgrest.Error
+	if !errors.As(err, &typedError) {
+		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+	}
+	// This 404 is Kong's router error, not PostgREST's: `..` normalizes to
+	// `/rest/` upstream, matching no route. Kong's body carries no PostgREST
+	// code, so Code is empty - the discriminator from a genuine PGRST205.
+	if typedError.Code != "" {
+		t.Errorf("Code = %q, want empty (Kong router 404 carries no PostgREST code)", typedError.Code)
+	}
+	if typedError.Message != "no Route matched with those values" {
+		t.Errorf("Message = %q, want Kong's no-route message", typedError.Message)
 	}
 	if typedError.HTTPStatus != http.StatusNotFound {
 		t.Errorf("HTTPStatus = %d, want 404", typedError.HTTPStatus)
