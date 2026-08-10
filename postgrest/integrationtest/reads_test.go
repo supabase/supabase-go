@@ -380,58 +380,48 @@ func TestMissingRelationReturnsTypedError(t *testing.T) {
 
 func TestDelimitedIdentifierTableNames(t *testing.T) {
 	testCases := []struct {
-		name        string
-		shapedInput string // TODO remove once path escaping fixed
-		table       string
+		name  string
+		table string
 	}{
 		{
-			name:        "embedded space",
-			shapedInput: "odd%20table",
-			table:       "odd table",
+			name:  "embedded space",
+			table: "odd table",
 		},
 		{
 			name:  "risk of leaking tail into query string",
 			table: "a?b",
 		},
 		{
-			name:        "should not allow route to RPC",
-			shapedInput: "rpc%2Fd",
-			table:       "rpc/d",
+			name:  "should not allow route to RPC",
+			table: "rpc/d",
 		},
 		{
-			name:        "should not collapse double slash",
-			shapedInput: "hello%2F%2Fworld",
-			table:       "hello//world",
+			name:  "should not collapse double slash",
+			table: "hello//world",
 		},
 		{
-			name:        "should not swallow leading slash",
-			shapedInput: "%2Fleading",
-			table:       "/leading",
+			name:  "should not swallow leading slash",
+			table: "/leading",
 		},
 		{
-			name:        "trailing slash",
-			shapedInput: "trailing%2F",
-			table:       "trailing/",
+			name:  "trailing slash",
+			table: "trailing/",
 		},
 		{
-			name:        "embedded ampersand",
-			shapedInput: "e&f",
-			table:       "e&f",
+			name:  "embedded ampersand",
+			table: "e&f",
 		},
 		{
-			name:        "double double dot",
-			shapedInput: "..%2F..",
-			table:       "../..",
+			name:  "double double dot",
+			table: "../..",
 		},
 		{
-			name:        "embedded double dot should not cancel leading part",
-			shapedInput: "g%2F..%2Fh",
-			table:       "g/../h",
+			name:  "embedded double dot should not cancel leading part",
+			table: "g/../h",
 		},
 		{
-			name:        "trailing percent style name",
-			shapedInput: "50%25off",
-			table:       "50%off",
+			name:  "trailing percent style name",
+			table: "50%off",
 		},
 		{
 			name:  "double quote",
@@ -451,16 +441,11 @@ func TestDelimitedIdentifierTableNames(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			table := testCase.table
-			if testCase.shapedInput != "" {
-				table = testCase.shapedInput
-			}
-
 			rows, response, err := postgrest.Collect(
 				t.Context(),
 				client,
 				postgrest.
-					From[namedEntity](table).
+					From[namedEntity](testCase.table).
 					Select("name"),
 			)
 			if err != nil {
@@ -487,7 +472,7 @@ func TestDelimitedIdentifierTableNameSingleDot(t *testing.T) {
 		t.Context(),
 		client,
 		postgrest.
-			From[struct{}]("%2E"). // TODO use "." once path escaping fixed
+			From[struct{}](".").
 			Select(""),
 	)
 
@@ -518,7 +503,7 @@ func TestDelimitedIdentifierTableNameDoubleDot(t *testing.T) {
 		t.Context(),
 		client,
 		postgrest.
-			From[struct{}]("%2E%2E"). // TODO use ".." once path escaping fixed
+			From[struct{}]("..").
 			Select(""),
 	)
 

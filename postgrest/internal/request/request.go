@@ -23,21 +23,23 @@ type parameter struct {
 // changed, so Requests may be freely copied, forked, and shared between goroutines.
 type Request struct {
 	method     string
-	path       string
+	path       []string
 	parameters []parameter
 }
 
-// New returns a Request for the given HTTP method and relation path (a table
-// or view name). The path is not escaped here, so it must be escaped on query
-// assembly.
-func New(method, path string) Request {
-	return Request{method: method, path: path}
+// New returns a Request for the given HTTP method and URL path, one path
+// segment per element. Segments are stored verbatim and percent-escaped by
+// HTTPRequest on assembly, so any character in a segment - slashes, dots and
+// percent signs included - names the resource literally rather than acting
+// as URL structure.
+func New(method string, path ...string) Request {
+	return Request{method: method, path: slices.Clone(path)}
 }
 
-// Path returns the relation path the Request targets. It is not escaped, so
-// it must be escaped on query assembly.
-func (r Request) Path() string {
-	return r.path
+// Path returns the URL path segments the Request targets, unescaped, as an
+// independent copy.
+func (r Request) Path() []string {
+	return slices.Clone(r.path)
 }
 
 // WithParameter returns a new Request with the given query-string pair appended.
@@ -100,10 +102,16 @@ func (r Request) WithParameterValueAppended(key, addition string) Request {
 }
 
 // HTTPRequest assembles the Request into an *http.Request against the given
-// base URL, carrying ctx. The base is not mutated. The Accept header is set
-// for JSON. Authentication headers are not injected here.
+// base URL, carrying ctx. The base is not mutated. Each path segment is
+// percent-escaped and appended below base's path, so segment text never
+// alters which resource the path names. The Accept header is set for JSON.
+// Authentication headers are not injected here.
 func (r Request) HTTPRequest(ctx context.Context, base *url.URL) (*http.Request, error) {
-	target := base.JoinPath(r.path)
+	escaped := make([]string, len(r.path))
+	for index, segment := range r.path {
+		escaped[index] = escapePathSegment(segment)
+	}
+	target := base.JoinPath(escaped...)
 	target.RawQuery = rawQuery(r.parameters)
 	httpRequest, err := http.NewRequestWithContext(ctx, r.method, target.String(), nil)
 	if err != nil {
@@ -167,4 +175,20 @@ func queryOctetSafe(octet byte) bool {
 		return true
 	}
 	return false
+}
+
+// escapePathSegment renders one path segment in the escaped form
+// [url.URL.JoinPath] requires. It is url.PathEscape plus the dot segments
+// "." and "..", which PathEscape leaves bare (dots are unreserved) yet
+// JoinPath would resolve as relative-path structure; their escaped forms
+// pass through JoinPath as data and percent-decode back to the literal
+// names at the server.
+func escapePathSegment(segment string) string {
+	switch segment {
+	case ".":
+		return "%2E"
+	case "..":
+		return "%2E%2E"
+	}
+	return url.PathEscape(segment)
 }

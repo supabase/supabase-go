@@ -1,6 +1,6 @@
 package request_test
 
-// cSpell:ignore موارد
+// cSpell:ignore موارد Finstruments Fincrement Fadmin Fauth Fusers
 
 import (
 	"context"
@@ -443,77 +443,77 @@ func TestTableNameEscaping(t *testing.T) {
 		{
 			name:  "embedded slash",
 			table: "a/b",
-			want:  "rest/v1/a/b", // TODO fix implementation so this gets correctly escaped
+			want:  "rest/v1/a%2Fb",
 		},
 		{
 			name:  "should not collapse double slash",
 			table: "a//b",
-			want:  "rest/v1/a/b", // TODO fix implementation so this gets correctly escaped
+			want:  "rest/v1/a%2F%2Fb",
 		},
 		{
 			name:  "should not swallow leading slash",
 			table: "/instruments",
-			want:  "rest/v1/instruments", // TODO fix implementation so this gets correctly escaped
+			want:  "rest/v1/%2Finstruments",
 		},
 		{
 			name:  "trailing slash",
 			table: "instruments/",
-			want:  "rest/v1/instruments/", // TODO fix implementation so this gets correctly escaped
+			want:  "rest/v1/instruments%2F",
 		},
 		{
 			name:  "should not allow route to RPC",
 			table: "rpc/increment_secret",
-			want:  "rest/v1/rpc/increment_secret", // TODO fix implementation so this gets correctly escaped
+			want:  "rest/v1/rpc%2Fincrement_secret",
 		},
 		{
 			name:  "single dot should not be API root",
 			table: ".",
-			want:  "rest/v1", // TODO fix implementation so this gets correctly escaped
+			want:  "rest/v1/%2E",
 		},
 		{
 			name:  "double dot should not climb up one level above PostgREST mount",
 			table: "..",
-			want:  "rest", // TODO fix implementation so this gets correctly escaped
+			want:  "rest/v1/%2E%2E",
 		},
 		{
 			name:  "double double dot should not climb up to host root",
 			table: "../..",
-			want:  "", // TODO fix implementation so this gets correctly escaped
+			want:  "rest/v1/..%2F..",
 		},
 		{
 			name:  "embedded double dot should not cancel leading part",
 			table: "a/../b",
-			want:  "rest/v1/b", // TODO fix implementation so this gets correctly escaped
+			want:  "rest/v1/a%2F..%2Fb",
 		},
 		{
 			name:  "prefixed double dot should not steer to sibling path under same gateway prefix",
 			table: "../admin",
-			want:  "rest/admin", // TODO fix implementation so this gets correctly escaped
+			want:  "rest/v1/..%2Fadmin",
 		},
 		{
 			name:  "curated double dots should not navigate to admin API",
 			table: "../../auth/v1/admin/users",
-			want:  "auth/v1/admin/users", // TODO fix implementation so this gets correctly escaped
+			want:  "rest/v1/..%2F..%2Fauth%2Fv1%2Fadmin%2Fusers",
 		},
 		{
 			name:  "trailing percent style name",
 			table: "50%off",
-			want:  "rest/v1", // TODO fix implementation so this gets correctly escaped (discarded because setPath fails on invalid escape)
+			want:  "rest/v1/50%25off",
 		},
 		{
 			name:  "invalid hex digits after percent should not matter as taken verbatim after the percent escape",
 			table: "%zz",
-			want:  "rest/v1", // TODO fix implementation so this gets correctly escaped
+			want:  "rest/v1/%25zz",
 		},
 		{
 			name:  "hex encoded slash should not matter as taken verbatim after the percent escape",
 			table: "%2F",
-			want:  "rest/v1/%2F", // TODO fix implementation so this gets correctly escaped
+			want:  "rest/v1/%252F",
 		},
 		{
 			name:  "hex encoded double dots should not matter as taken verbatim after the percent escapes",
 			table: "%2e%2e",
-			want:  "rest/v1/%2e%2e", // TODO fix implementation so this gets correctly escaped
+			want:  "rest/v1/%252e%252e",
 		},
 		{
 			name:  "empty",
