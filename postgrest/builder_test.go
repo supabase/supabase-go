@@ -168,9 +168,7 @@ func TestCollectEmptyResultYieldsEmptySlice(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
-		postgrest.
-			From[instrument]("instruments").
-			Select(""),
+		postgrest.From[instrument]("instruments"),
 	)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -199,9 +197,7 @@ func TestCollectPreservesRawRowBytes(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
-		postgrest.
-			From[json.RawMessage]("instruments").
-			Select(""),
+		postgrest.From[json.RawMessage]("instruments"),
 	)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -242,9 +238,7 @@ func TestCollectReturnsResponseMetadata(t *testing.T) {
 			rows, response, err := postgrest.Collect(
 				t.Context(),
 				newTestClient(t, server),
-				postgrest.
-					From[instrument]("instruments").
-					Select(""),
+				postgrest.From[instrument]("instruments"),
 			)
 			if err != nil {
 				t.Fatalf("Collect: %v", err)
@@ -278,6 +272,10 @@ func TestCollectEmptySelectMeansAllColumns(t *testing.T) {
 		newTestClient(t, server),
 		postgrest.
 			From[instrument]("instruments").
+
+			// Method-Under-Test:
+			// An explicit inclusion of query `select=*`, rather than relying upon the identical,
+			// implicit default the PostgREST service implements when select is not present in the query
 			Select(""),
 	)
 	if err != nil {
@@ -332,9 +330,7 @@ func TestCollectReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
-		postgrest.
-			From[instrument]("missing").
-			Select(""),
+		postgrest.From[instrument]("missing"),
 	)
 
 	var typedError *postgrest.Error
@@ -361,9 +357,7 @@ func TestCollectPreservesUnparsableErrorBody(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
-		postgrest.
-			From[instrument]("instruments").
-			Select(""),
+		postgrest.From[instrument]("instruments"),
 	)
 
 	var typedError *postgrest.Error
@@ -396,9 +390,7 @@ func TestCollectWrapsDecodeFailure(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
-		postgrest.
-			From[instrument]("instruments").
-			Select(""),
+		postgrest.From[instrument]("instruments"),
 	)
 
 	if err == nil || !strings.Contains(err.Error(), "decoding response") {
@@ -470,9 +462,7 @@ func TestCollectHonoursContextCancellation(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		ctx,
 		newTestClient(t, server),
-		postgrest.
-			From[instrument]("instruments").
-			Select(""),
+		postgrest.From[instrument]("instruments"),
 	)
 
 	if !errors.Is(err, context.Canceled) {

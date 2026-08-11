@@ -58,9 +58,7 @@ func TestSelectAllColumns(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		client,
-		postgrest.
-			From[seededInstrument]("instruments").
-			Select(""),
+		postgrest.From[seededInstrument]("instruments"),
 	)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -165,7 +163,6 @@ func TestCollectAppliesLimit(t *testing.T) {
 		client,
 		postgrest.
 			From[seededInstrument]("instruments").
-			Select("").
 			Limit(2), // the function under test
 	)
 	if err != nil {
@@ -187,7 +184,6 @@ func TestCollectAppliesZeroLimit(t *testing.T) {
 		client,
 		postgrest.
 			From[seededInstrument]("instruments").
-			Select("").
 			Limit(0), // the function under test
 	)
 	if err != nil {
@@ -209,7 +205,6 @@ func TestCollectForwardsNegativeLimit(t *testing.T) {
 		client,
 		postgrest.
 			From[seededInstrument]("instruments").
-			Select("").
 			Limit(-1), // the function under test
 	)
 
@@ -277,7 +272,6 @@ func TestCollectAppliesSingleColumnOrder(t *testing.T) {
 				client,
 				testCase.perform(postgrest.
 					From[seededInstrument]("instruments").
-					Select("").
 					Order("acquired_year")),
 			)
 			if err != nil {
@@ -398,9 +392,7 @@ func TestMissingRelationReturnsTypedError(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		client,
-		postgrest.
-			From[seededInstrument]("does_not_exist").
-			Select(""),
+		postgrest.From[seededInstrument]("does_not_exist"),
 	)
 
 	var typedError *postgrest.Error
@@ -514,9 +506,7 @@ func TestDelimitedIdentifierTableNameSingleDot(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		client,
-		postgrest.
-			From[struct{}](".").
-			Select(""),
+		postgrest.From[struct{}]("."),
 	)
 
 	if rows != nil {
@@ -545,9 +535,7 @@ func TestDelimitedIdentifierTableNameDoubleDot(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		client,
-		postgrest.
-			From[struct{}]("..").
-			Select(""),
+		postgrest.From[struct{}](".."),
 	)
 
 	var typedError *postgrest.Error
