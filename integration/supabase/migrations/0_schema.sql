@@ -9,10 +9,7 @@ create table public.instruments (
     acquired_year integer
 );
 alter table public.instruments enable row level security;
-create policy "anonymous can read instruments"
-    on public.instruments for select
-    to anon
-    using (true);
+create policy "anonymous can read instruments" on public.instruments for select to anon using (true);
 grant select on table public.instruments to anon;
 
 create table public.players (
@@ -23,10 +20,7 @@ create table public.players (
     tenure integer
 );
 alter table public.players enable row level security;
-create policy "anonymous can read players"
-    on public.players for select
-    to anon
-    using (true);
+create policy "anonymous can read players" on public.players for select to anon using (true);
 grant select on table public.players to anon;
 
 create table public.sequences (
