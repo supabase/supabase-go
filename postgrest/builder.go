@@ -65,8 +65,23 @@ func (q QueryBuilder[T]) Select(columns string) FilterBuilder[T] {
 	return FilterBuilder[T]{request: q.request.WithParameter("select", cleanSelectColumns(columns))}
 }
 
+// Range narrows the query result to the rows at zero-based positions from
+// through to, inclusive at both ends: Range(0, 9) requests the first ten
+// rows and Range(2, 2) just the third. Positions are counted over the
+// query's ordering, so chain Range after [FilterBuilder.Order] when the
+// window must be deterministic. The window is sent as a start offset of
+// from and a row cap of to-from+1, computed verbatim: Range(2, 1) requests
+// zero rows, and any smaller to requests a negative cap the server rejects.
+// Range and [FilterBuilder.Limit] both set the row cap - on any chain the
+// last cap wins, while the start offset is replaced only by a later Range.
+func (f FilterBuilder[T]) Range(from, to int) FilterBuilder[T] {
+	panic("not implemented")
+}
+
 // Limit caps the query result at count rows, sent verbatim, so zero requests
-// zero rows. When Limit is called more than once on a chain, the last call wins.
+// zero rows. Limit and [FilterBuilder.Range] both set the row cap: when either
+// is called more than once on a chain the last cap wins, and Limit leaves any
+// start offset set by an earlier Range standing.
 func (f FilterBuilder[T]) Limit(count int) FilterBuilder[T] {
 	return FilterBuilder[T]{request: f.request.WithParameterReplacing("limit", strconv.Itoa(count))}
 }
