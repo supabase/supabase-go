@@ -29,6 +29,16 @@ create policy "anonymous can read players"
     using (true);
 grant select on table public.players to anon;
 
+create table public.sequences (
+    id integer not null primary key,
+    "decimal number" character(2) not null,
+    character character(1) not null,
+    phonetic text not null
+);
+alter table public.sequences enable row level security;
+create policy "anonymous can read sequences" on public.sequences for select to anon using (true);
+grant select on table public.sequences to anon;
+
 -- Table names as a delimited identifier (a.k.a. quoted identifier), meaning:
 -- - they're case sensitive
 -- - they can contain any character (exception the character with code zero)
