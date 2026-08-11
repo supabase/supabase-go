@@ -75,7 +75,9 @@ func (q QueryBuilder[T]) Select(columns string) FilterBuilder[T] {
 // Range and [FilterBuilder.Limit] both set the row cap - on any chain the
 // last cap wins, while the start offset is replaced only by a later Range.
 func (f FilterBuilder[T]) Range(from, to int) FilterBuilder[T] {
-	panic("not implemented")
+	return FilterBuilder[T]{request: f.request.
+		WithParameterReplacing("offset", strconv.Itoa(from)).
+		WithParameterReplacing("limit", strconv.Itoa(to-from+1))}
 }
 
 // Limit caps the query result at count rows, sent verbatim, so zero requests
