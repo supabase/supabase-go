@@ -45,6 +45,7 @@ type namedEntity struct {
 
 type seededInstrument struct {
 	namedEntity
+	AcquiredYear *int `json:"acquired_year"`
 }
 
 // TestSelectAllColumns proves the read path against real PostgREST: seeded
@@ -78,6 +79,48 @@ func TestSelectAllColumns(t *testing.T) {
 		if !names[want] {
 			t.Errorf("seeded row %q missing from result set %v", want, names)
 		}
+	}
+}
+
+// TestCollectAllColumnsWithoutSelect proves the select-less read against
+// real PostgREST: a bare From sends no select parameter and the server's
+// documented default of * answers with every column, populating a field the
+// projection never named.
+func TestCollectAllColumnsWithoutSelect(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.From[seededInstrument]("instruments"),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+
+	// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+	testkit.AssertOKResponse(t, response)
+	if len(rows) != 3 {
+		t.Fatalf("row count = %d, want 3 (seed drifted?)", len(rows))
+	}
+	years := map[string]*int{}
+	for _, row := range rows {
+		years[row.Name] = row.AcquiredYear
+	}
+	for name, want := range map[string]int{"violin": 2015, "viola": 2020} {
+		got, present := years[name]
+		if !present {
+			t.Errorf("seeded row %q missing from result set", name)
+			continue
+		}
+		if got == nil || *got != want {
+			t.Errorf("%s acquired_year = %v, want %d (every column should arrive without a select)", name, got, want)
+		}
+	}
+	if got, present := years["cello"]; !present {
+		t.Error(`seeded row "cello" missing from result set`)
+	} else if got != nil {
+		t.Errorf("cello acquired_year = %d, want null", *got)
 	}
 }
 

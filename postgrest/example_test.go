@@ -49,7 +49,8 @@ func ExampleFrom() {
 
 // ExampleCollect_schemaDriven demonstrates the dynamic escape hatch: when row
 // shapes are not known at compile time, instantiate Collect with a generic
-// container instead of a named struct.
+// container instead of a named struct. A bare From reads every column, which
+// suits a container that names none.
 func ExampleCollect_schemaDriven() {
 	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
@@ -60,9 +61,7 @@ func ExampleCollect_schemaDriven() {
 	rows, response, err := postgrest.Collect(
 		context.Background(),
 		client,
-		postgrest.
-			From[map[string]any]("instruments").
-			Select(""),
+		postgrest.From[map[string]any]("instruments"),
 	)
 	if err != nil {
 		fmt.Println(err)
