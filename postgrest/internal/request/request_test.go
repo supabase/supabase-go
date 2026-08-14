@@ -56,10 +56,10 @@ func TestForksFromSharedIntermediateAreIndependent(t *testing.T) {
 	first := intermediate.WithParameter("limit", "1")
 	second := intermediate.WithParameter("offset", "2")
 
-	if got, want := requestURL(t, first), "https://example.test/rest/v1/instruments?limit=1&select=id"; got != want {
+	if got, want := requestURL(t, first), "https://example.test/rest/v1/instruments?select=id&limit=1"; got != want {
 		t.Errorf("first chain URL = %q, want %q", got, want)
 	}
-	if got, want := requestURL(t, second), "https://example.test/rest/v1/instruments?offset=2&select=id"; got != want {
+	if got, want := requestURL(t, second), "https://example.test/rest/v1/instruments?select=id&offset=2"; got != want {
 		t.Errorf("second chain URL = %q, want %q", got, want)
 	}
 }
@@ -135,6 +135,104 @@ func TestPathEscaping(t *testing.T) {
 		t.Fatalf("HTTPRequest: %v", err)
 	}
 	if got, want := httpRequest.URL.String(), "https://example.test/rest/v1/odd%20table"; got != want {
+		t.Errorf("URL = %q, want %q", got, want)
+	}
+}
+
+// TestQueryStringRendering asserts the exact query text HTTPRequest renders for
+// single parameter pairs, characters of PostgREST's dialect included.
+func TestQueryStringRendering(t *testing.T) {
+	testCases := []struct {
+		name  string
+		key   string
+		value string
+		want  string
+	}{
+		{
+			name:  "select list comma",
+			key:   "select",
+			value: "id,name",
+			want:  "select=id,name",
+		},
+		{
+			name:  "order terms",
+			key:   "order",
+			value: "acquired_year.desc,name",
+			want:  "order=acquired_year.desc,name",
+		},
+		{
+			name:  "embed alias and parentheses",
+			key:   "select",
+			value: "name,section:orchestral_sections(name)",
+			want:  "select=name,section:orchestral_sections(name)",
+		},
+		{
+			name:  "wildcard",
+			key:   "select",
+			value: "*",
+			want:  "select=*",
+		},
+		{
+			name:  "quoted in-list",
+			key:   "name",
+			value: `in.("x","y")`,
+			want:  "name=in.(%22x%22,%22y%22)",
+		},
+		{
+			name:  "quoted identifier with space",
+			key:   "select",
+			value: `"full name"`,
+			want:  "select=%22full%20name%22",
+		},
+		{
+			name:  "structural characters",
+			key:   "value",
+			value: "a&b=c+d%e",
+			want:  "value=a%26b%3Dc%2Bd%25e",
+		},
+		{
+			name:  "semicolon",
+			key:   "value",
+			value: "a;b",
+			want:  "value=a%3Bb",
+		},
+		{
+			name:  "non-ASCII octets",
+			key:   "name",
+			value: "eq.é",
+			want:  "name=eq.%C3%A9",
+		},
+		{
+			name:  "four-byte UTF-8 emoji",
+			key:   "name",
+			value: "eq.💩",
+			want:  "name=eq.%F0%9F%92%A9",
+		},
+		{
+			name:  "invalid UTF-8 octet",
+			key:   "value",
+			value: "\xff",
+			want:  "value=%FF",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			rendered := requestURL(t, request.New(http.MethodGet, "instruments").
+				WithParameter(testCase.key, testCase.value))
+			if got, want := rendered, "https://example.test/rest/v1/instruments?"+testCase.want; got != want {
+				t.Errorf("URL = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+// TestQueryStringPairOrdering asserts the order pairs render in.
+func TestQueryStringPairOrdering(t *testing.T) {
+	rendered := requestURL(t, request.New(http.MethodGet, "instruments").
+		WithParameter("select", "id").
+		WithParameter("order", "name").
+		WithParameter("limit", "1"))
+	if got, want := rendered, "https://example.test/rest/v1/instruments?select=id&order=name&limit=1"; got != want {
 		t.Errorf("URL = %q, want %q", got, want)
 	}
 }
