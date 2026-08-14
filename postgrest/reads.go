@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/supabase/supabase-go/postgrest/internal/request"
 )
@@ -71,7 +72,7 @@ func execute[T any](ctx context.Context, client *Client, query Query[T]) ([]byte
 		return nil, Response{}, ErrMissingClient
 	}
 	requestState := query.state().request
-	if requestState.Path() == "" {
+	if path := requestState.Path(); len(path) == 0 || slices.Contains(path, "") {
 		return nil, Response{}, ErrMissingTable
 	}
 

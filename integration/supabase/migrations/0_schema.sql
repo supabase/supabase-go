@@ -34,3 +34,93 @@ create policy "anonymous can read players"
     using (true);
 
 grant select on table public.players to anon;
+
+-- Table names as a delimited identifier (a.k.a. quoted identifier), meaning:
+-- - they're case sensitive
+-- - they can contain any character (exception the character with code zero)
+-- https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
+
+create table public."odd table" (id integer not null primary key, name text not null);
+alter table public."odd table" enable row level security;
+create policy "anonymous can read odd table" on public."odd table" for select to anon using (true);
+grant select on table public."odd table" to anon;
+
+create table public."a?b" (id integer not null primary key, name text not null);
+alter table public."a?b" enable row level security;
+create policy "anonymous can read a?b" on public."a?b" for select to anon using (true);
+grant select on table public."a?b" to anon;
+
+create table public."rpc/d" (id integer not null primary key, name text not null);
+alter table public."rpc/d" enable row level security;
+create policy "anonymous can read rpc/d" on public."rpc/d" for select to anon using (true);
+grant select on table public."rpc/d" to anon;
+
+create table public."hello//world" (id integer not null primary key, name text not null);
+alter table public."hello//world" enable row level security;
+create policy "anonymous can read hello//world" on public."hello//world" for select to anon using (true);
+grant select on table public."hello//world" to anon;
+
+create table public."/leading" (id integer not null primary key, name text not null);
+alter table public."/leading" enable row level security;
+create policy "anonymous can read /leading" on public."/leading" for select to anon using (true);
+grant select on table public."/leading" to anon;
+
+create table public."trailing/" (id integer not null primary key, name text not null);
+alter table public."trailing/" enable row level security;
+create policy "anonymous can read trailing/" on public."trailing/" for select to anon using (true);
+grant select on table public."trailing/" to anon;
+
+create table public."e&f" (id integer not null primary key, name text not null);
+alter table public."e&f" enable row level security;
+create policy "anonymous can read e&f" on public."e&f" for select to anon using (true);
+grant select on table public."e&f" to anon;
+
+create table public."." (id integer not null primary key, name text not null);
+alter table public."." enable row level security;
+create policy "anonymous can read ." on public."." for select to anon using (true);
+grant select on table public."." to anon;
+
+create table public.".." (id integer not null primary key, name text not null);
+alter table public.".." enable row level security;
+create policy "anonymous can read .." on public.".." for select to anon using (true);
+grant select on table public.".." to anon;
+
+create table public."../.." (id integer not null primary key, name text not null);
+alter table public."../.." enable row level security;
+create policy "anonymous can read ../.." on public."../.." for select to anon using (true);
+grant select on table public."../.." to anon;
+
+create table public."g/../h" (id integer not null primary key, name text not null);
+alter table public."g/../h" enable row level security;
+create policy "anonymous can read g/../h" on public."g/../h" for select to anon using (true);
+grant select on table public."g/../h" to anon;
+
+create table public."50%off" (id integer not null primary key, name text not null);
+alter table public."50%off" enable row level security;
+create policy "anonymous can read 50%off" on public."50%off" for select to anon using (true);
+grant select on table public."50%off" to anon;
+
+create table public."""" (id integer not null primary key, name text not null);
+alter table public."""" enable row level security;
+create policy "anonymous can read """ on public."""" for select to anon using (true);
+grant select on table public."""" to anon;
+
+create table public."'" (id integer not null primary key, name text not null);
+alter table public."'" enable row level security;
+create policy "anonymous can read '" on public."'" for select to anon using (true);
+grant select on table public."'" to anon;
+
+create table public."`" (id integer not null primary key, name text not null);
+alter table public."`" enable row level security;
+create policy "anonymous can read `" on public."`" for select to anon using (true);
+grant select on table public."`" to anon;
+
+create table public."2026-06-30T11:23:31" (id integer not null primary key, name text not null);
+alter table public."2026-06-30T11:23:31" enable row level security;
+create policy "anonymous can read 2026-06-30T11:23:31" on public."2026-06-30T11:23:31" for select to anon using (true);
+grant select on table public."2026-06-30T11:23:31" to anon;
+
+create table public."a+b" (id integer not null primary key, name text not null);
+alter table public."a+b" enable row level security;
+create policy "anonymous can read a+b" on public."a+b" for select to anon using (true);
+grant select on table public."a+b" to anon;

@@ -1,5 +1,7 @@
 package request_test
 
+// cSpell:ignore موارد Finstruments Fincrement Fadmin Fauth Fusers
+
 import (
 	"context"
 	"net/http"
@@ -379,5 +381,162 @@ func TestQueryStringPairOrdering(t *testing.T) {
 		WithParameter("limit", "1"))
 	if got, want := rendered, "https://example.test/rest/v1/instruments?select=id&order=name&limit=1"; got != want {
 		t.Errorf("URL = %q, want %q", got, want)
+	}
+}
+
+func TestTableNameEscaping(t *testing.T) {
+	testCases := []struct {
+		name  string
+		table string
+		want  string
+	}{
+		{
+			name:  "a very normal standard table name",
+			table: "instruments",
+			want:  "rest/v1/instruments",
+		},
+		{
+			name:  "table name with unreserved character joining",
+			table: "table_2024",
+			want:  "rest/v1/table_2024",
+		},
+		{
+			name:  "a dot within a segment is ordinary data",
+			table: "foo.bar",
+			want:  "rest/v1/foo.bar",
+		},
+		{
+			name:  "colon and dash remain literal",
+			table: "2026-06-30T11:23:31",
+			want:  "rest/v1/2026-06-30T11:23:31",
+		},
+		{
+			name:  "plus remains literal", // differing from query-string layer
+			table: "a+b",
+			want:  "rest/v1/a+b",
+		},
+		{
+			name:  "non-ASCII",
+			table: "موارد", // resources
+			want:  "rest/v1/%D9%85%D9%88%D8%A7%D8%B1%D8%AF",
+		},
+		{
+			name:  "embedded space",
+			table: "odd table",
+			want:  "rest/v1/odd%20table",
+		},
+		{
+			name:  "risk of leaking tail into query string",
+			table: "a?b",
+			want:  "rest/v1/a%3Fb",
+		},
+		{
+			name:  "risk of dropping tail into unsent fragment",
+			table: "a#b",
+			want:  "rest/v1/a%23b",
+		},
+		{
+			name:  "LF control character",
+			table: "a\nb",
+			want:  "rest/v1/a%0Ab",
+		},
+		{
+			name:  "embedded slash",
+			table: "a/b",
+			want:  "rest/v1/a%2Fb",
+		},
+		{
+			name:  "should not collapse double slash",
+			table: "a//b",
+			want:  "rest/v1/a%2F%2Fb",
+		},
+		{
+			name:  "should not swallow leading slash",
+			table: "/instruments",
+			want:  "rest/v1/%2Finstruments",
+		},
+		{
+			name:  "trailing slash",
+			table: "instruments/",
+			want:  "rest/v1/instruments%2F",
+		},
+		{
+			name:  "should not allow route to RPC",
+			table: "rpc/increment_secret",
+			want:  "rest/v1/rpc%2Fincrement_secret",
+		},
+		{
+			name:  "single dot should not be API root",
+			table: ".",
+			want:  "rest/v1/%2E",
+		},
+		{
+			name:  "double dot should not climb up one level above PostgREST mount",
+			table: "..",
+			want:  "rest/v1/%2E%2E",
+		},
+		{
+			name:  "double double dot should not climb up to host root",
+			table: "../..",
+			want:  "rest/v1/..%2F..",
+		},
+		{
+			name:  "embedded double dot should not cancel leading part",
+			table: "a/../b",
+			want:  "rest/v1/a%2F..%2Fb",
+		},
+		{
+			name:  "prefixed double dot should not steer to sibling path under same gateway prefix",
+			table: "../admin",
+			want:  "rest/v1/..%2Fadmin",
+		},
+		{
+			name:  "curated double dots should not navigate to admin API",
+			table: "../../auth/v1/admin/users",
+			want:  "rest/v1/..%2F..%2Fauth%2Fv1%2Fadmin%2Fusers",
+		},
+		{
+			name:  "trailing percent style name",
+			table: "50%off",
+			want:  "rest/v1/50%25off",
+		},
+		{
+			name:  "invalid hex digits after percent should not matter as taken verbatim after the percent escape",
+			table: "%zz",
+			want:  "rest/v1/%25zz",
+		},
+		{
+			name:  "hex encoded slash should not matter as taken verbatim after the percent escape",
+			table: "%2F",
+			want:  "rest/v1/%252F",
+		},
+		{
+			name:  "hex encoded double dots should not matter as taken verbatim after the percent escapes",
+			table: "%2e%2e",
+			want:  "rest/v1/%252e%252e",
+		},
+		{
+			name:  "empty",
+			table: "",
+			want:  "rest/v1",
+		},
+		{
+			name:  "single space",
+			table: " ",
+			want:  "rest/v1/%20",
+		},
+		{
+			name:  "multiple spaces",
+			table: "   ",
+			want:  "rest/v1/%20%20%20",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			rendered := requestURL(t, request.New(http.MethodGet, testCase.table))
+			if got, want := rendered, "https://example.test/"+testCase.want; got != want {
+				t.Errorf("URL = %q, want %q", got, want)
+			}
+		})
 	}
 }
