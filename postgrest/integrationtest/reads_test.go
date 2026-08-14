@@ -435,6 +435,10 @@ func TestDelimitedIdentifierTableNames(t *testing.T) {
 			name:  "backtick",
 			table: "`",
 		},
+		{
+			name:  "colon and dash",
+			table: "2026-06-30T11:23:31",
+		},
 	}
 
 	client := newIntegrationClient(t)
