@@ -30,3 +30,4 @@ insert into public."""" (id, name) values (1, '"');
 insert into public."'" (id, name) values (1, '''');
 insert into public."`" (id, name) values (1, '`');
 insert into public."2026-06-30T11:23:31" (id, name) values (1, '2026-06-30T11:23:31');
+insert into public."a+b" (id, name) values (1, 'a+b');
