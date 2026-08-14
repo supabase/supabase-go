@@ -2,6 +2,7 @@ package postgrest
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -41,6 +42,12 @@ type FilterBuilder[T any] struct {
 // columns, exactly as "*" does.
 func (q QueryBuilder[T]) Select(columns string) FilterBuilder[T] {
 	return FilterBuilder[T]{request: q.request.WithParameter("select", cleanSelectColumns(columns))}
+}
+
+// Limit caps the query result at count rows, sent verbatim, so zero requests
+// zero rows. When Limit is called more than once on a chain, the last call wins.
+func (f FilterBuilder[T]) Limit(count int) FilterBuilder[T] {
+	return FilterBuilder[T]{request: f.request.WithParameterReplacing("limit", strconv.Itoa(count))}
 }
 
 // cleanSelectColumns strips whitespace from a PostgREST column list except

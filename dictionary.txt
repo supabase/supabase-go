@@ -52,6 +52,7 @@ subtest
 Supabase
 synctest
 telemetrytest
+testkit
 typestate
 unrepresentable
 vulncheck
