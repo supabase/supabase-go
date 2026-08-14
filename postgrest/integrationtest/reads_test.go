@@ -45,6 +45,7 @@ type namedEntity struct {
 
 type seededInstrument struct {
 	namedEntity
+	AcquiredYear *int `json:"acquired_year"`
 }
 
 // TestSelectAllColumns proves the read path against real PostgREST: seeded
@@ -57,9 +58,7 @@ func TestSelectAllColumns(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		client,
-		postgrest.
-			From[seededInstrument]("instruments").
-			Select(""),
+		postgrest.From[seededInstrument]("instruments"),
 	)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -78,6 +77,48 @@ func TestSelectAllColumns(t *testing.T) {
 		if !names[want] {
 			t.Errorf("seeded row %q missing from result set %v", want, names)
 		}
+	}
+}
+
+// TestCollectAllColumnsWithoutSelect proves the select-less read against
+// real PostgREST: a bare From sends no select parameter and the server's
+// documented default of * answers with every column, populating a field the
+// projection never named.
+func TestCollectAllColumnsWithoutSelect(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.From[seededInstrument]("instruments"),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+
+	// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+	testkit.AssertOKResponse(t, response)
+	if len(rows) != 3 {
+		t.Fatalf("row count = %d, want 3 (seed drifted?)", len(rows))
+	}
+	years := map[string]*int{}
+	for _, row := range rows {
+		years[row.Name] = row.AcquiredYear
+	}
+	for name, want := range map[string]int{"violin": 2015, "viola": 2020} {
+		got, present := years[name]
+		if !present {
+			t.Errorf("seeded row %q missing from result set", name)
+			continue
+		}
+		if got == nil || *got != want {
+			t.Errorf("%s acquired_year = %v, want %d (every column should arrive without a select)", name, got, want)
+		}
+	}
+	if got, present := years["cello"]; !present {
+		t.Error(`seeded row "cello" missing from result set`)
+	} else if got != nil {
+		t.Errorf("cello acquired_year = %d, want null", *got)
 	}
 }
 
@@ -122,7 +163,6 @@ func TestCollectAppliesLimit(t *testing.T) {
 		client,
 		postgrest.
 			From[seededInstrument]("instruments").
-			Select("").
 			Limit(2), // the function under test
 	)
 	if err != nil {
@@ -144,7 +184,6 @@ func TestCollectAppliesZeroLimit(t *testing.T) {
 		client,
 		postgrest.
 			From[seededInstrument]("instruments").
-			Select("").
 			Limit(0), // the function under test
 	)
 	if err != nil {
@@ -166,7 +205,6 @@ func TestCollectForwardsNegativeLimit(t *testing.T) {
 		client,
 		postgrest.
 			From[seededInstrument]("instruments").
-			Select("").
 			Limit(-1), // the function under test
 	)
 
@@ -234,7 +272,6 @@ func TestCollectAppliesSingleColumnOrder(t *testing.T) {
 				client,
 				testCase.perform(postgrest.
 					From[seededInstrument]("instruments").
-					Select("").
 					Order("acquired_year")),
 			)
 			if err != nil {
@@ -355,9 +392,7 @@ func TestMissingRelationReturnsTypedError(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		client,
-		postgrest.
-			From[seededInstrument]("does_not_exist").
-			Select(""),
+		postgrest.From[seededInstrument]("does_not_exist"),
 	)
 
 	var typedError *postgrest.Error
@@ -479,9 +514,7 @@ func TestDelimitedIdentifierTableNameSingleDot(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		client,
-		postgrest.
-			From[struct{}](".").
-			Select(""),
+		postgrest.From[struct{}]("."),
 	)
 
 	if rows != nil {
@@ -510,9 +543,7 @@ func TestDelimitedIdentifierTableNameDoubleDot(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		client,
-		postgrest.
-			From[struct{}]("..").
-			Select(""),
+		postgrest.From[struct{}](".."),
 	)
 
 	var typedError *postgrest.Error

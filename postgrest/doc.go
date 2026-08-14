@@ -3,7 +3,8 @@
 // executes the finished query through a [Client].
 //
 // A query names the row type it decodes into at [From], chains through an
-// immutable builder and executes:
+// immutable builder and executes. [From] alone is a complete query for
+// every column; [QueryBuilder.Select] narrows the projection:
 //
 //	rows, response, err := postgrest.Collect(
 //	    ctx,

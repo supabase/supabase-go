@@ -10,21 +10,24 @@ import (
 )
 
 // From begins a query against the given table or view.
-// Chain a verb such as [QueryBuilder.Select], then pass the finished query,
-// together with a [Client], to a generic read function such as [Collect].
+// The returned builder is already a complete query for every column: pass
+// it, together with a [Client], to a generic read function such as
+// [Collect], or narrow it first ([QueryBuilder.Select] projects columns).
 // The returned builder is a pure value carrying only query state, so queries
 // may be composed and stored anywhere - including package-level variables -
 // before any Client exists.
 func From[T any](table string) QueryBuilder[T] {
-	return QueryBuilder[T]{request: request.New(http.MethodGet, table)}
+	return QueryBuilder[T]{FilterBuilder[T]{request: request.New(http.MethodGet, table)}}
 }
 
-// QueryBuilder represents a query scoped to one table or view, ready for a verb.
+// QueryBuilder represents a read of every column of one table or view whose
+// projection may still narrow. Select projects columns; every other method
+// is that of the embedded [FilterBuilder] and ends the projection window.
 // A QueryBuilder is an immutable value - every method returns a new independent
 // builder - so builders may be stored, forked into divergent chains, and used
 // concurrently by multiple goroutines.
 type QueryBuilder[T any] struct {
-	request request.Request
+	FilterBuilder[T]
 }
 
 // FilterBuilder represents a fully-specified query awaiting execution.
@@ -55,7 +58,9 @@ type OrderedDescendingFilterBuilder[T any] struct {
 // [FilterBuilder] ready to execute. Columns are comma-separated and may use
 // PostgREST's renaming and embedding syntax. Whitespace is removed except
 // inside double-quoted identifiers. An empty columns string selects all
-// columns, exactly as "*" does.
+// columns, exactly as "*" does - though a query reading every column needs
+// no Select at all, since [From] alone is already that query (implicit
+// default of the PostgREST service).
 func (q QueryBuilder[T]) Select(columns string) FilterBuilder[T] {
 	return FilterBuilder[T]{request: q.request.WithParameter("select", cleanSelectColumns(columns))}
 }

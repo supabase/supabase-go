@@ -74,6 +74,88 @@ func TestCollectDecodesRows(t *testing.T) {
 	}
 }
 
+// TestCollectBareFrom pins the select-less read: a QueryBuilder is already a
+// complete query, so Collect accepts a bare From and the request reaches the
+// wire with an empty query string - no select parameter is invented, leaving
+// the all-columns projection to PostgREST's documented default of *.
+func TestCollectBareFrom(t *testing.T) {
+	var observed *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		observed = request.Clone(request.Context())
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode([]instrument{{ID: 1, Name: "violin"}, {ID: 2, Name: "flute"}})
+	}))
+	defer server.Close()
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.From[instrument]("instruments"),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+
+	if len(rows) != 2 || rows[0].Name != "violin" {
+		t.Errorf("rows = %+v", rows)
+	}
+	testkit.AssertOKResponse(t, response)
+	if got, want := observed.Method, http.MethodGet; got != want {
+		t.Errorf("method = %q, want %q", got, want)
+	}
+	if got, want := observed.URL.Path, "/rest/v1/instruments"; got != want {
+		t.Errorf("path = %q, want %q", got, want)
+	}
+	if got := observed.URL.RawQuery; got != "" {
+		t.Errorf("query = %q, want empty (a bare From sends no select parameter)", got)
+	}
+}
+
+// TestQueryBuilderPromotedModifierSkipsSelect pins promotion at the root:
+// every FilterBuilder method is available directly on a QueryBuilder, so a
+// modifier chains off From without a Select and no select parameter appears
+// on the wire.
+func TestQueryBuilderPromotedModifierSkipsSelect(t *testing.T) {
+	testCases := []struct {
+		name  string
+		query postgrest.Query[instrument]
+		want  string
+	}{
+		{
+			name:  "limit",
+			query: postgrest.From[instrument]("instruments").Limit(3),
+			want:  "limit=3",
+		},
+		{
+			name:  "order refined through its wrappers",
+			query: postgrest.From[instrument]("instruments").Order("name").Descending(),
+			want:  "order=name.desc",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			var observed *http.Request
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				observed = request.Clone(request.Context())
+				_, _ = writer.Write([]byte(`[]`))
+			}))
+			defer server.Close()
+
+			rows, response, err := postgrest.Collect(t.Context(), newTestClient(t, server), testCase.query)
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+			if len(rows) != 0 {
+				t.Errorf("len(rows) = %d, want 0", len(rows))
+			}
+			testkit.AssertOKResponse(t, response)
+			if got := observed.URL.RawQuery; got != testCase.want {
+				t.Errorf("query = %q, want %q", got, testCase.want)
+			}
+		})
+	}
+}
+
 // TestCollectEmptyResultYieldsEmptySlice pins Collect's documented
 // empty-result contract: a JSON [] decodes to an empty, non-nil slice, so
 // callers range over results without a nil check.
@@ -86,9 +168,7 @@ func TestCollectEmptyResultYieldsEmptySlice(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
-		postgrest.
-			From[instrument]("instruments").
-			Select(""),
+		postgrest.From[instrument]("instruments"),
 	)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -117,9 +197,7 @@ func TestCollectPreservesRawRowBytes(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
-		postgrest.
-			From[json.RawMessage]("instruments").
-			Select(""),
+		postgrest.From[json.RawMessage]("instruments"),
 	)
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
@@ -160,9 +238,7 @@ func TestCollectReturnsResponseMetadata(t *testing.T) {
 			rows, response, err := postgrest.Collect(
 				t.Context(),
 				newTestClient(t, server),
-				postgrest.
-					From[instrument]("instruments").
-					Select(""),
+				postgrest.From[instrument]("instruments"),
 			)
 			if err != nil {
 				t.Fatalf("Collect: %v", err)
@@ -196,6 +272,10 @@ func TestCollectEmptySelectMeansAllColumns(t *testing.T) {
 		newTestClient(t, server),
 		postgrest.
 			From[instrument]("instruments").
+
+			// Method-Under-Test:
+			// An explicit inclusion of query `select=*`, rather than relying upon the identical,
+			// implicit default the PostgREST service implements when select is not present in the query
 			Select(""),
 	)
 	if err != nil {
@@ -250,9 +330,7 @@ func TestCollectReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
-		postgrest.
-			From[instrument]("missing").
-			Select(""),
+		postgrest.From[instrument]("missing"),
 	)
 
 	var typedError *postgrest.Error
@@ -279,9 +357,7 @@ func TestCollectPreservesUnparsableErrorBody(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
-		postgrest.
-			From[instrument]("instruments").
-			Select(""),
+		postgrest.From[instrument]("instruments"),
 	)
 
 	var typedError *postgrest.Error
@@ -314,9 +390,7 @@ func TestCollectWrapsDecodeFailure(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
-		postgrest.
-			From[instrument]("instruments").
-			Select(""),
+		postgrest.From[instrument]("instruments"),
 	)
 
 	if err == nil || !strings.Contains(err.Error(), "decoding response") {
@@ -388,9 +462,7 @@ func TestCollectHonoursContextCancellation(t *testing.T) {
 	rows, response, err := postgrest.Collect(
 		ctx,
 		newTestClient(t, server),
-		postgrest.
-			From[instrument]("instruments").
-			Select(""),
+		postgrest.From[instrument]("instruments"),
 	)
 
 	if !errors.Is(err, context.Canceled) {
@@ -400,38 +472,33 @@ func TestCollectHonoursContextCancellation(t *testing.T) {
 }
 
 // TestBuildersForkIndependently pins builder immutability at the wire: one
-// QueryBuilder forked into two divergent chains sends two independent
-// requests, neither observing the other. The backing-slice aliasing
-// subtlety underneath is pinned by the internal request package's tests.
+// QueryBuilder forked into divergent chains - two projections and a promoted
+// modifier - sends independent requests, none observing another. The
+// backing-slice aliasing subtlety underneath is pinned by the internal
+// request package's tests.
 func TestBuildersForkIndependently(t *testing.T) {
-	selects := make(chan string, 2)
+	queries := make(chan string, 3)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		selects <- request.URL.Query().Get("select")
+		queries <- request.URL.RawQuery
 		_, _ = writer.Write([]byte(`[]`))
 	}))
 	defer server.Close()
 
 	client := newTestClient(t, server)
 	base := postgrest.From[instrument]("instruments")
-	firstRows, firstResponse, err := postgrest.Collect(t.Context(), client, base.Select("id"))
-	if err != nil {
-		t.Fatalf("first chain: %v", err)
+	for _, fork := range []postgrest.Query[instrument]{base.Select("id"), base.Select("name"), base.Limit(1)} {
+		rows, response, err := postgrest.Collect(t.Context(), client, fork)
+		if err != nil {
+			t.Fatalf("Collect: %v", err)
+		}
+		if len(rows) != 0 {
+			t.Errorf("len(rows) = %d, want 0", len(rows))
+		}
+		testkit.AssertOKResponse(t, response)
 	}
-	if len(firstRows) != 0 {
-		t.Errorf("len(firstRows) = %d, want 0", len(firstRows))
-	}
-	testkit.AssertOKResponse(t, firstResponse)
-	secondRows, secondResponse, err := postgrest.Collect(t.Context(), client, base.Select("name"))
-	if err != nil {
-		t.Fatalf("second chain: %v", err)
-	}
-	if len(secondRows) != 0 {
-		t.Errorf("len(secondRows) = %d, want 0", len(secondRows))
-	}
-	testkit.AssertOKResponse(t, secondResponse)
 
-	first, second := <-selects, <-selects
-	if first != "id" || second != "name" {
-		t.Errorf("selects = %q, %q; want id then name", first, second)
+	first, second, third := <-queries, <-queries, <-queries
+	if first != "select=id" || second != "select=name" || third != "limit=1" {
+		t.Errorf("queries = %q, %q, %q; want select=id, select=name then limit=1", first, second, third)
 	}
 }

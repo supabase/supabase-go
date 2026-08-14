@@ -396,9 +396,9 @@ The `+` spelling was rejected for the extra branch it demands, the decoder-depen
 
 **What**:  
 `From` returns a concrete `QueryBuilder`; `Select` returns a concrete `FilterBuilder`; every builder method returns a concrete type, never an interface.
-The ordering refinement wrappers (`OrderedFilterBuilder`, `OrderedDescendingFilterBuilder`) embed `FilterBuilder` to extend its method set, satisfying `Query` through promotion.
+`QueryBuilder` and the ordering refinement wrappers (`OrderedFilterBuilder`, `OrderedDescendingFilterBuilder`) embed `FilterBuilder` to extend its method set, satisfying `Query` through promotion.
 The read functions accept the sealed `Query` interface, whose one unexported method returns a `queryState` token binding the row type; builder states satisfy it and nothing outside the package can.
-The two structs have identical definitions on purpose: a builder type's identity is its method set - which chain steps are legal from here - not its field set.
+These wrapper structs have identical definitions on purpose: a builder type's identity is its method set - which chain steps are legal from here - not its field set.
 
 **Why**:  
 The types encode the phase of the chain, so illegal chains are compile errors: `Select` twice is unrepresentable, because `Select` consumes the `QueryBuilder` and `FilterBuilder` has no `Select`.
@@ -410,8 +410,21 @@ A type parameter no method signature mentions is inert - `Query[Instrument]` and
 Inference through interface method signatures is defined behavior since Go 1.21, below the module floor.
 The mockability seam remains the injected HTTP client, not the builders.
 
-Embedding appears exactly where promotion's behavior is the wanted semantics: a promoted method returns the embedded `FilterBuilder`, ending the ordering refinement window, and after `Select` there is no phase method left for promotion to leak.
+Embedding appears exactly where promotion's behavior is the wanted semantics: a promoted method returns the embedded `FilterBuilder` or one of its ordering wrappers, ending the window its own type held open - `QueryBuilder`'s projection window, the ordering wrappers' refinement window - and after `Select` there is no phase method left for promotion to leak.
 Embedding that would surface an earlier phase's methods on a later phase (`Select` on `FilterBuilder`) remains rejected, since it would destroy the typestate guarantee.
+
+## A bare `From` is a complete read and `Select` is optional projection
+
+**What**:  
+`QueryBuilder` embeds `FilterBuilder`, so `From[Row]("table")` alone satisfies `Query` through promotion and every `FilterBuilder` method chains directly off `From`.
+A bare `From` sends no `select` parameter at all, while `Select` narrows the projection and remains callable at most once, only as the first step of a chain.
+
+**Why**:  
+PostgREST does not require `select` on a read: its reference marks the parameter optional with "The default is `*`, meaning all columns" ([Vertical Filtering](https://docs.postgrest.org/en/latest/references/api/tables_views.html#vertical-filtering)) and its horizontal-filtering examples carry none, so a mandatory `Select("")` for the all-columns case would be SDK ceremony the wire never asks for.
+The one deep reason the reference SDK makes `select()` central does not translate to Go: postgrest-js infers the TypeScript result type from the select string (`GetResult`), where this SDK names the decode type at `From[Row]` before `Select` is ever reachable.
+What is not said is not sent - the ordering entry's principle - so the absent parameter relies on the server's documented `*` default rather than restating it, and `Select("")` keeps its documented `select=*` meaning because argument values, unlike chain steps, cannot be policed by the type system anyway (`Select("*")` proves as much).
+Sibling behavior marks the safe boundary: postgrest-dart's dispatcher can be awaited through inheritance while its HTTP method is still null, forcing a runtime `ArgumentError`, whereas supabase-swift bakes `.get` into the request at `from()` and its inherited `execute()` serves the select-less GET successfully - opening the boundary is sound exactly when the method is fixed at `From`, as this SDK's request model does.
+The write verbs keep their home: they will land on `QueryBuilder`, where any promoted method already closes the verb window the same way it closes the projection window.
 
 ## Builder state serializes immediately into the request model
 
