@@ -35,6 +35,22 @@ type FilterBuilder[T any] struct {
 	request request.Request
 }
 
+// OrderedFilterBuilder represents a query whose newest order column may still
+// take a direction and a null placement. Descending and NullsFirst refine
+// that column; every other method is that of the embedded [FilterBuilder]
+// and ends the refinement.
+type OrderedFilterBuilder[T any] struct {
+	FilterBuilder[T]
+}
+
+// OrderedDescendingFilterBuilder represents a query whose newest order column
+// sorts descending and may still take a null placement.
+// NullsLast refines that column; every other method is that of the embedded
+// [FilterBuilder] and ends the refinement.
+type OrderedDescendingFilterBuilder[T any] struct {
+	FilterBuilder[T]
+}
+
 // Select performs a SELECT-style read of the given columns, returning a
 // [FilterBuilder] ready to execute. Columns are comma-separated and may use
 // PostgREST's renaming and embedding syntax. Whitespace is removed except
@@ -48,6 +64,34 @@ func (q QueryBuilder[T]) Select(columns string) FilterBuilder[T] {
 // zero rows. When Limit is called more than once on a chain, the last call wins.
 func (f FilterBuilder[T]) Limit(count int) FilterBuilder[T] {
 	return FilterBuilder[T]{request: f.request.WithParameterReplacing("limit", strconv.Itoa(count))}
+}
+
+// Order sorts the result by column, ascending with nulls last unless
+// refined through the returned [OrderedFilterBuilder]. The column is sent
+// verbatim as one PostgREST order term, so an invalid column is rejected by
+// the server rather than rewritten. Calling Order again on the same chain
+// appends a lower-precedence sort column to the same query.
+func (f FilterBuilder[T]) Order(column string) OrderedFilterBuilder[T] {
+	return OrderedFilterBuilder[T]{FilterBuilder[T]{request: f.request.WithParameterJoining("order", column)}}
+}
+
+// Descending sorts the newest order column from highest to lowest value and
+// places rows holding a null in it before every non-null row, unless the
+// returned builder's NullsLast says otherwise.
+func (o OrderedFilterBuilder[T]) Descending() OrderedDescendingFilterBuilder[T] {
+	return OrderedDescendingFilterBuilder[T]{FilterBuilder[T]{request: o.request.WithParameterValueAppended("order", ".desc")}}
+}
+
+// NullsFirst places rows holding a null in the newest order column before
+// every non-null row.
+func (o OrderedFilterBuilder[T]) NullsFirst() FilterBuilder[T] {
+	return FilterBuilder[T]{request: o.request.WithParameterValueAppended("order", ".nullsfirst")}
+}
+
+// NullsLast places rows holding a null in the newest order column after
+// every non-null row.
+func (o OrderedDescendingFilterBuilder[T]) NullsLast() FilterBuilder[T] {
+	return FilterBuilder[T]{request: o.request.WithParameterValueAppended("order", ".nullslast")}
 }
 
 // cleanSelectColumns strips whitespace from a PostgREST column list except

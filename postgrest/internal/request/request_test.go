@@ -96,10 +96,155 @@ func TestWithParameterReplacing(t *testing.T) {
 			WithParameterReplacing("key", "A"),
 	}
 
+	want := "https://example.test/rest/v1/path?key=A"
+
 	for _, request := range requests {
-		if got, want := requestURL(t, request), "https://example.test/rest/v1/path?key=A"; got != want {
+		if got := requestURL(t, request); got != want {
 			t.Errorf("URL = %q, want %q", got, want)
 		}
+	}
+}
+
+func TestWithParameterJoining(t *testing.T) {
+	testCases := []struct {
+		name    string
+		perform func(request.Request) request.Request
+		want    string
+	}{
+		{
+			name: "single call",
+			perform: func(request request.Request) request.Request {
+				return request.WithParameterJoining("key", "A")
+			},
+			want: "A",
+		},
+		{
+			name: "multiple calls with discrete values",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameterJoining("key", "A").
+					WithParameterJoining("key", "B").
+					WithParameterJoining("key", "C")
+			},
+			want: "A,B,C",
+		},
+		{
+			name: "multiple calls with same value",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameterJoining("key", "A").
+					WithParameterJoining("key", "A")
+			},
+			want: "A,A",
+		},
+		{
+			name: "multiple calls seeded by WithParameter",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameter("key", "A").
+					WithParameterJoining("key", "B1").
+					WithParameterJoining("key", "B2")
+			},
+			want: "A,B1,B2",
+		},
+		{
+			name: "multiple calls seeded by WithParameterReplacing",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameterReplacing("key", "A").
+					WithParameterJoining("key", "B1").
+					WithParameterJoining("key", "B2")
+			},
+			want: "A,B1,B2",
+		},
+		{
+			name: "multiple calls seeded by WithParameter then WithParameterReplacing",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameter("key", "A").
+					WithParameterReplacing("key", "C").
+					WithParameterJoining("key", "B1").
+					WithParameterJoining("key", "B2")
+			},
+			want: "C,B1,B2",
+		},
+		{
+			name: "multiple calls seeded by WithParameter twice",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameter("key", "A1").
+					WithParameter("key", "A2").        // now: key=A1&key=A2
+					WithParameterJoining("key", "B1"). // now: key=A1,A2,B1
+					WithParameterJoining("key", "B2")
+			},
+			want: "A1,A2,B1,B2",
+		},
+	}
+
+	base := request.New(http.MethodGet, "path")
+	synthesize := func(value string) string { return "https://example.test/rest/v1/path?key=" + value }
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got, want := requestURL(t, testCase.perform(base)), synthesize(testCase.want); got != want {
+				t.Errorf("URL = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestWithParameterValueAppended(t *testing.T) {
+	testCases := []struct {
+		name    string
+		perform func(request.Request) request.Request
+		want    string
+	}{
+		{
+			name: "single call when key does not exist",
+			perform: func(request request.Request) request.Request {
+				return request.WithParameterValueAppended("key", "A")
+			},
+			want: "",
+		},
+		{
+			name: "multiple calls when key does not exist",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameterValueAppended("key", "A").
+					WithParameterValueAppended("key", "B")
+			},
+			want: "",
+		},
+		{
+			name: "single call when only one instance of key",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameter("key", "A").
+					WithParameterValueAppended("key", "B")
+			},
+			want: "?key=AB",
+		},
+		{
+			name: "single call when multiple instances of key",
+			perform: func(request request.Request) request.Request {
+				return request.
+					WithParameter("key", "A").
+					WithParameter("key", "B").
+					WithParameterValueAppended("key", "C")
+			},
+			want: "?key=A&key=BC",
+		},
+	}
+
+	base := request.New(http.MethodGet, "path")
+	synthesize := func(value string) string { return "https://example.test/rest/v1/path" + value }
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got, want := requestURL(t, testCase.perform(base)), synthesize(testCase.want); got != want {
+				t.Errorf("URL = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

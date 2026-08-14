@@ -64,6 +64,41 @@ func (r Request) WithParameterReplacing(key, value string) Request {
 	return clone
 }
 
+// WithParameterJoining returns a new Request carrying one pair for key, whose
+// value is every existing pair's value for key followed by the given value,
+// comma-joined in their original order, positioned as a freshly appended
+// pair. Use it for keys PostgREST reads as one comma-separated list, such as
+// order.
+func (r Request) WithParameterJoining(key, value string) Request {
+	clone := r
+	retained := make([]parameter, 0, len(r.parameters)+1)
+	joined := ""
+	for _, pair := range r.parameters {
+		if pair.key == key {
+			joined += pair.value + ","
+			continue
+		}
+		retained = append(retained, pair)
+	}
+	clone.parameters = append(retained, parameter{key: key, value: joined + value})
+	return clone
+}
+
+// WithParameterValueAppended returns a new Request whose last pair for key
+// carries its value with addition appended verbatim. When key is absent the
+// Request is returned unchanged.
+func (r Request) WithParameterValueAppended(key, addition string) Request {
+	clone := r
+	clone.parameters = slices.Clone(r.parameters)
+	for index := len(clone.parameters) - 1; index >= 0; index-- {
+		if clone.parameters[index].key == key {
+			clone.parameters[index].value += addition
+			break
+		}
+	}
+	return clone
+}
+
 // HTTPRequest assembles the Request into an *http.Request against the given
 // base URL, carrying ctx. The base is not mutated. The Accept header is set
 // for JSON. Authentication headers are not injected here.

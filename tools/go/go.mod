@@ -1,6 +1,6 @@
 module github.com/supabase/supabase-go/tools/go
 
-go 1.25.0
+go 1.26.0
 
 tool (
 	github.com/kisielk/errcheck
@@ -30,6 +30,6 @@ require (
 	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/tools v0.47.0 // indirect
 	golang.org/x/vuln v1.5.0 // indirect
-	honnef.co/go/tools v0.7.0 // indirect
+	honnef.co/go/tools v0.8.0-rc.1 // indirect
 	mvdan.cc/gofumpt v0.10.0 // indirect
 )

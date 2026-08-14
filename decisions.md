@@ -354,10 +354,16 @@ A key may appear any number of times and insertion order is preserved.
 **Why**:  
 A query string is an ordered multimap, and PostgREST's dialect gives repeated keys meaning: repeated filter keys AND together (`age=gte.18&age=lte.65` is exactly how the next block's `Gte("age", 18).Lte("age", 65)` serializes) and repeated `or=` groups combine.
 `map[string]string` is the one shape that cannot represent valid PostgREST queries - a second filter on a column would silently overwrite the first.
+
 Every sibling SDK stores the same multimap shape: [`postgrest-js`](https://github.com/supabase/supabase-js/tree/master/packages/core/postgrest-js) appends to `URLSearchParams`, [`supabase-swift`](https://github.com/supabase/supabase-swift) appends `URLQueryItem`s to an array of pairs, [`postgrest-dart`](https://github.com/supabase/supabase-flutter/tree/main/packages/postgrest) appends via `queryParametersAll`, and [`supabase-py`](https://github.com/supabase/supabase-py/tree/v3) wraps a persistent map of key to vector of values whose `set` appends.
 Between the two faithful shapes, the slice of pairs was preferred over `map[string][]string` because it keeps the model free of reference-typed fields: a plain struct copy is safe (pairs are immutable values; writes append after `slices.Clone`), whereas a map field aliases on copy, `maps.Clone` is shallow over the value slices, and one forgotten deep clone in a future `With*` method is a data race - the exact hazard the model exists to remove (supabase-py needed a third-party persistent-collections library to make the map shape safe; the slice gets the same guarantee from the stdlib).
+
 Keys that must not repeat, such as `select`, are enforced structurally in the public layer: `Select` consumes the `QueryBuilder` and returns a `FilterBuilder` with no `Select` method, so a duplicate is unrepresentable before it ever reaches the model.
+
 Singleton keys take replace-semantics through `WithParameterReplacing`, which `Limit` uses so that a repeated call replaces the earlier value - the last-write-wins behavior every sibling SDK implements, and the safe choice given PostgREST documents no behavior for a repeated limit key.
+
+Comma-separated list keys take join-semantics through `WithParameterJoining`, which `Order` uses so that repeated calls grow one `order` pair instead of repeating the key: PostgREST reads only the first `order` parameter for a query level and silently ignores the rest, so a repeated key would drop every term after the first call's.
+The ordering refinements extend the newest term through `WithParameterValueAppended`, whose plain string append is sound because the term grammar forbids commas inside a term, so the flat value's tail is always the newest term.
 
 ## The query string is rendered by an in-model RFC 3986 writer, not url.Values.Encode
 
@@ -386,18 +392,26 @@ Spaces genuinely occur in these queries - quoted identifiers such as `"full name
 Precedent agrees where a query encoding must be unambiguous: supabase-swift pins the same quoted-identifier case as `%22first%20name%22` ([`PostgrestTransformBuilderTests.swift:34`](https://github.com/supabase/supabase-swift/blob/ebef170a4a6820d064e5909dd4f54e4341f12eb5/Tests/PostgRESTTests/PostgrestTransformBuilderTests.swift#L34)) and AWS SigV4's canonical request rules state "The space character is a reserved character and must be encoded as \"%20\" (and not as \"+\")" ([Create a signed request](https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html)).
 The `+` spelling was rejected for the extra branch it demands, the decoder-dependence it retains for one character and the divergence from the sibling norm this rendering already follows - its only return would have been one fewer flipped pin in the tests.
 
-## Builder phases are distinct concrete types (typestate); no interfaces, no embedding
+## Builder phases are distinct concrete types (typestate); embedding only narrows, interfaces only at the terminals
 
 **What**:  
-`From` returns a concrete `QueryBuilder`; `Select` returns a concrete `FilterBuilder`; there is no builder interface and no embedded base-builder type.
+`From` returns a concrete `QueryBuilder`; `Select` returns a concrete `FilterBuilder`; every builder method returns a concrete type, never an interface.
+The ordering refinement wrappers (`OrderedFilterBuilder`, `OrderedDescendingFilterBuilder`) embed `FilterBuilder` to extend its method set, satisfying `Query` through promotion.
+The read functions accept the sealed `Query` interface, whose one unexported method returns a `queryState` token binding the row type; builder states satisfy it and nothing outside the package can.
 The two structs have identical definitions on purpose: a builder type's identity is its method set - which chain steps are legal from here - not its field set.
 
 **Why**:  
 The types encode the phase of the chain, so illegal chains are compile errors: `Select` twice is unrepresentable, because `Select` consumes the `QueryBuilder` and `FilterBuilder` has no `Select`.
 Every sibling SDK accepts the double call and resolves it silently, last write wins (postgrest-js `searchParams.set('select', ...)`, supabase-swift `appendOrUpdate`, postgrest-dart `overrideSearchParams`, supabase-py via inheritance).
 They re-expose select after a verb because mutations need a "return these columns" variant; when this SDK's write verbs land, that variant will appear deliberately on the mutation builders' types with replace semantics.
-Interfaces in the chain would hide the fluent surface from godoc and autocomplete without buying substitutability we need; the mockability seam is the injected HTTP client, not the builders.
-Embedding is rejected twice over: promoted methods return the embedded type, which severs a fluent chain (`.Limit()` would return the base, losing `.Eq()`), and promotion would leak phase methods across the boundary (`Select` would surface on `FilterBuilder`), destroying the typestate guarantee.
+
+Interface-typed returns would hide the fluent surface from godoc and autocomplete without buying substitutability we need, so chain methods return concrete types and the read functions instead accept the sealed `Query` interface - interfaces in, concrete types out, the posture Google's Go style guidance names outright, with the interface living in the package that consumes query values.
+A type parameter no method signature mentions is inert - `Query[Instrument]` and `Query[Section]` would define identical type sets and so be the same type, letting a wrong-row `Collect[Section](instrumentsQuery)` compile while `Row` inference fails at every call site - so the row type is bound where the read path already has a genuine method, `state`'s return type, keeping the public interface free of never-called members (a dedicated phantom anchor method was drafted and rejected for exactly that deadness).
+Inference through interface method signatures is defined behavior since Go 1.21, below the module floor.
+The mockability seam remains the injected HTTP client, not the builders.
+
+Embedding appears exactly where promotion's behavior is the wanted semantics: a promoted method returns the embedded `FilterBuilder`, ending the ordering refinement window, and after `Select` there is no phase method left for promotion to leak.
+Embedding that would surface an earlier phase's methods on a later phase (`Select` on `FilterBuilder`) remains rejected, since it would destroy the typestate guarantee.
 
 ## Builder state serializes immediately into the request model
 
@@ -409,6 +423,14 @@ Builders hold no structured intermediate state (no columns, filters or limit fie
 The wire format is the canonical state in every sibling SDK - postgrest-js mutates `URLSearchParams` inside each method, supabase-swift appends `URLQueryItem`s, postgrest-dart rewrites the `Uri`, supabase-py updates its `URLQuery` - so behavior parity with the reference implementation is auditable call by call: our `Select` does what theirs does, at the same moment.
 A structured representation assembled at execution time would be a second source of truth whose serializer must track the reference forever, for no validation gain: ordering rules ("X not before/after Y") are enforced earlier and stronger by the typestate split, and value-level conflict rules, when a concrete one arrives, can read the model through a narrow predicate (a `HasParameter`-style query added then) - normalization loses no state a known rule needs.
 The only information call-time serialization erases is which method wrote a pair; no PostgREST rule branches on that provenance, and the siblings validate almost nothing themselves, delegating conflicts to PostgREST's own errors, which this SDK surfaces as `*Error`.
+
+## Ordering is refined by postfix typestate builders
+
+**What**:  
+`FilterBuilder.Order(column)` writes the bare column as a new order term and returns `OrderedFilterBuilder`, which embeds `FilterBuilder` and adds `Descending` and `NullsFirst`. `Descending` returns `OrderedDescendingFilterBuilder`, which adds only `NullsLast`, and the null-placement methods return the plain `FilterBuilder`. Each state offers only departures from what the term already implies, direction strictly before nulls, and every refinement appends its token to the newest order term. A refinement restating a server default (`NullsLast` while ascending, `NullsFirst` once descending) has no method, so each direction and null-placement combination has exactly one incantation. `Order` itself takes no direction or null-placement parameter.
+
+**Why**:  
+An order term's programmable space is two independent binary axes - direction and null placement - and encoding the remaining choices in the returned type makes every meaningless sequence a compile error instead of a runtime ruling: a duplicated `Descending`, contradictory null placements and nulls-before-direction do not build, and a default-restating spelling does not exist, so no combination has two spellings - the same discipline the phase types already apply to a second `Select`. Direction-before-nulls is what keeps every refinement a plain string append onto already-serialized state; a commutative surface would need the request model to parse and reorder the term it wrote, against the serialize-immediately decision. The alternatives each answered the two axes worse: a four-value enum (`Order("name", Descending)`) was the runner-up with zero new types and untouched terminals, but it spells the ordering as an argument rather than chain steps and its un-suffixed names silently carry SQL's coupled null defaults where the postfix methods surface them as explicit, documented steps; bare boolean pairs are unreadable at call sites; a two-boolean struct's nulls zero value silently diverges from SQL's descending default; variadic tokens re-admit the contradictions the typestate forbids. What is not said is not sent: an unrefined axis relies on the server's documented defaults, and each refinement method documents the placement it produces.
 
 ## Reads execute in package-level generic functions, context-first
 
