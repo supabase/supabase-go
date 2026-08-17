@@ -34,6 +34,27 @@ type QueryBuilder[T any] struct {
 // A FilterBuilder is an immutable value - every method that returns a builder
 // returns a new independent builder - so builders may be stored, forked into
 // divergent chains, and used concurrently by multiple goroutines.
+//
+// Filter methods narrow which rows the query returns and are named for the
+// PostgREST operators they send. Filters chained onto one builder must all
+// be satisfied, and [FilterBuilder.Or] expresses alternatives. A filter
+// value typed any renders as text by its Go type:
+//   - string: sent verbatim
+//   - bool: true or false
+//   - integer types: decimal digits
+//   - float32 and float64: the shortest decimal text that round-trips
+//   - [time.Time]: RFC 3339 with up to nanosecond precision
+//   - nil: null
+//   - [fmt.Stringer]: what String returns
+//   - anything else: the fmt package's %v rendering
+//
+// Methods rendering several values into one list ([FilterBuilder.In],
+// [FilterBuilder.Contains] and their kin) also double-quote every element
+// that is empty, carries edge whitespace or contains list structure - a
+// comma, parenthesis, brace, double quote or backslash - escaping double
+// quotes and backslashes within as \" and \\. Other elements travel bare,
+// and no elements at all render an empty list, sent verbatim for the server
+// to rule on.
 type FilterBuilder[T any] struct {
 	request request.Request
 }
