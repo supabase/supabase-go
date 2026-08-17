@@ -104,6 +104,9 @@ func TestRenderFilterValue(t *testing.T) {
 
 		{spookyTime, "2026-10-31T20:00:00Z"},
 		{spookyTimeInNewYork, "2026-10-31T16:00:00-04:00"},
+		{spookyTime.Add(123456789 * time.Nanosecond), "2026-10-31T20:00:00.123456789Z"},
+		{spookyTime.Add(500 * time.Millisecond), "2026-10-31T20:00:00.5Z"}, // .5, not .500
+		{time.Time{}, "0001-01-01T00:00:00Z"},                              // the uninitialized-field accident, rendered not panicking
 
 		// via fmt.Stringer
 		{90 * time.Minute, "1h30m0s"},
