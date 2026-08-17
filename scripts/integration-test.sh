@@ -18,13 +18,14 @@
 # carries local `replace` directives that `go install pkg@version` refuses
 # outright. The verified release binary is the pinned way in.
 #
-# Bump SUPABASE_CLI_VERSION and the checksums together with
-# integration/supabase/config.toml, whose schema tracks the CLI. The checksums
-# are the matching lines from (verify after any bump):
+# Bump SUPABASE_CLI_VERSION and the checksums together. The checksums are the
+# matching lines from:
 #   https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/checksums.txt
+# If the new CLI changes the config.toml schema then integration/supabase/config.toml may
+# also need to be updated.
 set -euo pipefail
 
-SUPABASE_CLI_VERSION="2.109.1"
+SUPABASE_CLI_VERSION="2.114.0"
 
 case "$(uname -s)" in
   Linux) cli_os="linux" ;;
@@ -37,10 +38,10 @@ case "$(uname -m)" in
   *) echo "Unsupported architecture for the Supabase CLI: $(uname -m)" >&2; exit 1 ;;
 esac
 case "${cli_os}_${cli_arch}" in
-  linux_arm64) cli_sha256="a7f7c771acd3a2a13938b5832029beb24787b165d5119ed57ad6e964f3593291" ;;
-  linux_amd64) cli_sha256="36d87b7fe6b4bcfe89ac47a4354e526cff22480224de426d7b370f6934556976" ;;
-  darwin_arm64) cli_sha256="e36776717a56d704769229649349b3a382f413cb31f1fb2ba4647ef8bcf7339b" ;;
-  darwin_amd64) cli_sha256="fee962ecf455c69497f93c19b369443b114a934161b8cecbd8a5b812c3c8c013" ;;
+  linux_arm64) cli_sha256="7bf55ea89c8ae48a101a9856c1cef22da8e2019ddcd451499249033652cacefa" ;;
+  linux_amd64) cli_sha256="f36a33ca867f1cce9ba5efa705863fdc545d1465d3719a721793ea67eb692c5a" ;;
+  darwin_arm64) cli_sha256="bdd67161af7c7e537e15ec72db2f2c59bca569b41d959bcaaec7004ba400e653" ;;
+  darwin_amd64) cli_sha256="e03bf7cf5c49ba777ff4d65fd77e786a295fd7db4f1d6c6658b1505e7b15d512" ;;
   *) echo "No pinned checksum for ${cli_os}_${cli_arch}" >&2; exit 1 ;;
 esac
 
