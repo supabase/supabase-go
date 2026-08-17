@@ -1,5 +1,5 @@
 # Minimal local stack for the SDK integration tests, matching the CLI version
-# pinned in scripts/integration-test.sh (SUPABASE_CLI_VERSION: 2.109.1).
+# pinned in scripts/integration-test.sh (SUPABASE_CLI_VERSION).
 #
 # The tests exercise Postgres + PostgREST (the api service) only. Auth stays
 # enabled solely because `supabase status -o env` emits the stack's API keys
