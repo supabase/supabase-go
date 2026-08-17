@@ -112,3 +112,13 @@ create table public."`" (id integer not null primary key, name text not null);
 alter table public."`" enable row level security;
 create policy "anonymous can read `" on public."`" for select to anon using (true);
 grant select on table public."`" to anon;
+
+create table public."2026-06-30T11:23:31" (id integer not null primary key, name text not null);
+alter table public."2026-06-30T11:23:31" enable row level security;
+create policy "anonymous can read 2026-06-30T11:23:31" on public."2026-06-30T11:23:31" for select to anon using (true);
+grant select on table public."2026-06-30T11:23:31" to anon;
+
+create table public."a+b" (id integer not null primary key, name text not null);
+alter table public."a+b" enable row level security;
+create policy "anonymous can read a+b" on public."a+b" for select to anon using (true);
+grant select on table public."a+b" to anon;
