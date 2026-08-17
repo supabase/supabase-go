@@ -16,59 +16,59 @@ import (
 // Equality never matches rows holding null in column - [FilterBuilder.IsNull]
 // matches those.
 func (f FilterBuilder[T]) Eq(column string, value any) FilterBuilder[T] {
-	return f.appendFilter(column, "eq."+renderFilterValue(value))
+	return f.appendFilter(column, "eq", renderFilterValue(value))
 }
 
 // Neq matches only rows where column does not equal value, sent as the neq
 // operator. Rows holding null in column never match -
 // [FilterBuilder.IsDistinct] treats null as a comparable value.
 func (f FilterBuilder[T]) Neq(column string, value any) FilterBuilder[T] {
-	return f.appendFilter(column, "neq."+renderFilterValue(value))
+	return f.appendFilter(column, "neq", renderFilterValue(value))
 }
 
 // Gt matches only rows where column is greater than value, sent as the gt
 // operator.
 func (f FilterBuilder[T]) Gt(column string, value any) FilterBuilder[T] {
-	return f.appendFilter(column, "gt."+renderFilterValue(value))
+	return f.appendFilter(column, "gt", renderFilterValue(value))
 }
 
 // Gte matches only rows where column is greater than or equal to value, sent
 // as the gte operator.
 func (f FilterBuilder[T]) Gte(column string, value any) FilterBuilder[T] {
-	return f.appendFilter(column, "gte."+renderFilterValue(value))
+	return f.appendFilter(column, "gte", renderFilterValue(value))
 }
 
 // Lt matches only rows where column is less than value, sent as the lt
 // operator.
 func (f FilterBuilder[T]) Lt(column string, value any) FilterBuilder[T] {
-	return f.appendFilter(column, "lt."+renderFilterValue(value))
+	return f.appendFilter(column, "lt", renderFilterValue(value))
 }
 
 // Lte matches only rows where column is less than or equal to value, sent as
 // the lte operator.
 func (f FilterBuilder[T]) Lte(column string, value any) FilterBuilder[T] {
-	return f.appendFilter(column, "lte."+renderFilterValue(value))
+	return f.appendFilter(column, "lte", renderFilterValue(value))
 }
 
 // Like matches only rows where column matches pattern case-sensitively, sent
 // as the like operator. In the pattern, % matches any sequence of characters
 // (the server also accepts * as its alias) and _ matches exactly one.
 func (f FilterBuilder[T]) Like(column, pattern string) FilterBuilder[T] {
-	return f.appendFilter(column, "like."+pattern)
+	return f.appendFilter(column, "like", pattern)
 }
 
 // LikeAllOf matches only rows where column matches every one of patterns
 // case-sensitively, sent as the like operator with its all modifier over a
 // pattern list.
 func (f FilterBuilder[T]) LikeAllOf(column string, patterns ...string) FilterBuilder[T] {
-	return f.appendFilter(column, "like(all)."+renderFilterList('{', patterns, '}'))
+	return f.appendFilter(column, "like(all)", renderFilterList('{', patterns, '}'))
 }
 
 // LikeAnyOf matches only rows where column matches at least one of patterns
 // case-sensitively, sent as the like operator with its any modifier over a
 // pattern list.
 func (f FilterBuilder[T]) LikeAnyOf(column string, patterns ...string) FilterBuilder[T] {
-	return f.appendFilter(column, "like(any)."+renderFilterList('{', patterns, '}'))
+	return f.appendFilter(column, "like(any)", renderFilterList('{', patterns, '}'))
 }
 
 // ILike matches only rows where column matches pattern case-insensitively,
@@ -76,60 +76,60 @@ func (f FilterBuilder[T]) LikeAnyOf(column string, patterns ...string) FilterBui
 // characters (the server also accepts * as its alias) and _ matches exactly
 // one.
 func (f FilterBuilder[T]) ILike(column, pattern string) FilterBuilder[T] {
-	return f.appendFilter(column, "ilike."+pattern)
+	return f.appendFilter(column, "ilike", pattern)
 }
 
 // ILikeAllOf matches only rows where column matches every one of patterns
 // case-insensitively, sent as the ilike operator with its all modifier over
 // a pattern list.
 func (f FilterBuilder[T]) ILikeAllOf(column string, patterns ...string) FilterBuilder[T] {
-	return f.appendFilter(column, "ilike(all)."+renderFilterList('{', patterns, '}'))
+	return f.appendFilter(column, "ilike(all)", renderFilterList('{', patterns, '}'))
 }
 
 // ILikeAnyOf matches only rows where column matches at least one of patterns
 // case-insensitively, sent as the ilike operator with its any modifier over
 // a pattern list.
 func (f FilterBuilder[T]) ILikeAnyOf(column string, patterns ...string) FilterBuilder[T] {
-	return f.appendFilter(column, "ilike(any)."+renderFilterList('{', patterns, '}'))
+	return f.appendFilter(column, "ilike(any)", renderFilterList('{', patterns, '}'))
 }
 
 // RegexMatch matches only rows where column matches the POSIX regular
 // expression pattern case-sensitively, sent as the match operator.
 func (f FilterBuilder[T]) RegexMatch(column, pattern string) FilterBuilder[T] {
-	return f.appendFilter(column, "match."+pattern)
+	return f.appendFilter(column, "match", pattern)
 }
 
 // RegexIMatch matches only rows where column matches the POSIX regular
 // expression pattern case-insensitively, sent as the imatch operator.
 func (f FilterBuilder[T]) RegexIMatch(column, pattern string) FilterBuilder[T] {
-	return f.appendFilter(column, "imatch."+pattern)
+	return f.appendFilter(column, "imatch", pattern)
 }
 
 // IsNull matches only rows where column is null, sent as is.null.
 func (f FilterBuilder[T]) IsNull(column string) FilterBuilder[T] {
-	return f.appendFilter(column, "is.null")
+	return f.appendFilter(column, "is", "null")
 }
 
 // IsNotNull matches only rows where column holds a non-null value, sent as
 // is.not_null.
 func (f FilterBuilder[T]) IsNotNull(column string) FilterBuilder[T] {
-	return f.appendFilter(column, "is.not_null")
+	return f.appendFilter(column, "is", "not_null")
 }
 
 // IsTrue matches only rows where column is true, sent as is.true.
 func (f FilterBuilder[T]) IsTrue(column string) FilterBuilder[T] {
-	return f.appendFilter(column, "is.true")
+	return f.appendFilter(column, "is", "true")
 }
 
 // IsFalse matches only rows where column is false, sent as is.false.
 func (f FilterBuilder[T]) IsFalse(column string) FilterBuilder[T] {
-	return f.appendFilter(column, "is.false")
+	return f.appendFilter(column, "is", "false")
 }
 
 // IsUnknown matches only rows where column is unknown, sent as is.unknown.
 // Only boolean columns hold unknown, the boolean spelling of null.
 func (f FilterBuilder[T]) IsUnknown(column string) FilterBuilder[T] {
-	return f.appendFilter(column, "is.unknown")
+	return f.appendFilter(column, "is", "unknown")
 }
 
 // IsDistinct matches only rows where column is distinct from value, sent as
@@ -137,20 +137,20 @@ func (f FilterBuilder[T]) IsUnknown(column string) FilterBuilder[T] {
 // value, so rows holding null match whenever value is not null, and a nil
 // value matches every row holding any non-null value.
 func (f FilterBuilder[T]) IsDistinct(column string, value any) FilterBuilder[T] {
-	return f.appendFilter(column, "isdistinct."+renderFilterValue(value))
+	return f.appendFilter(column, "isdistinct", renderFilterValue(value))
 }
 
 // In matches only rows where column equals one of values, sent as the in
 // operator over a list. Values travel in the given order, duplicates
 // included.
 func (f FilterBuilder[T]) In(column string, values ...any) FilterBuilder[T] {
-	return f.appendFilter(column, "in."+renderFilterList('(', values, ')'))
+	return f.appendFilter(column, "in", renderFilterList('(', values, ')'))
 }
 
 // NotIn matches only rows where column equals none of values, sent as the in
 // operator negated. Values travel in the given order, duplicates included.
 func (f FilterBuilder[T]) NotIn(column string, values ...any) FilterBuilder[T] {
-	return f.appendFilter(column, "not.in."+renderFilterList('(', values, ')'))
+	return f.appendFilter(column, "not.in", renderFilterList('(', values, ')'))
 }
 
 // Contains matches only rows where the array in column contains every one of
@@ -158,7 +158,7 @@ func (f FilterBuilder[T]) NotIn(column string, values ...any) FilterBuilder[T] {
 // [FilterBuilder.ContainsRange] and [FilterBuilder.ContainsJSON] cover range
 // and jsonb columns.
 func (f FilterBuilder[T]) Contains(column string, values ...any) FilterBuilder[T] {
-	return f.appendFilter(column, "cs."+renderFilterList('{', values, '}'))
+	return f.appendFilter(column, "cs", renderFilterList('{', values, '}'))
 }
 
 // ContainsRange matches only rows where the range in column contains
@@ -166,14 +166,14 @@ func (f FilterBuilder[T]) Contains(column string, values ...any) FilterBuilder[T
 // brackets and parentheses choosing inclusive or exclusive bounds, for
 // example [2,7) or (1,5).
 func (f FilterBuilder[T]) ContainsRange(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "cs."+rangeLiteral)
+	return f.appendFilter(column, "cs", rangeLiteral)
 }
 
 // ContainsJSON matches only rows where the jsonb document in column contains
 // value, sent as the cs operator with value marshaled as JSON. It panics
 // when value cannot be marshaled by [encoding/json].
 func (f FilterBuilder[T]) ContainsJSON(column string, value any) FilterBuilder[T] {
-	return f.appendFilter(column, "cs."+renderFilterJSON(value))
+	return f.appendFilter(column, "cs", renderFilterJSON(value))
 }
 
 // ContainedBy matches only rows where every element of the array in column
@@ -181,7 +181,7 @@ func (f FilterBuilder[T]) ContainsJSON(column string, value any) FilterBuilder[T
 // [FilterBuilder.ContainedByRange] and [FilterBuilder.ContainedByJSON] cover
 // range and jsonb columns.
 func (f FilterBuilder[T]) ContainedBy(column string, values ...any) FilterBuilder[T] {
-	return f.appendFilter(column, "cd."+renderFilterList('{', values, '}'))
+	return f.appendFilter(column, "cd", renderFilterList('{', values, '}'))
 }
 
 // ContainedByRange matches only rows where the range in column lies entirely
@@ -189,21 +189,21 @@ func (f FilterBuilder[T]) ContainedBy(column string, values ...any) FilterBuilde
 // its brackets and parentheses choosing inclusive or exclusive bounds, for
 // example [2,7) or (1,5).
 func (f FilterBuilder[T]) ContainedByRange(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "cd."+rangeLiteral)
+	return f.appendFilter(column, "cd", rangeLiteral)
 }
 
 // ContainedByJSON matches only rows where the jsonb document in column is
 // contained by value, sent as the cd operator with value marshaled as JSON.
 // It panics when value cannot be marshaled by [encoding/json].
 func (f FilterBuilder[T]) ContainedByJSON(column string, value any) FilterBuilder[T] {
-	return f.appendFilter(column, "cd."+renderFilterJSON(value))
+	return f.appendFilter(column, "cd", renderFilterJSON(value))
 }
 
 // Overlaps matches only rows where the array in column shares at least one
 // element with values, sent as the ov operator over an array literal.
 // [FilterBuilder.OverlapsRange] covers range columns.
 func (f FilterBuilder[T]) Overlaps(column string, values ...any) FilterBuilder[T] {
-	return f.appendFilter(column, "ov."+renderFilterList('{', values, '}'))
+	return f.appendFilter(column, "ov", renderFilterList('{', values, '}'))
 }
 
 // OverlapsRange matches only rows where the range in column has values in
@@ -211,7 +211,7 @@ func (f FilterBuilder[T]) Overlaps(column string, values ...any) FilterBuilder[T
 // verbatim, its brackets and parentheses choosing inclusive or exclusive
 // bounds, for example [2,7) or (1,5).
 func (f FilterBuilder[T]) OverlapsRange(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "ov."+rangeLiteral)
+	return f.appendFilter(column, "ov", rangeLiteral)
 }
 
 // RangeGt matches only rows where the range in column is strictly right of
@@ -219,7 +219,7 @@ func (f FilterBuilder[T]) OverlapsRange(column, rangeLiteral string) FilterBuild
 // sent as the sr operator. The literal travels verbatim, its brackets and
 // parentheses choosing inclusive or exclusive bounds, for example [2,7).
 func (f FilterBuilder[T]) RangeGt(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "sr."+rangeLiteral)
+	return f.appendFilter(column, "sr", rangeLiteral)
 }
 
 // RangeGte matches only rows where the range in column does not extend to
@@ -227,7 +227,7 @@ func (f FilterBuilder[T]) RangeGt(column, rangeLiteral string) FilterBuilder[T] 
 // as the nxl operator. The literal travels verbatim, its brackets and
 // parentheses choosing inclusive or exclusive bounds, for example [2,7).
 func (f FilterBuilder[T]) RangeGte(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "nxl."+rangeLiteral)
+	return f.appendFilter(column, "nxl", rangeLiteral)
 }
 
 // RangeLt matches only rows where the range in column is strictly left of
@@ -235,7 +235,7 @@ func (f FilterBuilder[T]) RangeGte(column, rangeLiteral string) FilterBuilder[T]
 // sent as the sl operator. The literal travels verbatim, its brackets and
 // parentheses choosing inclusive or exclusive bounds, for example [2,7).
 func (f FilterBuilder[T]) RangeLt(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "sl."+rangeLiteral)
+	return f.appendFilter(column, "sl", rangeLiteral)
 }
 
 // RangeLte matches only rows where the range in column does not extend to
@@ -243,7 +243,7 @@ func (f FilterBuilder[T]) RangeLt(column, rangeLiteral string) FilterBuilder[T] 
 // as the nxr operator. The literal travels verbatim, its brackets and
 // parentheses choosing inclusive or exclusive bounds, for example [2,7).
 func (f FilterBuilder[T]) RangeLte(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "nxr."+rangeLiteral)
+	return f.appendFilter(column, "nxr", rangeLiteral)
 }
 
 // RangeAdjacent matches only rows where the range in column shares no values
@@ -251,7 +251,7 @@ func (f FilterBuilder[T]) RangeLte(column, rangeLiteral string) FilterBuilder[T]
 // operator. The literal travels verbatim, its brackets and parentheses
 // choosing inclusive or exclusive bounds, for example [2,7).
 func (f FilterBuilder[T]) RangeAdjacent(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "adj."+rangeLiteral)
+	return f.appendFilter(column, "adj", rangeLiteral)
 }
 
 // TextSearch matches only rows where column matches the full-text search
@@ -259,7 +259,7 @@ func (f FilterBuilder[T]) RangeAdjacent(column, rangeLiteral string) FilterBuild
 // non-empty configuration names the text search configuration to search
 // with (for example english), while empty relies on the server's default.
 func (f FilterBuilder[T]) TextSearch(column, query, configuration string) FilterBuilder[T] {
-	return f.appendFilter(column, appendOptionalConfiguration("fts", configuration)+"."+query)
+	return f.appendFilter(column, appendOptionalConfiguration("fts", configuration), query)
 }
 
 // TextSearchPlain matches only rows where column matches the full-text
@@ -268,7 +268,7 @@ func (f FilterBuilder[T]) TextSearch(column, query, configuration string) Filter
 // to search with (for example english), while empty relies on the server's
 // default.
 func (f FilterBuilder[T]) TextSearchPlain(column, query, configuration string) FilterBuilder[T] {
-	return f.appendFilter(column, appendOptionalConfiguration("plfts", configuration)+"."+query)
+	return f.appendFilter(column, appendOptionalConfiguration("plfts", configuration), query)
 }
 
 // TextSearchPhrase matches only rows where column matches the full-text
@@ -277,7 +277,7 @@ func (f FilterBuilder[T]) TextSearchPlain(column, query, configuration string) F
 // to search with (for example english), while empty relies on the server's
 // default.
 func (f FilterBuilder[T]) TextSearchPhrase(column, query, configuration string) FilterBuilder[T] {
-	return f.appendFilter(column, appendOptionalConfiguration("phfts", configuration)+"."+query)
+	return f.appendFilter(column, appendOptionalConfiguration("phfts", configuration), query)
 }
 
 // TextSearchWebsearch matches only rows where column matches the full-text
@@ -286,7 +286,7 @@ func (f FilterBuilder[T]) TextSearchPhrase(column, query, configuration string) 
 // configuration to search with (for example english), while empty relies on
 // the server's default.
 func (f FilterBuilder[T]) TextSearchWebsearch(column, query, configuration string) FilterBuilder[T] {
-	return f.appendFilter(column, appendOptionalConfiguration("wfts", configuration)+"."+query)
+	return f.appendFilter(column, appendOptionalConfiguration("wfts", configuration), query)
 }
 
 // Match matches only rows where every key of query equals its value, sent as
@@ -304,7 +304,7 @@ func (f FilterBuilder[T]) Match(query map[string]any) FilterBuilder[T] {
 // example Not("status", "eq", "OFFLINE"), so the caller owns any quoting the
 // value needs.
 func (f FilterBuilder[T]) Not(column, operator, value string) FilterBuilder[T] {
-	return f.appendFilter(column, "not."+operator+"."+value)
+	return f.appendFilter(column, "not."+operator, value)
 }
 
 // Or matches only rows satisfying at least one of filters, a group written
@@ -323,12 +323,12 @@ func (f FilterBuilder[T]) Or(filters string) FilterBuilder[T] {
 // Filter("status", "eq(any)", "{ONLINE,OFFLINE}"). The caller owns the
 // entire condition's syntax.
 func (f FilterBuilder[T]) Filter(column, operator, value string) FilterBuilder[T] {
-	return f.appendFilter(column, operator+"."+value)
+	return f.appendFilter(column, operator, value)
 }
 
 // appendFilter returns a builder carrying one more filter pair for column.
-func (f FilterBuilder[T]) appendFilter(column, condition string) FilterBuilder[T] {
-	return FilterBuilder[T]{request: f.request.WithParameter(column, condition)}
+func (f FilterBuilder[T]) appendFilter(column, operator, value string) FilterBuilder[T] {
+	return FilterBuilder[T]{request: f.request.WithParameter(column, operator+"."+value)}
 }
 
 // renderFilterValue renders value as PostgREST filter-value text following
