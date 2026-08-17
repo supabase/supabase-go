@@ -90,6 +90,16 @@ func TestRenderFilterValue(t *testing.T) {
 		{float32(math.SmallestNonzeroFloat32), "1e-45"},
 		{float64(math.MaxFloat64), "1.7976931348623157e+308"},
 		{float64(math.SmallestNonzeroFloat64), "5e-324"},
+		{1.5, "1.5"},
+		{-273.15, "-273.15"},
+		{float32(0.1), "0.1"},       // shortest for the float32 bits, not 0.100000001490116...
+		{float64(3), "3"},           // integral floats drop the point entirely, no "3.0"
+		{float64(1000000), "1e+06"}, // 'g' switches to exponent form at 1e6
+		{float64(0.0001), "0.0001"}, // ...and below 1e-4
+		{float64(0.00001), "1e-05"},
+		{math.NaN(), "NaN"},
+		{math.Inf(1), "+Inf"},
+		{math.Inf(-1), "-Inf"},
 
 		{spookyTime, "2026-10-31T20:00:00Z"},
 		{spookyTimeInNewYork, "2026-10-31T16:00:00-04:00"},
