@@ -219,6 +219,22 @@ go version             # expect go1.26.6 darwin/arm64
 ./scripts/check-fast.sh
 ```
 
+And another example, on the same machine, but for a [Lima](https://lima-vm.io/)-provided Ubuntu VM installation (would be the same for any `arm64` Linux host or guest OS):
+
+```bash
+curl -fsSLO https://go.dev/dl/go1.26.6.linux-arm64.tar.gz
+sha256sum go1.26.6.linux-arm64.tar.gz
+# expect d0507e9e9d7fe012aae570108cbd76c15de879e17130ab8cb90d4d7445cb1f2e (published at https://go.dev/dl/)
+# Remove the old tree first: tar -x unions files rather than replacing the target,
+# so a stale file from 1.26.5 would otherwise linger silently under /usr/local/go.
+# This is the sequence go.dev/doc/install prescribes for Linux upgrades.
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.26.6.linux-arm64.tar.gz
+go version             # expect go1.26.6 linux/arm64
+./scripts/vulncheck.sh
+./scripts/check-fast.sh
+```
+
 ### When the vulnerability scan fails on the Go standard library
 
 `govulncheck` checks both the dependencies in our `go.mod` files and the standard library of whichever Go toolchain runs the scan. The `Found in:` line of a finding tells you which case you have. A module path such as `golang.org/x/crypto@v0.32.0` is a dependency, fixed in the affected module's `go.mod`. `Standard library` with a version like `crypto/tls@go1.26.4` means the flaw is in the machine's Go toolchain, which no repository file declares or can fix, and which never reaches consumers - the SDK ships as source, so their binaries carry their own toolchain's standard library. A concrete example of hitting this was [GO-2026-5856](https://pkg.go.dev/vuln/GO-2026-5856) ([CVE-2026-42505](https://www.cve.org/CVERecord?id=CVE-2026-42505)), where scans running with go1.26.4 failed until the machine's toolchain moved to go1.26.5 with no repository change needed.
