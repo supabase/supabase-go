@@ -259,7 +259,7 @@ func (f FilterBuilder[T]) RangeAdjacent(column, rangeLiteral string) FilterBuild
 // non-empty configuration names the text search configuration to search
 // with (for example english), while empty relies on the server's default.
 func (f FilterBuilder[T]) TextSearch(column, query, configuration string) FilterBuilder[T] {
-	return f.appendFilter(column, renderTextSearch("fts", configuration, query))
+	return f.appendFilter(column, appendOptionalConfiguration("fts", configuration)+"."+query)
 }
 
 // TextSearchPlain matches only rows where column matches the full-text
@@ -268,7 +268,7 @@ func (f FilterBuilder[T]) TextSearch(column, query, configuration string) Filter
 // to search with (for example english), while empty relies on the server's
 // default.
 func (f FilterBuilder[T]) TextSearchPlain(column, query, configuration string) FilterBuilder[T] {
-	return f.appendFilter(column, renderTextSearch("plfts", configuration, query))
+	return f.appendFilter(column, appendOptionalConfiguration("plfts", configuration)+"."+query)
 }
 
 // TextSearchPhrase matches only rows where column matches the full-text
@@ -277,7 +277,7 @@ func (f FilterBuilder[T]) TextSearchPlain(column, query, configuration string) F
 // to search with (for example english), while empty relies on the server's
 // default.
 func (f FilterBuilder[T]) TextSearchPhrase(column, query, configuration string) FilterBuilder[T] {
-	return f.appendFilter(column, renderTextSearch("phfts", configuration, query))
+	return f.appendFilter(column, appendOptionalConfiguration("phfts", configuration)+"."+query)
 }
 
 // TextSearchWebsearch matches only rows where column matches the full-text
@@ -286,7 +286,7 @@ func (f FilterBuilder[T]) TextSearchPhrase(column, query, configuration string) 
 // configuration to search with (for example english), while empty relies on
 // the server's default.
 func (f FilterBuilder[T]) TextSearchWebsearch(column, query, configuration string) FilterBuilder[T] {
-	return f.appendFilter(column, renderTextSearch("wfts", configuration, query))
+	return f.appendFilter(column, appendOptionalConfiguration("wfts", configuration)+"."+query)
 }
 
 // Match matches only rows where every key of query equals its value, sent as
@@ -391,13 +391,13 @@ func quoteFilterListElement(rendered string) string {
 	return `"` + escaped + `"`
 }
 
-// renderTextSearch renders one full-text-search condition, placing a
-// non-empty configuration in parentheses between the operator and the query.
-func renderTextSearch(operator, configuration, query string) string {
+// appendOptionalConfiguration either returns operator if configuration is empty,
+// otherwise returns the operator plus the configuration parenthesized.
+func appendOptionalConfiguration(operator, configuration string) string {
 	if configuration == "" {
-		return operator + "." + query
+		return operator
 	}
-	return operator + "(" + configuration + ")." + query
+	return operator + "(" + configuration + ")"
 }
 
 // renderFilterJSON renders value as compact JSON for a jsonb filter,
