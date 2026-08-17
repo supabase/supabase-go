@@ -108,6 +108,9 @@ func TestRenderFilterValue(t *testing.T) {
 		{spookyTime.Add(500 * time.Millisecond), "2026-10-31T20:00:00.5Z"}, // .5, not .500
 		{time.Time{}, "0001-01-01T00:00:00Z"},                              // the uninitialized-field accident, rendered not panicking
 
+		{(*int)(nil), "<nil>"},        // typed nil is not untyped nil: only the latter renders null
+		{[]string{"a", "b"}, "[a b]"}, // slices are not expanded: In wants variadic values, not one slice
+
 		// via fmt.Stringer
 		{90 * time.Minute, "1h30m0s"},
 		{time.Month(8), "August"},
