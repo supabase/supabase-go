@@ -371,10 +371,10 @@ func renderFilterFloat(value float64, bitSize int) string {
 	}
 }
 
-// filterListStructure holds every character that forces a list element into
+// filterListElementQuotable holds every character that forces a list element into
 // double quotes: the delimiters the list grammar reads as structure plus the
 // quote and escape characters themselves.
-const filterListStructure = `,(){}"\`
+const filterListElementQuotable = `,(){}"\`
 
 // renderFilterList renders elements as one delimited list, each element
 // rendered by renderFilterValue and quoted by quoteFilterListElement, for
@@ -398,7 +398,9 @@ func renderFilterList[Element any](opening byte, elements []Element, closing byt
 // carries edge whitespace or contains a character the list grammar reads as
 // structure, and untouched otherwise.
 func quoteFilterListElement(rendered string) string {
-	if rendered != "" && rendered == strings.TrimSpace(rendered) && !strings.ContainsAny(rendered, filterListStructure) {
+	if rendered != "" &&
+		rendered == strings.TrimSpace(rendered) &&
+		!strings.ContainsAny(rendered, filterListElementQuotable) {
 		return rendered
 	}
 	escaped := strings.ReplaceAll(rendered, `\`, `\\`)
