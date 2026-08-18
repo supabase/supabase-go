@@ -44,6 +44,10 @@ type namedEntity struct {
 	Name string `json:"name"`
 }
 
+type justNamedEntity struct {
+	Name string `json:"name"`
+}
+
 type seededInstrument struct {
 	namedEntity
 	AcquiredYear *int `json:"acquired_year"`
@@ -766,5 +770,87 @@ func TestUnsatisfiableRangeReturnsTypedError(t *testing.T) {
 	}
 	if response != (postgrest.Response{}) {
 		t.Errorf("response = %+v, want zero value on error", response)
+	}
+}
+
+func TestFiltersWithReserved(t *testing.T) {
+	testCases := []struct {
+		name  string
+		value string
+	}{
+		{"just comma", ","},
+		{"just dot", "."},
+		{"just colon", ":"},
+		{"just asterisk", "*"},
+		{"just opening parenthesis", "("},
+		{"just closing parenthesis", ")"},
+		{"just dollar", "$"},
+		{"just opening square bracket", "["},
+		{"just closing square bracket", "]"},
+		{"just semi-colon", ";"},
+		{"just opening brace", "{"},
+		{"just closing brace", "}"},
+		{"just caret", "^"},
+		{"just percent", "%"},
+		{"just left angle bracket", "<"},
+		{"just right angle bracket", ">"},
+		{"just equals", "="},
+		{"just plus", "+"},
+		{"just minus", "-"},
+		{"just double quote", `"`},
+		{"just single quote", "'"},
+		{"just backslash", `\`},
+		{"just backspace", "\b"},
+		{"just form feed", "\f"},
+		{"just newline", "\n"},
+		{"just carriage return", "\r"},
+		{"just tab", "\t"},
+		{"just multitudinous", "众"},
+		{"just poop", "💩"},
+	}
+
+	testFilters := []struct {
+		name    string
+		perform func(builder postgrest.FilterBuilder[justNamedEntity], value string) postgrest.Query[justNamedEntity]
+	}{
+		{
+			"Eq",
+			func(builder postgrest.FilterBuilder[justNamedEntity], value string) postgrest.Query[justNamedEntity] {
+				return builder.Eq("text", value)
+			},
+		},
+		{
+			"Contains",
+			func(builder postgrest.FilterBuilder[justNamedEntity], value string) postgrest.Query[justNamedEntity] {
+				return builder.Contains("array", value)
+			},
+		},
+	}
+
+	client := newIntegrationClient(t)
+
+	for _, testCase := range testCases {
+		for _, testFilter := range testFilters {
+			t.Run(testCase.name+" via "+testFilter.name, func(t *testing.T) {
+				rows, response, err := postgrest.Collect(
+					t.Context(),
+					client,
+					testFilter.perform(postgrest.From[justNamedEntity]("⚠ reserved ⚠").Select("name"), testCase.value),
+				)
+				if err != nil {
+					t.Fatalf("Collect: %v", err)
+				}
+
+				// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+				testkit.AssertOKResponse(t, response)
+				if len(rows) != 1 {
+					t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
+				}
+
+				if rows[0].Name != testCase.name {
+					t.Errorf("want %q, got %q", testCase.name, rows[0].Name)
+				}
+			})
+		}
 	}
 }

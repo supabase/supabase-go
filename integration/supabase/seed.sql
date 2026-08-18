@@ -60,3 +60,42 @@ insert into public."'" (id, name) values (1, '''');
 insert into public."`" (id, name) values (1, '`');
 insert into public."2026-06-30T11:23:31" (id, name) values (1, '2026-06-30T11:23:31');
 insert into public."a+b" (id, name) values (1, 'a+b');
+
+-- Populate rows with reserved characters.
+-- - Full set from https://docs.postgrest.org/en/latest/references/api/url_grammar.html#reserved-characters:
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just comma', ',', array[',']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just dot', '.', array['.']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just colon', ':', array[':']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just asterisk', '*', array['*']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just opening parenthesis', '(', array['(']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just closing parenthesis', ')', array[')']);
+-- - Extras from https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-SPECIAL-CHARS
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just dollar', '$', array['$']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just opening square bracket', '[', array['[']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just closing square bracket', ']', array[']']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just semi-colon', ';', array[';']);
+-- - Other characters which AI gets excited about when considering escaping for PostgREST.
+--   - "you must put double quotes around it": https://www.postgresql.org/docs/current/arrays.html#ARRAYS-INPUT
+--   - "use curly braces instead of square brackets" re ov: https://docs.postgrest.org/en/latest/references/api/tables_views.html#operators
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just opening brace', '{', array['{']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just closing brace', '}', array['}']);
+-- - Other characters which have common use elsewhere in the grammar of PostgreSQL.
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just caret', '^', array['^']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just percent', '%', array['%']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just left angle bracket', '<', array['<']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just right angle bracket', '>', array['>']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just equals', '=', array['=']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just plus', '+', array['+']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just minus', '-', array['-']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just double quote', '"', array['"']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just single quote', '''', array['''']);
+-- - https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-STRINGS-ESCAPE
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just backslash', E'\\', array[E'\\']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just backspace', E'\b', array[E'\b']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just form feed', E'\f', array[E'\f']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just newline', E'\n', array[E'\n']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just carriage return', E'\r', array[E'\r']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just tab', E'\t', array[E'\t']);
+-- - Other potentially surprising characters.
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just multitudinous', '众', array['众']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just poop', '💩', array['💩']);

@@ -13,6 +13,19 @@ import (
 
 // cSpell:ignore ilike imatch isdistinct phraseto phfts plainto plfts tsquery websearch wfts
 
+// listGrammar instances must only contain characters mapping to the ASCII set
+// (byte values 0 thru 127), for the way they're used in this implementation.
+// The first character (index 0) must be the opener and the second character
+// (index 1) must be the closer.
+type listGrammar string
+
+const commonListGrammar = `,`
+
+const (
+	parenthesesListGrammar listGrammar = `()` + commonListGrammar
+	bracesListGrammar      listGrammar = `{}"\` + commonListGrammar
+)
+
 // Eq matches only rows where column equals value, sent as the eq operator.
 // Equality never matches rows holding null in column - [FilterBuilder.IsNull]
 // matches those.
@@ -62,14 +75,14 @@ func (f FilterBuilder[T]) Like(column, pattern string) FilterBuilder[T] {
 // case-sensitively, sent as the like operator with its all modifier over a
 // pattern list.
 func (f FilterBuilder[T]) LikeAllOf(column string, patterns ...string) FilterBuilder[T] {
-	return f.appendFilter(column, "like(all)", renderFilterList('{', patterns, '}'))
+	return f.appendFilter(column, "like(all)", renderFilterList(bracesListGrammar, patterns))
 }
 
 // LikeAnyOf matches only rows where column matches at least one of patterns
 // case-sensitively, sent as the like operator with its any modifier over a
 // pattern list.
 func (f FilterBuilder[T]) LikeAnyOf(column string, patterns ...string) FilterBuilder[T] {
-	return f.appendFilter(column, "like(any)", renderFilterList('{', patterns, '}'))
+	return f.appendFilter(column, "like(any)", renderFilterList(bracesListGrammar, patterns))
 }
 
 // ILike matches only rows where column matches pattern case-insensitively,
@@ -84,14 +97,14 @@ func (f FilterBuilder[T]) ILike(column, pattern string) FilterBuilder[T] {
 // case-insensitively, sent as the ilike operator with its all modifier over
 // a pattern list.
 func (f FilterBuilder[T]) ILikeAllOf(column string, patterns ...string) FilterBuilder[T] {
-	return f.appendFilter(column, "ilike(all)", renderFilterList('{', patterns, '}'))
+	return f.appendFilter(column, "ilike(all)", renderFilterList(bracesListGrammar, patterns))
 }
 
 // ILikeAnyOf matches only rows where column matches at least one of patterns
 // case-insensitively, sent as the ilike operator with its any modifier over
 // a pattern list.
 func (f FilterBuilder[T]) ILikeAnyOf(column string, patterns ...string) FilterBuilder[T] {
-	return f.appendFilter(column, "ilike(any)", renderFilterList('{', patterns, '}'))
+	return f.appendFilter(column, "ilike(any)", renderFilterList(bracesListGrammar, patterns))
 }
 
 // RegexMatch matches only rows where column matches the POSIX regular
@@ -145,13 +158,13 @@ func (f FilterBuilder[T]) IsDistinct(column string, value any) FilterBuilder[T] 
 // operator over a list. Values travel in the given order, duplicates
 // included.
 func (f FilterBuilder[T]) In(column string, values ...any) FilterBuilder[T] {
-	return f.appendFilter(column, "in", renderFilterList('(', values, ')'))
+	return f.appendFilter(column, "in", renderFilterList(parenthesesListGrammar, values))
 }
 
 // NotIn matches only rows where column equals none of values, sent as the in
 // operator negated. Values travel in the given order, duplicates included.
 func (f FilterBuilder[T]) NotIn(column string, values ...any) FilterBuilder[T] {
-	return f.appendFilter(column, "not.in", renderFilterList('(', values, ')'))
+	return f.appendFilter(column, "not.in", renderFilterList(parenthesesListGrammar, values))
 }
 
 // Contains matches only rows where the array in column contains every one of
@@ -159,7 +172,7 @@ func (f FilterBuilder[T]) NotIn(column string, values ...any) FilterBuilder[T] {
 // [FilterBuilder.ContainsRange] and [FilterBuilder.ContainsJSON] cover range
 // and jsonb columns.
 func (f FilterBuilder[T]) Contains(column string, values ...any) FilterBuilder[T] {
-	return f.appendFilter(column, "cs", renderFilterList('{', values, '}'))
+	return f.appendFilter(column, "cs", renderFilterList(bracesListGrammar, values))
 }
 
 // ContainsRange matches only rows where the range in column contains
@@ -182,7 +195,7 @@ func (f FilterBuilder[T]) ContainsJSON(column string, value any) FilterBuilder[T
 // [FilterBuilder.ContainedByRange] and [FilterBuilder.ContainedByJSON] cover
 // range and jsonb columns.
 func (f FilterBuilder[T]) ContainedBy(column string, values ...any) FilterBuilder[T] {
-	return f.appendFilter(column, "cd", renderFilterList('{', values, '}'))
+	return f.appendFilter(column, "cd", renderFilterList(bracesListGrammar, values))
 }
 
 // ContainedByRange matches only rows where the range in column lies entirely
@@ -204,7 +217,7 @@ func (f FilterBuilder[T]) ContainedByJSON(column string, value any) FilterBuilde
 // element with values, sent as the ov operator over an array literal.
 // [FilterBuilder.OverlapsRange] covers range columns.
 func (f FilterBuilder[T]) Overlaps(column string, values ...any) FilterBuilder[T] {
-	return f.appendFilter(column, "ov", renderFilterList('{', values, '}'))
+	return f.appendFilter(column, "ov", renderFilterList(bracesListGrammar, values))
 }
 
 // OverlapsRange matches only rows where the range in column has values in
@@ -371,36 +384,28 @@ func renderFilterFloat(value float64, bitSize int) string {
 	}
 }
 
-// filterListElementQuotable holds every character that forces a list element into
-// double quotes: the delimiters the list grammar reads as structure plus the
-// quote and escape characters themselves.
-const filterListElementQuotable = `,(){}"\`
-
 // renderFilterList renders elements as one delimited list, each element
 // rendered by renderFilterValue and quoted by quoteFilterListElement, for
 // example ("a,b",plain) or {1,2}. An empty elements slice renders just the
 // bare delimiters.
-func renderFilterList[Element any](opening byte, elements []Element, closing byte) string {
-	var text strings.Builder
-	text.WriteByte(opening)
+func renderFilterList[Element any](grammar listGrammar, elements []Element) string {
+	var b strings.Builder
+	b.WriteByte(grammar[0])
 	for index, element := range elements {
 		if index > 0 {
-			text.WriteByte(',')
+			b.WriteByte(',')
 		}
-		text.WriteString(quoteFilterListElement(renderFilterValue(element)))
+		b.WriteString(quoteIfNeeded(string(grammar), renderFilterValue(element)))
 	}
-	text.WriteByte(closing)
-	return text.String()
+	b.WriteByte(grammar[1])
+	return b.String()
 }
 
-// quoteFilterListElement returns rendered ready for embedding as one list
-// element: double-quoted with backslash-escaped \ and " when it is empty,
-// carries edge whitespace or contains a character the list grammar reads as
-// structure, and untouched otherwise.
-func quoteFilterListElement(rendered string) string {
-	if rendered != "" &&
-		rendered == strings.TrimSpace(rendered) &&
-		!strings.ContainsAny(rendered, filterListElementQuotable) {
+// quoteIfNeeded returns rendered ready for embedding, compatible with grammar.
+// If rendered contains any character from grammar then it is returned in
+// double-quoted form with `"` and `\` characters appropriately escaped.
+func quoteIfNeeded(grammar, rendered string) string {
+	if rendered != "" && rendered == strings.TrimSpace(rendered) && !strings.ContainsAny(rendered, grammar) {
 		return rendered
 	}
 	escaped := strings.ReplaceAll(rendered, `\`, `\\`)

@@ -122,3 +122,13 @@ create table public."a+b" (id integer not null primary key, name text not null);
 alter table public."a+b" enable row level security;
 create policy "anonymous can read a+b" on public."a+b" for select to anon using (true);
 grant select on table public."a+b" to anon;
+
+-- A table with rows that have values which include reserved characters.
+create table public."⚠ reserved ⚠" (
+    name text not null primary key,
+    text text not null,
+    "array" text[] not null
+);
+alter table public."⚠ reserved ⚠" enable row level security;
+create policy "anonymous can read ⚠ reserved ⚠" on public."⚠ reserved ⚠" for select to anon using (true);
+grant select on table public."⚠ reserved ⚠" to anon;
