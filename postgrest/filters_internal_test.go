@@ -99,8 +99,11 @@ func TestRenderFilterValue(t *testing.T) {
 		{float64(0.0001), "0.0001"}, // ...and below 1e-4
 		{float64(0.00001), "1e-05"},
 		{math.NaN(), "NaN"},
-		{math.Inf(1), "+Inf"},
-		{math.Inf(-1), "-Inf"},
+		{math.Inf(1), "Infinity"},
+		{math.Inf(-1), "-Infinity"},
+		{float32(math.NaN()), "NaN"},
+		{float32(math.Inf(1)), "Infinity"},
+		{float32(math.Inf(-1)), "-Infinity"},
 
 		{spookyTime, "2026-10-31T20:00:00Z"},
 		{spookyTimeInNewYork, "2026-10-31T16:00:00-04:00"},

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -344,15 +345,29 @@ func renderFilterValue(value any) string {
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
 		return fmt.Sprintf("%d", typed)
 	case float32:
-		return strconv.FormatFloat(float64(typed), 'g', -1, 32)
+		return renderFilterFloat(float64(typed), 32)
 	case float64:
-		return strconv.FormatFloat(typed, 'g', -1, 64)
+		return renderFilterFloat(typed, 64)
 	case time.Time:
 		return typed.Format(time.RFC3339Nano)
 	case fmt.Stringer:
 		return typed.String()
 	default:
 		return fmt.Sprintf("%v", typed)
+	}
+}
+
+// renderFilterFloat renders value as the shortest decimal text that parses
+// back to the same floating-point number of bitSize bits, with the two
+// infinities spelled Infinity and -Infinity as PostgreSQL canonically does.
+func renderFilterFloat(value float64, bitSize int) string {
+	switch {
+	case math.IsInf(value, 1):
+		return "Infinity"
+	case math.IsInf(value, -1):
+		return "-Infinity"
+	default:
+		return strconv.FormatFloat(value, 'g', -1, bitSize)
 	}
 }
 

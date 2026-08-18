@@ -42,7 +42,9 @@ type QueryBuilder[T any] struct {
 //   - string: sent verbatim
 //   - bool: true or false
 //   - integer types: decimal digits
-//   - float32 and float64: the shortest decimal text that round-trips
+//   - float32 and float64: the shortest decimal text that round-trips,
+//     with the special values as PostgreSQL's canonical Infinity,
+//     -Infinity and NaN
 //   - [time.Time]: RFC 3339 with up to nanosecond precision
 //   - nil: null
 //   - [fmt.Stringer]: what String returns
