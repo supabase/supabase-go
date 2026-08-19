@@ -148,11 +148,11 @@ features:
   database.using_filters.regex:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.RegexMatch
+      - postgrest.FilterBuilder.Match
   database.using_filters.regex_icase:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.RegexIMatch
+      - postgrest.FilterBuilder.IMatch
   database.using_filters.text_search:
     status: implemented
     symbols:

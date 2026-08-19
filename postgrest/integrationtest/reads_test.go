@@ -1024,21 +1024,21 @@ func TestFilters(t *testing.T) {
 		{
 			"regular expression with prefix matching",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.RegexMatch("title", "^Dark")
+				return builder.Match("title", "^Dark")
 			},
 			[]int{5},
 		},
 		{
 			"regular expression with prefix not matching due to case mismatch",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.RegexMatch("title", "^dark")
+				return builder.Match("title", "^dark")
 			},
 			[]int{},
 		},
 		{
 			"regular expression with ignore case and prefix matching",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.RegexIMatch("title", "^dark")
+				return builder.IMatch("title", "^dark")
 			},
 			[]int{5},
 		},

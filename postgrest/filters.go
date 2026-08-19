@@ -105,15 +105,15 @@ func (f FilterBuilder[T]) ILikeAnyOf(column string, patterns ...string) FilterBu
 	return f.appendFilter(column, "ilike(any)", renderFilterList(bracesListGrammar, patterns))
 }
 
-// RegexMatch matches only rows where column matches the POSIX regular
+// Match matches only rows where column matches the POSIX regular
 // expression pattern case-sensitively, sent as the match operator.
-func (f FilterBuilder[T]) RegexMatch(column, pattern string) FilterBuilder[T] {
+func (f FilterBuilder[T]) Match(column, pattern string) FilterBuilder[T] {
 	return f.appendFilter(column, "match", pattern)
 }
 
-// RegexIMatch matches only rows where column matches the POSIX regular
+// IMatch matches only rows where column matches the POSIX regular
 // expression pattern case-insensitively, sent as the imatch operator.
-func (f FilterBuilder[T]) RegexIMatch(column, pattern string) FilterBuilder[T] {
+func (f FilterBuilder[T]) IMatch(column, pattern string) FilterBuilder[T] {
 	return f.appendFilter(column, "imatch", pattern)
 }
 
