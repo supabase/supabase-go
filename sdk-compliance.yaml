@@ -98,7 +98,7 @@ features:
   database.using_filters.match:
     status: not_applicable
     note: |
-      Clashes with PostgREST's query parameter 'match' (pattern matching with regular expression).
+      Clashes with PostgREST's 'match' filter operator (pattern matching with regular expression).
       Is a client-side only 'convenience' method.
   database.using_filters.neq:
     status: implemented
