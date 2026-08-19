@@ -867,3 +867,464 @@ func TestFiltersWithReserved(t *testing.T) {
 		}
 	}
 }
+
+func TestFilters(t *testing.T) {
+	testCases := []struct {
+		name    string
+		perform func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity]
+		want    []int
+	}{
+		{
+			"text equals",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Eq("status", "open")
+			},
+			[]int{1, 2},
+		},
+		{
+			"text not equal",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Neq("status", "open")
+			},
+			[]int{3, 4, 5, 6},
+		},
+		{
+			"integer greater than",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Gt("priority", 3)
+			},
+			[]int{4, 5},
+		},
+		{
+			"integer greater than or equal",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Gte("priority", 3)
+			},
+			[]int{2, 4, 5},
+		},
+		{
+			"double precision less than",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Lt("effort", 3)
+			},
+			[]int{1, 2, 5},
+		},
+		{
+			"double precision less than or equal",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Lte("effort", 3)
+			},
+			[]int{1, 2, 3, 5},
+		},
+		{
+			"double precision equals integer",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Eq("effort", 3)
+			},
+			[]int{3},
+		},
+		{
+			"double precision equals",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Eq("effort", 1.5)
+			},
+			[]int{2},
+		},
+		{
+			"timestamp with timezone greater than or equal",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Gte("created_at", testkit.TimeRFC3339(t, `2026-01-04T09:00:00Z`))
+			},
+			[]int{4, 5, 6},
+		},
+		{
+			"text like with outer wildcards",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Like("title", "%mode%")
+			},
+			[]int{5},
+		},
+		{
+			"text like with outer wildcards using asterisk",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Like("title", "*mode*")
+			},
+			[]int{5},
+		},
+		{
+			"text like with ignore case and outer wildcards",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.ILike("title", "%DASHBOARD%")
+			},
+			[]int{2},
+		},
+		{
+			"text like with ignore case and outer wildcards using asterisk",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.ILike("title", "*DASHBOARD*")
+			},
+			[]int{2},
+		},
+		{
+			"text like all of with outer wildcards",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.LikeAllOf("title", "%a%", "%o%")
+			},
+			[]int{2, 4, 5, 6},
+		},
+		{
+			"text like all of with outer wildcards using asterisk",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.LikeAllOf("title", "*a*", "*o*")
+			},
+			[]int{2, 4, 5, 6},
+		},
+		{
+			"text like any of with prefix matching",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.LikeAnyOf("title", "Login%", "Export%")
+			},
+			[]int{1, 3},
+		},
+		{
+			"text like any of with prefix matching using asterisk",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.LikeAnyOf("title", "Login*", "Export*")
+			},
+			[]int{1, 3},
+		},
+		{
+			"text like all of with ignore case and outer wildcards",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.ILikeAllOf("title", "%DARK%", "%MODE%")
+			},
+			[]int{5},
+		},
+		{
+			"text like all of with ignore case and outer wildcards using asterisk",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.ILikeAllOf("title", "*DARK*", "*MODE*")
+			},
+			[]int{5},
+		},
+		{
+			"text like any of with ignore case and outer wildcards",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.ILikeAnyOf("title", "%csv%", "%rate%")
+			},
+			[]int{3, 4},
+		},
+		{
+			"text like any of with ignore case and outer wildcards using asterisk",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.ILikeAnyOf("title", "*csv*", "*rate*")
+			},
+			[]int{3, 4},
+		},
+		{
+			"regular expression with prefix matching",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.RegexMatch("title", "^Dark")
+			},
+			[]int{5},
+		},
+		{
+			"regular expression with prefix not matching due to case mismatch",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.RegexMatch("title", "^dark")
+			},
+			[]int{},
+		},
+		{
+			"regular expression with ignore case and prefix matching",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.RegexIMatch("title", "^dark")
+			},
+			[]int{5},
+		},
+		{
+			"nullable boolean is true",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.IsTrue("resolved")
+			},
+			[]int{5, 6},
+		},
+		{
+			"nullable boolean is false",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.IsFalse("resolved")
+			},
+			[]int{1, 3},
+		},
+		{
+			"nullable boolean is null",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.IsNull("resolved")
+			},
+			[]int{2, 4},
+		},
+		{
+			"nullable boolean is not null",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.IsNotNull("resolved")
+			},
+			[]int{1, 3, 5, 6},
+		},
+		{
+			"nullable boolean is unknown",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.IsUnknown("resolved") // boolean unknown is null
+			},
+			[]int{2, 4},
+		},
+		{
+			"nullable text is null",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.IsNull("assignee")
+			},
+			[]int{2, 4, 6},
+		},
+		{
+			"nullable text is distinct from",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.IsDistinct("assignee", "ada")
+			},
+			[]int{2, 3, 4, 6},
+		},
+		{
+			"nullable text not equal",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Neq("assignee", "ada") // just grace because nulls are dropped (in contrast to IsDistinct)
+			},
+			[]int{3},
+		},
+		{
+			"text in",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.In("status", "open", "triage")
+			},
+			[]int{1, 2, 4},
+		},
+		{
+			"text not in",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.NotIn("status", "open", "triage")
+			},
+			[]int{3, 5, 6},
+		},
+		{
+			"integer in",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.In("priority", 1, 2)
+			},
+			[]int{1, 3, 6},
+		},
+		{
+			"text array contains multiple",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Contains("tags", "bug", "ui")
+			},
+			[]int{1, 2},
+		},
+		{
+			"text array contains single",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Contains("tags", "ui")
+			},
+			[]int{1, 2, 5},
+		},
+		{
+			"text array contains empty set",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Contains("tags")
+			},
+			[]int{1, 2, 3, 4, 5, 6}, // all six because every array contains the empty set
+		},
+		{
+			"text array contained by multiple",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.ContainedBy("tags", "bug", "ui", "charts", "feature")
+			},
+			[]int{1, 2, 5, 6}, // the empty array is contained by everything
+		},
+		{
+			"text array overlaps multiple",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Overlaps("tags", "backend", "charts")
+			},
+			[]int{2, 3, 4},
+		},
+		{
+			"jsonb contains json",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.ContainsJSON("metadata", map[string]any{"severity": "high"})
+			},
+			[]int{1, 4},
+		},
+		{
+			"jsonb contained by json",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.ContainedByJSON("metadata", map[string]any{
+					"severity": "low",
+					"reviewed": true,
+					"browser":  "firefox",
+				}) // row 6’s null metadata never matches
+			},
+			[]int{2, 5},
+		},
+		{
+			"tstzrange contains range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.ContainsRange("active_during", "[2026-03-09T00:00:00Z,2026-03-10T00:00:00Z)")
+			},
+			[]int{2},
+		},
+		{
+			"tstzrange contained by range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.ContainedByRange("active_during", "[2026-02-01T00:00:00Z,2026-04-01T00:00:00Z)")
+			},
+			[]int{1, 2, 3, 5, 6}, // row 4’s null never matches
+		},
+		{
+			"tstzrange overlaps range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.OverlapsRange("active_during", "[2026-03-05T00:00:00Z,2026-03-09T00:00:00Z)")
+			},
+			[]int{1, 2},
+		},
+		{
+			"tstzrange strictly left of",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.RangeLt("active_during", "[2026-03-10T00:00:00Z,2026-03-11T00:00:00Z)")
+			},
+			[]int{1, 5},
+		},
+		{
+			"tstzrange strictly right of",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.RangeGt("active_during", "[2026-03-01T00:00:00Z,2026-03-10T00:00:00Z)")
+			},
+			[]int{3, 6},
+		},
+		{
+			"tstzrange does not extend to the left of",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.RangeGte("active_during", "[2026-03-08T00:00:00Z,2026-03-15T00:00:00Z)")
+			},
+			[]int{2, 3, 6},
+		},
+		{
+			"tstzrange does not extend to the right of",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.RangeLte("active_during", "[2026-03-01T00:00:00Z,2026-03-15T00:00:00Z)")
+			},
+			[]int{1, 2, 5},
+		},
+		{
+			"tstzrange is adjacent to",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.RangeAdjacent("active_during", "[2026-03-08T00:00:00Z,2026-03-15T00:00:00Z)")
+			},
+			[]int{1, 6},
+		},
+		{
+			"tsvector full-text search using to_tsquery",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.TextSearch("search", "quick & fox", "english")
+			},
+			[]int{1},
+		},
+		{
+			"tsvector full-text search using to_tsquery without configuration",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.TextSearch("search", "quick", "") // configuration omitted, relies on the stack’s default english config
+			},
+			[]int{1, 2},
+		},
+		{
+			"tsvector full-text search using plainto_tsquery",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.TextSearchPlain("search", "fat cat", "english") // plain is AND
+			},
+			[]int{3, 4},
+		},
+		{
+			"tsvector full-text search using phraseto_tsquery",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.TextSearchPhrase("search", "fat cat", "english") // phrase needs order and adjacency
+			},
+			[]int{3},
+		},
+		{
+			"tsvector full-text search using websearch_to_tsquery",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.TextSearchWebsearch("search", "fat cat -mat", "english") // exclusion drops row 3
+			},
+			[]int{4},
+		},
+		{
+			"match with two keys",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Match(map[string]any{
+					"status":   "open",
+					"priority": 1,
+				})
+			},
+			[]int{1},
+		},
+		{
+			"text not",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Not("status", "eq", "open")
+			},
+			[]int{3, 4, 5, 6},
+		},
+		{
+			"or",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Or("priority.eq.1,priority.eq.5")
+			},
+			[]int{1, 4},
+		},
+		{
+			"filter",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Filter("status", "eq(any)", "{open,closed}")
+			},
+			[]int{1, 2, 6},
+		},
+	}
+
+	client := newIntegrationClient(t)
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			rows, response, err := postgrest.Collect(
+				t.Context(),
+				client,
+				testCase.perform(postgrest.
+					From[seededEntity]("issues").
+					Select("id")),
+			)
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+			testkit.AssertOKResponse(t, response)
+			if len(rows) != len(testCase.want) {
+				t.Fatalf("row count = %d, want %d (seed drifted?)", len(rows), len(testCase.want))
+			}
+
+			rowIds := make([]int, len(rows))
+			for index, row := range rows {
+				rowIds[index] = row.ID
+			}
+
+			if !slices.Equal(testCase.want, rowIds) {
+				t.Errorf("want %q, got %q", testCase.want, rowIds)
+			}
+		})
+	}
+}

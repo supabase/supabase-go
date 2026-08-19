@@ -7,6 +7,7 @@ dyld
 errcheck
 Errorf
 exhaustruct
+firefox
 Firestore
 footgun
 GOBIN
@@ -33,6 +34,7 @@ ldflags
 mockability
 multimap
 nativeness
+nullable
 nullsfirst
 nullslast
 oapi
@@ -41,8 +43,10 @@ omitzero
 otelhttp
 pgrst
 PGRST
+phraseto
 pinact
 pkgsite
+plainto
 postgrest
 PRODSEC
 reassignable
@@ -56,6 +60,10 @@ Supabase
 synctest
 telemetrytest
 testkit
+tsquery
+tstzrange
+tsvector
 typestate
 unrepresentable
 vulncheck
+websearch

@@ -132,3 +132,21 @@ create table public."⚠ reserved ⚠" (
 alter table public."⚠ reserved ⚠" enable row level security;
 create policy "anonymous can read ⚠ reserved ⚠" on public."⚠ reserved ⚠" for select to anon using (true);
 grant select on table public."⚠ reserved ⚠" to anon;
+
+create table public.issues (
+    id integer not null primary key,
+    title text not null,
+    status text not null,
+    priority integer not null,
+    effort double precision not null,
+    resolved boolean,
+    assignee text,
+    tags text[] not null,
+    metadata jsonb,
+    active_during tstzrange,
+    created_at timestamp with time zone not null,
+    search tsvector
+);
+alter table public.issues enable row level security;
+create policy "anonymous can read issues" on public.issues for select to anon using (true);
+grant select on table public.issues to anon;

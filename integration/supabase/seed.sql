@@ -112,3 +112,12 @@ insert into public."⚠ reserved ⚠" (name, text, "array") values ('backslash i
 insert into public."⚠ reserved ⚠" (name, text, "array") values ('space padded', ' padded ', array[' padded ']); -- aren't we all! Right?
 insert into public."⚠ reserved ⚠" (name, text, "array") values ('empty', '', array['']);
 insert into public."⚠ reserved ⚠" (name, text, "array") values ('wildcard version tag', 'v1.2:rc*', array['v1.2:rc*']);
+
+insert into public.issues (id, title, status, priority, effort, resolved, assignee, tags, metadata, active_during, created_at, search)
+values
+    (1, 'Login button unresponsive', 'open',        1, 0.5, false, 'ada',   array['bug','ui'],              '{"severity":"high","browser":"firefox"}', tstzrange('2026-03-01T00:00:00Z', '2026-03-08T00:00:00Z', '[)'), '2026-01-01T09:00:00Z', to_tsvector('english', 'the quick brown fox jumps over the lazy dog')),
+    (2, 'Dashboard chart flickers',  'open',        3, 1.5, null,  null,    array['bug','ui','charts'],     '{"severity":"low"}',                      tstzrange('2026-03-08T00:00:00Z', '2026-03-15T00:00:00Z', '[)'), '2026-01-02T09:00:00Z', to_tsvector('english', 'quick fixes ship fast')),
+    (3, 'Export issues to CSV',      'in_progress', 2, 3,   false, 'grace', array['feature','backend'],     '{"severity":"medium","reviewed":true}',   tstzrange('2026-03-10T00:00:00Z', '2026-03-20T00:00:00Z', '[)'), '2026-01-03T09:00:00Z', to_tsvector('english', 'the fat cat sat on the mat')),
+    (4, 'Rate limit uploads',        'triage',      5, 8,   null,  null,    array['backend','performance'], '{"severity":"high","reviewed":false}',    null,                                                            '2026-01-04T09:00:00Z', to_tsvector('english', 'the cat and the fat dog')),
+    (5, 'Dark mode theme',           'resolved',    4, 2.5, true,  'ada',   array['feature','ui'],          '{"severity":"low","reviewed":true}',      tstzrange('2026-03-01T00:00:00Z', '2026-03-03T00:00:00Z', '[)'), '2026-01-05T09:00:00Z', to_tsvector('english', 'a dog day afternoon')),
+    (6, 'Onboarding copy tweaks',    'closed',      2, 13,  true,  null,    array[]::text[],                null,                                      tstzrange('2026-03-15T00:00:00Z', '2026-03-22T00:00:00Z', '[)'), '2026-01-06T09:00:00Z', null);
