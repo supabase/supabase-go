@@ -807,6 +807,17 @@ func TestFiltersWithReserved(t *testing.T) {
 		{"just tab", "\t"},
 		{"just multitudinous", "众"},
 		{"just poop", "💩"},
+		{"a comma b", "a,b"},
+		{"opening brace inside", "brace{inside"},
+		{"closing brace inside", "brace}inside"},
+		{"opening paren inside", "paren(open"},
+		{"closing paren inside", "close)paren"},
+		{"double quoted inside", `say "hi"`},
+		{"double quoted", `"The IKEA Effect"`},
+		{"backslash inside", `back\slash`},
+		{"space padded", " padded "},
+		{"empty", ""},
+		{"wildcard version tag", "v1.2:rc*"},
 	}
 
 	testFilters := []struct {

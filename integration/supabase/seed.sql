@@ -99,3 +99,16 @@ insert into public."⚠ reserved ⚠" (name, text, "array") values ('just tab', 
 -- - Other potentially surprising characters.
 insert into public."⚠ reserved ⚠" (name, text, "array") values ('just multitudinous', '众', array['众']);
 insert into public."⚠ reserved ⚠" (name, text, "array") values ('just poop', '💩', array['💩']);
+
+-- Populate rows with common hazard forms, more complex than just a single character.
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('a comma b', 'a,b', array['a,b']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('opening brace inside', 'brace{inside', array['brace{inside']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('closing brace inside', 'brace}inside', array['brace}inside']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('opening paren inside', 'paren(open', array['paren(open']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('closing paren inside', 'close)paren', array['close)paren']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('double quoted inside', 'say "hi"', array['say "hi"']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('double quoted', '"The IKEA Effect"', array['"The IKEA Effect"']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('backslash inside', 'back\slash', array['back\slash']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('space padded', ' padded ', array[' padded ']); -- aren't we all! Right?
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('empty', '', array['']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('wildcard version tag', 'v1.2:rc*', array['v1.2:rc*']);
