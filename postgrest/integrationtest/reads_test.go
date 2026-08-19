@@ -44,6 +44,8 @@ type namedEntity struct {
 	Name string `json:"name"`
 }
 
+// justNamedEntity is used when we have a seeded entity that does not have
+// a column called id and therefore doesn't map to [seededEntity].
 type justNamedEntity struct {
 	Name string `json:"name"`
 }
