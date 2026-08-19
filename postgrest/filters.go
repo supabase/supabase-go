@@ -3,9 +3,7 @@ package postgrest
 import (
 	"encoding/json"
 	"fmt"
-	"maps"
 	"math"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -301,16 +299,6 @@ func (f FilterBuilder[T]) TextSearchPhrase(column, query, configuration string) 
 // the server's default.
 func (f FilterBuilder[T]) TextSearchWebsearch(column, query, configuration string) FilterBuilder[T] {
 	return f.appendFilter(column, appendOptionalConfiguration("wfts", configuration), query)
-}
-
-// Match matches only rows where every key of query equals its value, sent as
-// one eq filter per pair in ascending key order. An empty or nil query adds
-// nothing.
-func (f FilterBuilder[T]) Match(query map[string]any) FilterBuilder[T] {
-	for _, column := range slices.Sorted(maps.Keys(query)) {
-		f = f.Eq(column, query[column])
-	}
-	return f
 }
 
 // Not negates a single filter, sent as the given operator prefixed with not.

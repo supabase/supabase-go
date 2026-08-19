@@ -1264,16 +1264,6 @@ func TestFilters(t *testing.T) {
 			[]int{4},
 		},
 		{
-			"match with two keys",
-			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.Match(map[string]any{
-					"status":   "open",
-					"priority": 1,
-				})
-			},
-			[]int{1},
-		},
-		{
 			"text not",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
 				return builder.Not("status", "eq", "open")

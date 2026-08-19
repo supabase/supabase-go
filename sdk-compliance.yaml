@@ -96,9 +96,10 @@ features:
     symbols:
       - postgrest.FilterBuilder.Lte
   database.using_filters.match:
-    status: implemented
-    symbols:
-      - postgrest.FilterBuilder.Match
+    status: not_applicable
+    note: |
+      Clashes with PostgREST's query parameter 'match' (pattern matching with regular expression).
+      Is a client-side only 'convenience' method.
   database.using_filters.neq:
     status: implemented
     symbols:
