@@ -838,32 +838,41 @@ func TestFiltersWithReserved(t *testing.T) {
 				return builder.Contains("array", value)
 			},
 		},
+		{
+			"In",
+			func(builder postgrest.FilterBuilder[justNamedEntity], value string) postgrest.Query[justNamedEntity] {
+				return builder.In("text", value)
+			},
+		},
 	}
 
 	client := newIntegrationClient(t)
 
 	for _, testCase := range testCases {
 		for _, testFilter := range testFilters {
-			t.Run(testCase.name+" via "+testFilter.name, func(t *testing.T) {
-				rows, response, err := postgrest.Collect(
-					t.Context(),
-					client,
-					testFilter.perform(postgrest.From[justNamedEntity]("⚠ reserved ⚠").Select("name"), testCase.value),
-				)
-				if err != nil {
-					t.Fatalf("Collect: %v", err)
-				}
+			// There is no way to use an empty value on IN, so that case and filter combination is not run.
+			if !(testCase.name == "empty" && testFilter.name == "In") {
+				t.Run(testCase.name+" via "+testFilter.name, func(t *testing.T) {
+					rows, response, err := postgrest.Collect(
+						t.Context(),
+						client,
+						testFilter.perform(postgrest.From[justNamedEntity]("⚠ reserved ⚠").Select("name"), testCase.value),
+					)
+					if err != nil {
+						t.Fatalf("Collect: %v", err)
+					}
 
-				// No count was requested, so PostgREST reports an unknown total ("0-2/*").
-				testkit.AssertOKResponse(t, response)
-				if len(rows) != 1 {
-					t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
-				}
+					// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+					testkit.AssertOKResponse(t, response)
+					if len(rows) != 1 {
+						t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
+					}
 
-				if rows[0].Name != testCase.name {
-					t.Errorf("want %q, got %q", testCase.name, rows[0].Name)
-				}
-			})
+					if rows[0].Name != testCase.name {
+						t.Errorf("want %q, got %q", testCase.name, rows[0].Name)
+					}
+				})
+			}
 		}
 	}
 }

@@ -17,11 +17,11 @@ import (
 // (index 1) must be the closer.
 type listGrammar string
 
-const commonListGrammar = `,`
+const commonListGrammar = `,"\`
 
 const (
 	parenthesesListGrammar listGrammar = `()` + commonListGrammar
-	bracesListGrammar      listGrammar = `{}"\` + commonListGrammar
+	bracesListGrammar      listGrammar = `{}` + commonListGrammar
 )
 
 // Eq matches only rows where column equals value, sent as the eq operator.
