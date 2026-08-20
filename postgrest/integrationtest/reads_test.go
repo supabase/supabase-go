@@ -11,6 +11,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
@@ -1184,56 +1185,72 @@ func TestFilters(t *testing.T) {
 		{
 			"tstzrange contains range",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.ContainsRange("active_during", "[2026-03-09T00:00:00Z,2026-03-10T00:00:00Z)")
+				return builder.Contains("active_during", postgrest.NewRange[time.Time]().
+					FromInclusive(testkit.TimeRFC3339(t, `2026-03-09T00:00:00Z`)).
+					ToExclusive(testkit.TimeRFC3339(t, `2026-03-10T00:00:00Z`)))
 			},
 			[]int{2},
 		},
 		{
 			"tstzrange contained by range",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.ContainedByRange("active_during", "[2026-02-01T00:00:00Z,2026-04-01T00:00:00Z)")
+				return builder.ContainedIn("active_during", postgrest.NewRange[time.Time]().
+					FromInclusive(testkit.TimeRFC3339(t, `2026-02-01T00:00:00Z`)).
+					ToExclusive(testkit.TimeRFC3339(t, `2026-04-01T00:00:00Z`)))
 			},
 			[]int{1, 2, 3, 5, 6}, // row 4’s null never matches
 		},
 		{
 			"tstzrange overlaps range",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.OverlapsRange("active_during", "[2026-03-05T00:00:00Z,2026-03-09T00:00:00Z)")
+				return builder.Overlaps("active_during", postgrest.NewRange[time.Time]().
+					FromInclusive(testkit.TimeRFC3339(t, `2026-03-05T00:00:00Z`)).
+					ToExclusive(testkit.TimeRFC3339(t, `2026-03-09T00:00:00Z`)))
 			},
 			[]int{1, 2},
 		},
 		{
 			"tstzrange strictly left of",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.RangeLt("active_during", "[2026-03-10T00:00:00Z,2026-03-11T00:00:00Z)")
+				return builder.StrictlyLeftOf("active_during", postgrest.NewRange[time.Time]().
+					FromInclusive(testkit.TimeRFC3339(t, `2026-03-10T00:00:00Z`)).
+					ToExclusive(testkit.TimeRFC3339(t, `2026-03-11T00:00:00Z`)))
 			},
 			[]int{1, 5},
 		},
 		{
 			"tstzrange strictly right of",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.RangeGt("active_during", "[2026-03-01T00:00:00Z,2026-03-10T00:00:00Z)")
+				return builder.StrictlyRightOf("active_during", postgrest.NewRange[time.Time]().
+					FromInclusive(testkit.TimeRFC3339(t, `2026-03-01T00:00:00Z`)).
+					ToExclusive(testkit.TimeRFC3339(t, `2026-03-10T00:00:00Z`)))
 			},
 			[]int{3, 6},
 		},
 		{
 			"tstzrange does not extend to the left of",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.RangeGte("active_during", "[2026-03-08T00:00:00Z,2026-03-15T00:00:00Z)")
+				return builder.DoesNotExtendToTheLeftOf("active_during", postgrest.NewRange[time.Time]().
+					FromInclusive(testkit.TimeRFC3339(t, `2026-03-08T00:00:00Z`)).
+					ToExclusive(testkit.TimeRFC3339(t, `2026-03-15T00:00:00Z`)))
 			},
 			[]int{2, 3, 6},
 		},
 		{
 			"tstzrange does not extend to the right of",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.RangeLte("active_during", "[2026-03-01T00:00:00Z,2026-03-15T00:00:00Z)")
+				return builder.DoesNotExtendToTheRightOf("active_during", postgrest.NewRange[time.Time]().
+					FromInclusive(testkit.TimeRFC3339(t, `2026-03-01T00:00:00Z`)).
+					ToExclusive(testkit.TimeRFC3339(t, `2026-03-15T00:00:00Z`)))
 			},
 			[]int{1, 2, 5},
 		},
 		{
 			"tstzrange is adjacent to",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.RangeAdjacent("active_during", "[2026-03-08T00:00:00Z,2026-03-15T00:00:00Z)")
+				return builder.IsAdjacentTo("active_during", postgrest.NewRange[time.Time]().
+					FromInclusive(testkit.TimeRFC3339(t, `2026-03-08T00:00:00Z`)).
+					ToExclusive(testkit.TimeRFC3339(t, `2026-03-15T00:00:00Z`)))
 			},
 			[]int{1, 6},
 		},
