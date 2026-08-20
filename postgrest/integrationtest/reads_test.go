@@ -833,9 +833,9 @@ func TestFiltersWithReserved(t *testing.T) {
 			},
 		},
 		{
-			"Contains",
+			"ContainsAll",
 			func(builder postgrest.FilterBuilder[justNamedEntity], value string) postgrest.Query[justNamedEntity] {
-				return builder.Contains("array", value)
+				return builder.ContainsAll("array", value)
 			},
 		},
 		{
@@ -1131,21 +1131,21 @@ func TestFilters(t *testing.T) {
 		{
 			"text array contains multiple",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.Contains("tags", "bug", "ui")
+				return builder.ContainsAll("tags", "bug", "ui")
 			},
 			[]int{1, 2},
 		},
 		{
 			"text array contains single",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.Contains("tags", "ui")
+				return builder.ContainsAll("tags", "ui")
 			},
 			[]int{1, 2, 5},
 		},
 		{
 			"text array contains empty set",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.Contains("tags")
+				return builder.ContainsAll("tags")
 			},
 			[]int{1, 2, 3, 4, 5, 6}, // all six because every array contains the empty set
 		},
@@ -1159,7 +1159,7 @@ func TestFilters(t *testing.T) {
 		{
 			"text array overlaps multiple",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.Overlaps("tags", "backend", "charts")
+				return builder.OverlapsAny("tags", "backend", "charts")
 			},
 			[]int{2, 3, 4},
 		},

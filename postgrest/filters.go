@@ -165,11 +165,11 @@ func (f FilterBuilder[T]) NotIn(column string, values ...any) FilterBuilder[T] {
 	return f.appendFilter(column, "not.in", renderFilterList(parenthesesListGrammar, values))
 }
 
-// Contains matches only rows where the array in column contains every one of
-// values, sent as the cs operator over an array literal.
+// ContainsAll matches only rows where the array in column contains every one
+// of values, sent as the cs operator over an array literal.
 // [FilterBuilder.ContainsRange] and [FilterBuilder.ContainsJSON] cover range
 // and jsonb columns.
-func (f FilterBuilder[T]) Contains(column string, values ...any) FilterBuilder[T] {
+func (f FilterBuilder[T]) ContainsAll(column string, values ...any) FilterBuilder[T] {
 	return f.appendFilter(column, "cs", renderFilterList(bracesListGrammar, values))
 }
 
@@ -211,10 +211,10 @@ func (f FilterBuilder[T]) ContainedByJSON(column string, value any) FilterBuilde
 	return f.appendFilter(column, "cd", renderFilterJSON(value))
 }
 
-// Overlaps matches only rows where the array in column shares at least one
+// OverlapsAny matches only rows where the array in column shares at least one
 // element with values, sent as the ov operator over an array literal.
 // [FilterBuilder.OverlapsRange] covers range columns.
-func (f FilterBuilder[T]) Overlaps(column string, values ...any) FilterBuilder[T] {
+func (f FilterBuilder[T]) OverlapsAny(column string, values ...any) FilterBuilder[T] {
 	return f.appendFilter(column, "ov", renderFilterList(bracesListGrammar, values))
 }
 

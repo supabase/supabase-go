@@ -32,7 +32,7 @@ features:
   database.using_filters.contains:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.Contains
+      - postgrest.FilterBuilder.ContainsAll
       - postgrest.FilterBuilder.ContainsRange
       - postgrest.FilterBuilder.ContainsJSON
   database.using_filters.eq:
@@ -119,7 +119,7 @@ features:
   database.using_filters.overlaps:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.Overlaps
+      - postgrest.FilterBuilder.OverlapsAny
       - postgrest.FilterBuilder.OverlapsRange
   database.using_filters.range_adjacent:
     status: implemented

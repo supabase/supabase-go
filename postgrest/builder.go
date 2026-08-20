@@ -53,7 +53,7 @@ type QueryBuilder[T any] struct {
 //   - anything else: the fmt package's %v rendering
 //
 // Methods rendering several values into one list ([FilterBuilder.In],
-// [FilterBuilder.Contains] and their kin) also double-quote every element
+// [FilterBuilder.ContainsAll] and their kin) also double-quote every element
 // that is empty, carries edge whitespace or contains list structure - a
 // comma, parenthesis, brace, double quote or backslash - escaping double
 // quotes and backslashes within as \" and \\. Other elements travel bare,
