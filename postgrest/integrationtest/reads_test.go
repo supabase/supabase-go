@@ -1320,6 +1320,7 @@ func TestFilters(t *testing.T) {
 			for index, row := range rows {
 				rowIds[index] = row.ID
 			}
+			slices.Sort(rowIds) // because we didn't ask the PostgREST service to Order for us
 
 			if !slices.Equal(testCase.want, rowIds) {
 				t.Errorf("want %q, got %q", testCase.want, rowIds)
