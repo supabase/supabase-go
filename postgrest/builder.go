@@ -25,7 +25,8 @@ func From[T any](table string) QueryBuilder[T] {
 // is that of the embedded [FilterBuilder] and ends the projection window.
 // A QueryBuilder is an immutable value - every method returns a new independent
 // builder - so builders may be stored, forked into divergent chains, and used
-// concurrently by multiple goroutines.
+// concurrently by multiple goroutines. It satisfies [Query] and may be
+// passed to a read function such as [Collect].
 type QueryBuilder[T any] struct {
 	FilterBuilder[T]
 }
@@ -33,7 +34,8 @@ type QueryBuilder[T any] struct {
 // FilterBuilder represents a fully-specified query awaiting execution.
 // A FilterBuilder is an immutable value - every method that returns a builder
 // returns a new independent builder - so builders may be stored, forked into
-// divergent chains, and used concurrently by multiple goroutines.
+// divergent chains, and used concurrently by multiple goroutines. It satisfies
+// [Query] and may be passed to a read function such as [Collect].
 //
 // Filter methods narrow which rows the query returns and are named for the
 // PostgREST operators they send. Filters chained onto one builder must all
@@ -64,7 +66,8 @@ type FilterBuilder[T any] struct {
 // OrderedFilterBuilder represents a query whose newest order column may still
 // take a direction and a null placement. Descending and NullsFirst refine
 // that column; every other method is that of the embedded [FilterBuilder]
-// and ends the refinement.
+// and ends the refinement. An OrderedFilterBuilder satisfies [Query] and
+// may be passed to a read function such as [Collect].
 type OrderedFilterBuilder[T any] struct {
 	FilterBuilder[T]
 }
@@ -72,7 +75,8 @@ type OrderedFilterBuilder[T any] struct {
 // OrderedDescendingFilterBuilder represents a query whose newest order column
 // sorts descending and may still take a null placement.
 // NullsLast refines that column; every other method is that of the embedded
-// [FilterBuilder] and ends the refinement.
+// [FilterBuilder] and ends the refinement. An OrderedDescendingFilterBuilder
+// satisfies [Query] and may be passed to a read function such as [Collect].
 type OrderedDescendingFilterBuilder[T any] struct {
 	FilterBuilder[T]
 }

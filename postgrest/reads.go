@@ -19,8 +19,9 @@ type queryState[Row any] struct {
 }
 
 // Query is a fully-specified query awaiting execution by a read function
-// such as [Collect]. Every builder state in this package satisfies it;
-// nothing outside the package can, as its method is unexported.
+// such as [Collect]. The satisfying types are [QueryBuilder], [FilterBuilder],
+// [OrderedFilterBuilder] and [OrderedDescendingFilterBuilder]. Nothing
+// outside the package can satisfy it, as its method is unexported.
 type Query[Row any] interface {
 	// state returns the query's accumulated request, bound to its row type.
 	state() queryState[Row]
