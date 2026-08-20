@@ -155,6 +155,7 @@ We spell identifiers out in full. Clarity for every reader - including those new
 
 - **No invented or contracted abbreviations.** Write `configuration`, not `config` or `cfg`; `request`, not `req`; `response`, not `resp`; `user`, not `usr`; `index`, not `idx`. This applies to **every name you introduce** - types, methods, functions, struct fields, constants, package-level declarations, local variables, function parameters and the variables you pass as arguments. There is no Go convention requiring short type, field, function, variable or parameter names, so spelling them in full costs nothing.
 - **Initialisms stay in their canonical case:** `URL`, `ID`, `HTTP`, `API`, `JSON`, `JWT` (for example `projectURL`, `userID`). Never `Url` or `Id`.
+- **PostgREST operator names are domain vocabulary, not abbreviations.** Filter methods take the form of PostgREST's wire-protocol operators - `Eq`, `Neq`, `Gt`, `Gte`, `Lt`, `Lte`, `ILike` and family.
 - **A small, closed set of conventional short names is permitted**, because each is either forced by the language or so universal that a longer form would be less clear, not more:
   - `err` for an `error` value (naming it `error` would shadow the builtin type);
   - `ctx` for a `context.Context` (naming it `context` would shadow the package);
