@@ -69,7 +69,7 @@ Tool-pinning machinery must never live in the published modules, or it would dra
 ## Use a committed go.work workspace for intra-repo module resolution
   
 **What**:  
-The multi-module repository (root, `core`, `postgrest`, and future domain modules) wires its internal cross-module dependencies through a single `go.work` file committed at the repository root, rather than through replace directives in each `go.mod` file.
+The multi-module repository (`core`, `postgrest`, `supabase` and future domain modules) wires its internal cross-module dependencies through a single `go.work` file committed at the repository root, rather than through replace directives in each `go.mod` file.
 Each module's `go.mod` file declares its sibling dependencies with ordinary require lines carrying the zero pseudo-version (`v0.0.0-00010101000000-000000000000`) until real tags exist.
 The workspace's use directives supply the actual source for every in-repo build, locally and in CI.
 The published `go` directive stays at the policy consumer floor (`1.25`) independently of the toolchain version CI runs.
@@ -187,10 +187,22 @@ The single seam matches the dominant Go convention. Google's API libraries and S
 Handing out the interface rather than the `*http.Client` stops the configured transport being swapped out through the accessor - a caller holding the concrete client could set `Transport = nil` and silently disable auth, or race on it - and it keeps the `configuration` public surface small, which is part of the `v1` promise.
 The interface is named `HTTPClient` with a single `Do` method, following AWS SDK v2's interface of the same name and shape. `Do` is chosen because `*http.Client` already has that method, so the standard client satisfies the interface with no adapter, and the same one-method contract appears as the `HttpRequestDoer` that `oapi-codegen` generates in Supabase's own Auth code.
 
+## No module is served from the repository root
+
+**What**:  
+The repository root carries no `go.mod`.
+Every published module lives in a subdirectory named after its package - `core/`, `postgrest/` and `supabase/`, the convenience entry point.
+Consumers import the root client as `github.com/supabase/supabase-go/supabase`, never `github.com/supabase/supabase-go` itself.
+
+**Why**:  
+pkg.go.dev renders the README it finds in a module's own directory, so a root-served module's documentation page carries the repository README - GitHub-audience content (status banner, module table, contribution pointers) that has no place in consumer API documentation.
+With no root module, the repository README never reaches pkg.go.dev and each module's page stays scoped to what that module ships.
+The cost accepted is a doubled segment in the entry module's import path (`supabase-go/supabase`), and in exchange the layout is uniform: every published module follows the one directory-per-module shape, with no special root case in scripts, docs or the workspace.
+
 ## The postgrest module is Supabase-agnostic in code but not a supported general-purpose client
 
 **What**:  
-The `postgrest` module carries almost no Supabase-specific behavior - the `apikey` header and token handling live in `core` and the root - so its code could in principle talk to any PostgREST server.
+The `postgrest` module carries almost no Supabase-specific behavior - the `apikey` header and token handling live in `core` and `supabase` - so its code could in principle talk to any PostgREST server.
 The one Supabase convention it does carry is `New` deriving its base URL under the project's `/rest/v1` path.
 It is not, however, a tested or supported general-purpose PostgREST client. It is documented as the Supabase Database client, and standalone use against a non-Supabase server is not promised.
 
@@ -517,7 +529,7 @@ The floor leg exists because the published `go 1.25` directive is a compatibilit
 ## `X-Client-Info` resolution is proven by an out-of-tree consumer program
 
 **What**:  
-The `telemetrytest/` module is a stand-in consumer: it requires the SDK modules at fabricated, self-labeled versions (`v0.999.1-fabricated` root, `v0.999.2-fabricated` postgrest), `replace`s them to the local working tree and its main program asserts the exact `X-Client-Info` value each entry point sends to a local HTTP server.
+The `telemetrytest/` module is a stand-in consumer: it requires the SDK modules at fabricated, self-labeled versions (`v0.999.1-fabricated` supabase, `v0.999.2-fabricated` postgrest), `replace`s them to the local working tree and its main program asserts the exact `X-Client-Info` value each entry point sends to a local HTTP server.
 `scripts/telemetry-test.sh` runs it with `GOWORK=off` and the module is not listed in `go.work`.
 A second leg rebuilds the same program in GOPATH mode (`GO111MODULE=off`), where binaries carry build information without module records, and asserts the version-unknowable `0.0.0` fallback in every header.
 The `TELEMETRY_TEST_MODE` environment variable tells the program which expectations to hold.
@@ -525,7 +537,7 @@ The check is part of the fast tier (`check-fast.sh`) and runs in CI as a step of
 The probe is a plain program, not a `go test` suite.
 
 **Why**:  
-Every binary the in-repo suites produce has this repository as its main module, so header resolution takes the in-tree branch and reports `(devel)`.
+Every binary the in-repo suites produce has one of this repository's modules as its main module, so header resolution takes the in-tree branch and reports `(devel)`.
 The branch every published-module consumer exercises - reading client versions from build-information dependency records - is reachable only from a main module outside the SDK's module tree.
 It must be a plain program because `go build` and `go run` stamp dependency records into binaries while `go test` binaries record the main module and no dependencies (observed on go1.26), which rules out expressing the probe as a test suite.
 Workspace membership would defeat the vantage from the other side - a workspace build supplies the SDK modules as local source with no resolvable versions - so the module stays out of `go.work` and the script forces `GOWORK=off`.

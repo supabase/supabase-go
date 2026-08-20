@@ -1,6 +1,6 @@
 # Developing the Supabase Go SDK
 
-<!-- cSpell:ignore darwin linux mvdan supabase -->
+<!-- cSpell:ignore darwin linux mvdan -->
 
 This file holds the Go/SDK-specific guidance for working in this repository.
 General, organization-wide contribution policy lives in our [shared `.github` repository](https://github.com/supabase/.github)'s CONTRIBUTING.md file.
@@ -20,7 +20,7 @@ Keeping the surface under tight first-party control through the hardening window
 
 The repository is a multi-module monorepo. Intra-repo dependencies are resolved by the committed `go.work` workspace, so each module builds against the local sources of the others without any published tags.
 
-There is no task runner or aggregate linter. Build and test with the standard toolchain in each module directory (`.`, `core`, `postgrest`):
+There is no task runner or aggregate linter. Build and test with the standard toolchain in each module directory (`core`, `postgrest`, `supabase`):
 
 ```bash
 go build ./...

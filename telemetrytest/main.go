@@ -17,8 +17,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/supabase/supabase-go"
 	"github.com/supabase/supabase-go/postgrest"
+	"github.com/supabase/supabase-go/supabase"
 )
 
 // requiredRootVersion and requiredPostgrestVersion mirror the require
