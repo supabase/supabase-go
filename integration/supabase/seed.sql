@@ -13,6 +13,35 @@ values
     (5, 3, 50, null, 20),
     (6, 3, 60, 20, null);
 
+insert into public.sequences (id, "decimal number", character, phonetic)
+values
+    ( 1, '01', 'A', 'Alpha'),
+    ( 2, '02', 'B', 'Bravo'),
+    ( 3, '03', 'C', 'Charlie'),
+    ( 4, '04', 'D', 'Delta'),
+    ( 5, '05', 'E', 'Echo'),
+    ( 6, '06', 'F', 'Foxtrot'),
+    ( 7, '07', 'G', 'Golf'),
+    ( 8, '08', 'H', 'Hotel'),
+    ( 9, '09', 'I', 'India'),
+    (10, '10', 'J', 'Juliet'),
+    (11, '11', 'K', 'Kilo'),
+    (12, '12', 'L', 'Lima'),
+    (13, '13', 'M', 'Mike'),
+    (14, '14', 'N', 'November'),
+    (15, '15', 'O', 'Oscar'),
+    (16, '16', 'P', 'Papa'),
+    (17, '17', 'Q', 'Quebec'),
+    (18, '18', 'R', 'Romeo'),
+    (19, '19', 'S', 'Sierra'),
+    (20, '20', 'T', 'Tango'),
+    (21, '21', 'U', 'Uniform'),
+    (22, '22', 'V', 'Victor'),
+    (23, '23', 'W', 'Whiskey'),
+    (24, '24', 'X', 'X-Ray'),
+    (25, '25', 'Y', 'Yankee'),
+    (26, '26', 'Z', 'Zulu');
+
 -- Populate tables named using a delimited identifier.
 insert into public."odd table" (id, name) values (1, 'odd table');
 insert into public."a?b" (id, name) values (1, 'a?b');

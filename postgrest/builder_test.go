@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -313,6 +314,130 @@ func TestCollectPreservesQuotedIdentifiersInSelect(t *testing.T) {
 		t.Errorf("len(rows) = %d, want 0", len(rows))
 	}
 	testkit.AssertOKResponse(t, response)
+}
+
+// TestCollectAppliesRange pins behavior, especially around edge cases, when
+// using the Range method. This includes how it interacts with previous calls
+// to either itself or Limit.
+func TestCollectAppliesRange(t *testing.T) {
+	testCases := []struct {
+		name       string
+		perform    func(builder postgrest.QueryBuilder[json.RawMessage]) postgrest.Query[json.RawMessage]
+		wantOffset string
+		wantLimit  string
+	}{
+		{
+			name: "first page",
+			perform: func(builder postgrest.QueryBuilder[json.RawMessage]) postgrest.Query[json.RawMessage] {
+				return builder.Range(0, 9)
+			},
+			wantOffset: "0",
+			wantLimit:  "10",
+		},
+		{
+			name: "interior window",
+			perform: func(builder postgrest.QueryBuilder[json.RawMessage]) postgrest.Query[json.RawMessage] {
+				return builder.Range(1, 3)
+			},
+			wantOffset: "1",
+			wantLimit:  "3",
+		},
+		{
+			name: "single row",
+			perform: func(builder postgrest.QueryBuilder[json.RawMessage]) postgrest.Query[json.RawMessage] {
+				return builder.Range(2, 2)
+			},
+			wantOffset: "2",
+			wantLimit:  "1",
+		},
+		{
+			name: "empty window", // impotent, zero limit is forwarded
+			perform: func(builder postgrest.QueryBuilder[json.RawMessage]) postgrest.Query[json.RawMessage] {
+				return builder.Range(2, 1)
+			},
+			wantOffset: "2",
+			wantLimit:  "0",
+		},
+		{
+			name: "negative cap", // negative limit is forwarded verbatim
+			perform: func(builder postgrest.QueryBuilder[json.RawMessage]) postgrest.Query[json.RawMessage] {
+				return builder.Range(3, 1)
+			},
+			wantOffset: "3",
+			wantLimit:  "-1",
+		},
+		{
+			name: "negative start", // negative offset is forwarded verbatim
+			perform: func(builder postgrest.QueryBuilder[json.RawMessage]) postgrest.Query[json.RawMessage] {
+				return builder.Range(-1, 1)
+			},
+			wantOffset: "-1",
+			wantLimit:  "3",
+		},
+		{
+			name: "overrides limit",
+			perform: func(builder postgrest.QueryBuilder[json.RawMessage]) postgrest.Query[json.RawMessage] {
+				return builder.Limit(5).Range(1, 9)
+			},
+			wantOffset: "1",
+			wantLimit:  "9",
+		},
+		{
+			name: "partially overridden by limit",
+			perform: func(builder postgrest.QueryBuilder[json.RawMessage]) postgrest.Query[json.RawMessage] {
+				return builder.Range(10, 19).Limit(5)
+			},
+			wantOffset: "10",
+			wantLimit:  "5",
+		},
+		{
+			name: "overrides self",
+			perform: func(builder postgrest.QueryBuilder[json.RawMessage]) postgrest.Query[json.RawMessage] {
+				return builder.Range(0, 9).Range(10, 17)
+			},
+			wantOffset: "10",
+			wantLimit:  "8",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				values, err := url.ParseQuery(request.URL.RawQuery)
+				if err != nil {
+					t.Fatalf("request query parse: %v, for raw query %q", err, request.URL.RawQuery)
+				}
+				if len(values) != 2 {
+					t.Fatalf("request query parse want value count got %d, want %d, for raw query %q", len(values), 2, request.URL.RawQuery)
+				}
+
+				offsetValues := values["offset"]
+				if len(offsetValues) != 1 || offsetValues[0] != testCase.wantOffset {
+					t.Fatalf("offsetValues got = %q, want single %q", offsetValues, testCase.wantOffset)
+				}
+
+				limitValues := values["limit"]
+				if len(limitValues) != 1 || limitValues[0] != testCase.wantLimit {
+					t.Fatalf("limitValues got = %q, want single %q", limitValues, testCase.wantLimit)
+				}
+
+				_, _ = writer.Write([]byte(`[]`))
+			}))
+			defer server.Close()
+
+			rows, response, err := postgrest.Collect(
+				t.Context(),
+				newTestClient(t, server),
+				testCase.perform(postgrest.From[json.RawMessage]("some table")),
+			)
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+			if len(rows) != 0 {
+				t.Errorf("row count = %d, want 0", len(rows))
+			}
+			testkit.AssertOKResponse(t, response)
+		})
+	}
 }
 
 // TestCollectReturnsTypedErrorForPostgRESTFailure pins the failure half of

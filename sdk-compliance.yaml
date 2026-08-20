@@ -34,6 +34,10 @@ features:
       - postgrest.OrderedFilterBuilder.Descending
       - postgrest.OrderedFilterBuilder.NullsFirst
       - postgrest.OrderedDescendingFilterBuilder.NullsLast
+  database.using_modifiers.range:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Range
   database.using_modifiers.request_cancellation:
     status: implemented
     symbols:

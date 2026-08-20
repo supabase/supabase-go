@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/supabase/supabase-go/core"
@@ -46,6 +47,13 @@ type namedEntity struct {
 type seededInstrument struct {
 	namedEntity
 	AcquiredYear *int `json:"acquired_year"`
+}
+
+type seededIndexSlice struct {
+	seededEntity
+	DecimalNumber string `json:"decimal number"`
+	Character     string `json:"character"`
+	Phonetic      string `json:"phonetic"`
 }
 
 // TestSelectAllColumns proves the read path against real PostgREST: seeded
@@ -561,6 +569,197 @@ func TestDelimitedIdentifierTableNameDoubleDot(t *testing.T) {
 	}
 	if typedError.HTTPStatus != http.StatusNotFound {
 		t.Errorf("HTTPStatus = %d, want 404", typedError.HTTPStatus)
+	}
+	if rows != nil {
+		t.Errorf("rows = %+v, want nil on error", rows)
+	}
+	if response != (postgrest.Response{}) {
+		t.Errorf("response = %+v, want zero value on error", response)
+	}
+}
+
+func newIndexSlice(id int, decimalNumber, character, phonetic string) seededIndexSlice {
+	return seededIndexSlice{
+		seededEntity:  seededEntity{ID: id},
+		DecimalNumber: decimalNumber,
+		Character:     character,
+		Phonetic:      phonetic,
+	}
+}
+
+var indexSlices = sync.OnceValue(func() []seededIndexSlice {
+	return []seededIndexSlice{
+		newIndexSlice(1, "01", "A", "Alpha"),
+		newIndexSlice(2, "02", "B", "Bravo"),
+		newIndexSlice(3, "03", "C", "Charlie"),
+		newIndexSlice(4, "04", "D", "Delta"),
+		newIndexSlice(5, "05", "E", "Echo"),
+		newIndexSlice(6, "06", "F", "Foxtrot"),
+		newIndexSlice(7, "07", "G", "Golf"),
+		newIndexSlice(8, "08", "H", "Hotel"),
+		newIndexSlice(9, "09", "I", "India"),
+		newIndexSlice(10, "10", "J", "Juliet"),
+		newIndexSlice(11, "11", "K", "Kilo"),
+		newIndexSlice(12, "12", "L", "Lima"),
+		newIndexSlice(13, "13", "M", "Mike"),
+		newIndexSlice(14, "14", "N", "November"),
+		newIndexSlice(15, "15", "O", "Oscar"),
+		newIndexSlice(16, "16", "P", "Papa"),
+		newIndexSlice(17, "17", "Q", "Quebec"),
+		newIndexSlice(18, "18", "R", "Romeo"),
+		newIndexSlice(19, "19", "S", "Sierra"),
+		newIndexSlice(20, "20", "T", "Tango"),
+		newIndexSlice(21, "21", "U", "Uniform"),
+		newIndexSlice(22, "22", "V", "Victor"),
+		newIndexSlice(23, "23", "W", "Whiskey"),
+		newIndexSlice(24, "24", "X", "X-Ray"),
+		newIndexSlice(25, "25", "Y", "Yankee"),
+		newIndexSlice(26, "26", "Z", "Zulu"),
+	}
+})
+
+// indexSlice returns the value that is in the sequences table for this
+// id (not zero-based - that is, the first record when ordered ascending
+// is id 1). Tests must use this function to obtain these values rather
+// than directly accessing indexSlices (for risk of mutating by accident).
+func indexSlice(id int) seededIndexSlice {
+	return indexSlices()[id-1]
+}
+
+func TestCollectAppliesRange(t *testing.T) {
+	testCases := []struct {
+		name         string
+		perform      func(builder postgrest.OrderedFilterBuilder[seededIndexSlice]) postgrest.Query[seededIndexSlice]
+		wantRowCount int
+		wantFirst    seededIndexSlice
+		wantLast     seededIndexSlice
+	}{
+		{
+			name: "single row",
+			perform: func(builder postgrest.OrderedFilterBuilder[seededIndexSlice]) postgrest.Query[seededIndexSlice] {
+				return builder.Range(16, 16)
+			},
+			wantRowCount: 1,
+			wantFirst:    indexSlice(17),
+			wantLast:     indexSlice(17),
+		},
+		{
+			name: "no rows",
+			perform: func(builder postgrest.OrderedFilterBuilder[seededIndexSlice]) postgrest.Query[seededIndexSlice] {
+				return builder.Range(100, 199)
+			},
+			wantRowCount: 0,
+			wantFirst:    seededIndexSlice{},
+			wantLast:     seededIndexSlice{},
+		},
+		{
+			name: "middle ascending",
+			perform: func(builder postgrest.OrderedFilterBuilder[seededIndexSlice]) postgrest.Query[seededIndexSlice] {
+				return builder.Range(3, 12)
+			},
+			wantRowCount: 10,
+			wantFirst:    indexSlice(4),
+			wantLast:     indexSlice(13),
+		},
+		{
+			name: "middle descending",
+			perform: func(builder postgrest.OrderedFilterBuilder[seededIndexSlice]) postgrest.Query[seededIndexSlice] {
+				return builder.Descending().Range(3, 6)
+			},
+			wantRowCount: 4,
+			wantFirst:    indexSlice(23),
+			wantLast:     indexSlice(20),
+		},
+		{
+			name: "first page of ten",
+			perform: func(builder postgrest.OrderedFilterBuilder[seededIndexSlice]) postgrest.Query[seededIndexSlice] {
+				return builder.Range(0, 9)
+			},
+			wantRowCount: 10,
+			wantFirst:    indexSlice(1),
+			wantLast:     indexSlice(10),
+		},
+		{
+			name: "last page of ten", // imperfect alignment (partially filled)
+			perform: func(builder postgrest.OrderedFilterBuilder[seededIndexSlice]) postgrest.Query[seededIndexSlice] {
+				return builder.Range(20, 29)
+			},
+			wantRowCount: 6,
+			wantFirst:    indexSlice(21),
+			wantLast:     indexSlice(26),
+		},
+		{
+			name: "last page of thirteen", // perfect alignment
+			perform: func(builder postgrest.OrderedFilterBuilder[seededIndexSlice]) postgrest.Query[seededIndexSlice] {
+				return builder.Range(13, 25)
+			},
+			wantRowCount: 13,
+			wantFirst:    indexSlice(14),
+			wantLast:     indexSlice(26),
+		},
+		{
+			name: "negative offset", // (surprisingly) allowed, effectively offset zero
+			perform: func(builder postgrest.OrderedFilterBuilder[seededIndexSlice]) postgrest.Query[seededIndexSlice] {
+				return builder.Range(-2, 4)
+			},
+			wantRowCount: 5,
+			wantFirst:    indexSlice(1),
+			wantLast:     indexSlice(5),
+		},
+	}
+
+	client := newIntegrationClient(t)
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			rows, response, err := postgrest.Collect(
+				t.Context(),
+				client,
+				testCase.perform(postgrest.From[seededIndexSlice]("sequences").Order("id")),
+			)
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+
+			// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+			testkit.AssertOKResponse(t, response)
+			rowCount := len(rows)
+			if rowCount != testCase.wantRowCount {
+				t.Fatalf("row count = %d, want %d", rowCount, testCase.wantRowCount)
+			}
+			if rowCount > 0 {
+				if rows[0] != testCase.wantFirst {
+					t.Fatalf("first row unexpected - want %q, got %q", rows[0], testCase.wantFirst)
+				}
+				if rows[rowCount-1] != testCase.wantLast {
+					t.Fatalf("last row unexpected - want %q, got %q", rows[rowCount-1], testCase.wantLast)
+				}
+			}
+		})
+	}
+}
+
+func TestUnsatisfiableRangeReturnsTypedError(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[seededIndexSlice]("sequences").
+			Order("id").
+			Range(4, 3),
+	)
+
+	var typedError *postgrest.Error
+	if !errors.As(err, &typedError) {
+		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+	}
+	if typedError.Code != "PGRST103" {
+		t.Errorf("Code = %q, want PGRST103 (unknown relation)", typedError.Code)
+	}
+	if typedError.HTTPStatus != http.StatusRequestedRangeNotSatisfiable {
+		t.Errorf("HTTPStatus = %d, want 416", typedError.HTTPStatus)
 	}
 	if rows != nil {
 		t.Errorf("rows = %+v, want nil on error", rows)

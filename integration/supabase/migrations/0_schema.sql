@@ -8,14 +8,8 @@ create table public.instruments (
     name text not null,
     acquired_year integer
 );
-
 alter table public.instruments enable row level security;
-
-create policy "anonymous can read instruments"
-    on public.instruments for select
-    to anon
-    using (true);
-
+create policy "anonymous can read instruments" on public.instruments for select to anon using (true);
 grant select on table public.instruments to anon;
 
 create table public.players (
@@ -25,15 +19,19 @@ create table public.players (
     rating integer,
     tenure integer
 );
-
 alter table public.players enable row level security;
-
-create policy "anonymous can read players"
-    on public.players for select
-    to anon
-    using (true);
-
+create policy "anonymous can read players" on public.players for select to anon using (true);
 grant select on table public.players to anon;
+
+create table public.sequences (
+    id integer not null primary key,
+    "decimal number" character(2) not null,
+    character character(1) not null,
+    phonetic text not null
+);
+alter table public.sequences enable row level security;
+create policy "anonymous can read sequences" on public.sequences for select to anon using (true);
+grant select on table public.sequences to anon;
 
 -- Table names as a delimited identifier (a.k.a. quoted identifier), meaning:
 -- - they're case sensitive
