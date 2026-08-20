@@ -977,56 +977,56 @@ func TestFilters(t *testing.T) {
 		{
 			"text like all of with outer wildcards",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.LikeAllOf("title", "%a%", "%o%")
+				return builder.LikeAll("title", "%a%", "%o%")
 			},
 			[]int{2, 4, 5, 6},
 		},
 		{
 			"text like all of with outer wildcards using asterisk",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.LikeAllOf("title", "*a*", "*o*")
+				return builder.LikeAll("title", "*a*", "*o*")
 			},
 			[]int{2, 4, 5, 6},
 		},
 		{
 			"text like any of with prefix matching",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.LikeAnyOf("title", "Login%", "Export%")
+				return builder.LikeAny("title", "Login%", "Export%")
 			},
 			[]int{1, 3},
 		},
 		{
 			"text like any of with prefix matching using asterisk",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.LikeAnyOf("title", "Login*", "Export*")
+				return builder.LikeAny("title", "Login*", "Export*")
 			},
 			[]int{1, 3},
 		},
 		{
 			"text like all of with ignore case and outer wildcards",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.ILikeAllOf("title", "%DARK%", "%MODE%")
+				return builder.ILikeAll("title", "%DARK%", "%MODE%")
 			},
 			[]int{5},
 		},
 		{
 			"text like all of with ignore case and outer wildcards using asterisk",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.ILikeAllOf("title", "*DARK*", "*MODE*")
+				return builder.ILikeAll("title", "*DARK*", "*MODE*")
 			},
 			[]int{5},
 		},
 		{
 			"text like any of with ignore case and outer wildcards",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.ILikeAnyOf("title", "%csv%", "%rate%")
+				return builder.ILikeAny("title", "%csv%", "%rate%")
 			},
 			[]int{3, 4},
 		},
 		{
 			"text like any of with ignore case and outer wildcards using asterisk",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.ILikeAnyOf("title", "*csv*", "*rate*")
+				return builder.ILikeAny("title", "*csv*", "*rate*")
 			},
 			[]int{3, 4},
 		},

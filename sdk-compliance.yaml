@@ -54,11 +54,11 @@ features:
   database.using_filters.ilike_all:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.ILikeAllOf
+      - postgrest.FilterBuilder.ILikeAll
   database.using_filters.ilike_any:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.ILikeAnyOf
+      - postgrest.FilterBuilder.ILikeAny
   database.using_filters.in:
     status: implemented
     symbols:
@@ -82,11 +82,11 @@ features:
   database.using_filters.like_all:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.LikeAllOf
+      - postgrest.FilterBuilder.LikeAll
   database.using_filters.like_any:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.LikeAnyOf
+      - postgrest.FilterBuilder.LikeAny
   database.using_filters.lt:
     status: implemented
     symbols:

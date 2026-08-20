@@ -69,17 +69,17 @@ func (f FilterBuilder[T]) Like(column, pattern string) FilterBuilder[T] {
 	return f.appendFilter(column, "like", pattern)
 }
 
-// LikeAllOf matches only rows where column matches every one of patterns
+// LikeAll matches only rows where column matches every one of patterns
 // case-sensitively, sent as the like operator with its all modifier over a
 // pattern list.
-func (f FilterBuilder[T]) LikeAllOf(column string, patterns ...string) FilterBuilder[T] {
+func (f FilterBuilder[T]) LikeAll(column string, patterns ...string) FilterBuilder[T] {
 	return f.appendFilter(column, "like(all)", renderFilterList(bracesListGrammar, patterns))
 }
 
-// LikeAnyOf matches only rows where column matches at least one of patterns
+// LikeAny matches only rows where column matches at least one of patterns
 // case-sensitively, sent as the like operator with its any modifier over a
 // pattern list.
-func (f FilterBuilder[T]) LikeAnyOf(column string, patterns ...string) FilterBuilder[T] {
+func (f FilterBuilder[T]) LikeAny(column string, patterns ...string) FilterBuilder[T] {
 	return f.appendFilter(column, "like(any)", renderFilterList(bracesListGrammar, patterns))
 }
 
@@ -91,17 +91,17 @@ func (f FilterBuilder[T]) ILike(column, pattern string) FilterBuilder[T] {
 	return f.appendFilter(column, "ilike", pattern)
 }
 
-// ILikeAllOf matches only rows where column matches every one of patterns
+// ILikeAll matches only rows where column matches every one of patterns
 // case-insensitively, sent as the ilike operator with its all modifier over
 // a pattern list.
-func (f FilterBuilder[T]) ILikeAllOf(column string, patterns ...string) FilterBuilder[T] {
+func (f FilterBuilder[T]) ILikeAll(column string, patterns ...string) FilterBuilder[T] {
 	return f.appendFilter(column, "ilike(all)", renderFilterList(bracesListGrammar, patterns))
 }
 
-// ILikeAnyOf matches only rows where column matches at least one of patterns
+// ILikeAny matches only rows where column matches at least one of patterns
 // case-insensitively, sent as the ilike operator with its any modifier over
 // a pattern list.
-func (f FilterBuilder[T]) ILikeAnyOf(column string, patterns ...string) FilterBuilder[T] {
+func (f FilterBuilder[T]) ILikeAny(column string, patterns ...string) FilterBuilder[T] {
 	return f.appendFilter(column, "ilike(any)", renderFilterList(bracesListGrammar, patterns))
 }
 
