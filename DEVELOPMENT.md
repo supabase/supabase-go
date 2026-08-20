@@ -1,6 +1,6 @@
 # Developing the Supabase Go SDK
 
-<!-- cSpell:ignore darwin mvdan -->
+<!-- cSpell:ignore darwin linux mvdan -->
 
 This file holds the Go/SDK-specific guidance for working in this repository.
 General, organization-wide contribution policy lives in our [shared `.github` repository](https://github.com/supabase/.github)'s CONTRIBUTING.md file.
@@ -206,15 +206,32 @@ A note on terminology: the industry terms for these are "black-box" and "white-b
 ### Upgrading Go from the terminal (CLI) on macOS
 
 Periodically required, often preferable in terms or predictability and control over downloading via browser and then running the installer interactively.
-For example, upgrading from version `1.26.4` to version `1.26.5` (in this case for an M5 MacBook Pro, thus Apple silicone).
+For example, upgrading from version `1.26.5` to version `1.26.6` (in this case for an M5 MacBook Pro, thus Apple silicone).
 
 ```bash
-curl -fsSLO https://go.dev/dl/go1.26.5.darwin-arm64.pkg
-shasum -a 256 go1.26.5.darwin-arm64.pkg
-# expect 4d9b592653239738896b302582f7c364265b6baa6e142c04731f15643b089c50 (published at https://go.dev/dl/)
+curl -fsSLO https://go.dev/dl/go1.26.6.darwin-arm64.pkg
+shasum -a 256 go1.26.6.darwin-arm64.pkg
+# expect 477fb579ba85bbfd44120a0a51068bfba99300968e1d9df35d9d89e316a38733 (published at https://go.dev/dl/)
 # installer(8) requires -target (it is not defaulted); / selects the booted volume
-sudo installer -pkg go1.26.5.darwin-arm64.pkg -target /
-go version             # expect go1.26.5 darwin/arm64
+sudo installer -pkg go1.26.6.darwin-arm64.pkg -target /
+go version             # expect go1.26.6 darwin/arm64
+./scripts/vulncheck.sh
+./scripts/check-fast.sh
+```
+
+And another example, on the same machine, but for a [Lima](https://lima-vm.io/)-provided Ubuntu VM installation (would be the same for any `arm64` Linux host or guest OS):
+
+```bash
+curl -fsSLO https://go.dev/dl/go1.26.6.linux-arm64.tar.gz
+sha256sum go1.26.6.linux-arm64.tar.gz
+# expect d0507e9e9d7fe012aae570108cbd76c15de879e17130ab8cb90d4d7445cb1f2e (published at https://go.dev/dl/)
+# Remove the old tree first: tar -x unions files rather than replacing the target,
+# so a stale file from 1.26.5 would otherwise linger silently under /usr/local/go.
+# This is the sequence go.dev/doc/install prescribes for Linux upgrades.
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.26.6.linux-arm64.tar.gz
+go version             # expect go1.26.6 linux/arm64
+./scripts/vulncheck.sh
 ./scripts/check-fast.sh
 ```
 
