@@ -1,6 +1,6 @@
 # Developing the Supabase Go SDK
 
-<!-- cSpell:ignore darwin linux mvdan -->
+<!-- cSpell:ignore darwin linux mvdan supabase -->
 
 This file holds the Go/SDK-specific guidance for working in this repository.
 General, organization-wide contribution policy lives in our [shared `.github` repository](https://github.com/supabase/.github)'s CONTRIBUTING.md file.
@@ -248,3 +248,21 @@ Nothing here pins a build toolchain (we have directives that set a consumer floo
 **CI needs no action**: the `vulnerabilities-check` job resolves `go-version: stable` against GitHub's [go-versions manifest](https://github.com/actions/go-versions/blob/main/versions-manifest.json) on every run, so it picks up a fixed release as soon as the manifest lists it, typically within a day or two.
 
 Do not commit a `toolchain` line to `go.work` or a `go.mod` in response: under the default `GOTOOLCHAIN=auto` it would hoist the CI matrix's consumer version floor leg onto the newer toolchain, ending the proof that the published floor still builds, and it would be a convention change requiring a [`decisions.md`](decisions.md) entry.
+
+### Upgrading the pinned Supabase CLI
+
+Integration tests run against a version-pinned Supabase CLI release, fetched and SHA-256-verified by [`scripts/integration-test.sh`](scripts/integration-test.sh) on first use. That script is the single source of truth for the pin: `SUPABASE_CLI_VERSION` plus the four `cli_sha256` values for the platforms we support (Linux and macOS, on `amd64` and `arm64`). A bump touches only that one file.
+
+For example, upgrading from `2.109.1` to `2.114.0`:
+
+```bash
+export VERSION=2.114.0
+curl -fsSL "https://github.com/supabase/cli/releases/download/v${VERSION}/checksums.txt" \
+  | grep -E "supabase_${VERSION}_(linux|darwin)_(amd64|arm64)\.tar\.gz$"
+```
+
+Copy each of the four SHA-256 values printed by that command into the matching `cli_sha256=` line of the `case "${cli_os}_${cli_arch}"` block in `scripts/integration-test.sh`, and set `SUPABASE_CLI_VERSION` to the new version (without the `v` prefix). Then run the integration tests to prove the pin fetches, verifies and starts the stack:
+
+```bash
+./scripts/integration-test.sh
+```
