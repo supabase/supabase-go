@@ -64,6 +64,17 @@ func (f FilterBuilder[T]) state() queryState[T] {
 	return queryState[T](f)
 }
 
+// Compile-time proof that every builder state in this package satisfies
+// [Query]. If the interface or a builder's embedding drifts so that one of
+// these no longer holds, the build fails here rather than at a distant
+// [Collect] call site.
+var (
+	_ Query[any] = QueryBuilder[any]{}
+	_ Query[any] = FilterBuilder[any]{}
+	_ Query[any] = OrderedFilterBuilder[any]{}
+	_ Query[any] = OrderedDescendingFilterBuilder[any]{}
+)
+
 // execute sends the query and returns the raw response body alongside its
 // [Response] metadata. It is the single I/O path shared by the generic read
 // functions.
