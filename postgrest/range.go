@@ -20,6 +20,14 @@ func NewRange[T any]() RangeBuilder[T] {
 	return RangeBuilder[T]{}
 }
 
+// EmptyRange returns the PostgreSQL empty range, the range containing no points,
+// for a range filter method such as [FilterBuilder.Contains]. It is distinct
+// from the unbounded range that [NewRange] alone produces, which contains every
+// point.
+func EmptyRange() Range {
+	return emptyRange{}
+}
+
 // RangeBuilder builds a PostgreSQL [Range] whose bounds hold values of type T.
 // FromInclusive and FromExclusive fix the lower bound and return a
 // [RangeFromBuilder] for the upper. Every other method is that of the embedded
@@ -109,11 +117,21 @@ func (r rangeValue) rangeLiteral() string {
 	return b.String()
 }
 
-// Compile-time proof that every range builder state satisfies [Range]. If the
-// interface or a builder's embedding drifts so one no longer holds, the build
-// fails here rather than at a distant filter call site.
+// emptyRange is the PostgreSQL empty range, a field-less singleton that renders
+// as the bare literal empty rather than through the bracket grammar.
+type emptyRange struct{}
+
+// rangeLiteral renders the empty range as the bare literal empty.
+func (emptyRange) rangeLiteral() string {
+	return "empty"
+}
+
+// Compile-time proof that every concrete [Range] in this package satisfies the
+// interface. If a type drifts so a proof no longer holds, the build fails here
+// rather than at a distant filter call site.
 var (
 	_ Range = RangeBuilder[any]{}
 	_ Range = RangeFromBuilder[any]{}
 	_ Range = rangeValue{}
+	_ Range = emptyRange{}
 )
