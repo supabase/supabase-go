@@ -30,8 +30,8 @@ func TestRange(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.want, func(t *testing.T) {
-			if got := testCase.create().rangeLiteral(); got != testCase.want {
-				t.Errorf(".rangeLiteral() = %v, want %v", got, testCase.want)
+			if got := testCase.create().String(); got != testCase.want {
+				t.Errorf(".String() = %v, want %v", got, testCase.want)
 			}
 		})
 	}

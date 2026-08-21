@@ -176,7 +176,7 @@ func (f FilterBuilder[T]) ContainsAll(column string, values ...any) FilterBuilde
 // Contains matches only rows where the range in column contains the whole of
 // r, sent as the cs operator.
 func (f FilterBuilder[T]) Contains(column string, r Range) FilterBuilder[T] {
-	return f.appendFilter(column, "cs", r.rangeLiteral())
+	return f.appendFilter(column, "cs", r.String())
 }
 
 // ContainsJSON matches only rows where the jsonb document in column contains
@@ -197,7 +197,7 @@ func (f FilterBuilder[T]) ContainedBy(column string, values ...any) FilterBuilde
 // ContainedIn matches only rows where the range in column lies entirely within
 // r, sent as the cd operator.
 func (f FilterBuilder[T]) ContainedIn(column string, r Range) FilterBuilder[T] {
-	return f.appendFilter(column, "cd", r.rangeLiteral())
+	return f.appendFilter(column, "cd", r.String())
 }
 
 // ContainedByJSON matches only rows where the jsonb document in column is
@@ -217,40 +217,40 @@ func (f FilterBuilder[T]) OverlapsAny(column string, values ...any) FilterBuilde
 // Overlaps matches only rows where the range in column shares at least one
 // value with r, sent as the ov operator.
 func (f FilterBuilder[T]) Overlaps(column string, r Range) FilterBuilder[T] {
-	return f.appendFilter(column, "ov", r.rangeLiteral())
+	return f.appendFilter(column, "ov", r.String())
 }
 
 // StrictlyRightOf matches only rows where the range in column is strictly right
 // of r - every value in it greater than every value in r - sent as the sr
 // operator.
 func (f FilterBuilder[T]) StrictlyRightOf(column string, r Range) FilterBuilder[T] {
-	return f.appendFilter(column, "sr", r.rangeLiteral())
+	return f.appendFilter(column, "sr", r.String())
 }
 
 // DoesNotExtendToTheLeftOf matches only rows where the range in column does not
 // extend to the left of r - no value in it below r's lower bound - sent as the
 // nxl operator.
 func (f FilterBuilder[T]) DoesNotExtendToTheLeftOf(column string, r Range) FilterBuilder[T] {
-	return f.appendFilter(column, "nxl", r.rangeLiteral())
+	return f.appendFilter(column, "nxl", r.String())
 }
 
 // StrictlyLeftOf matches only rows where the range in column is strictly left of
 // r - every value in it less than every value in r - sent as the sl operator.
 func (f FilterBuilder[T]) StrictlyLeftOf(column string, r Range) FilterBuilder[T] {
-	return f.appendFilter(column, "sl", r.rangeLiteral())
+	return f.appendFilter(column, "sl", r.String())
 }
 
 // DoesNotExtendToTheRightOf matches only rows where the range in column does not
 // extend to the right of r - no value in it above r's upper bound - sent as the
 // nxr operator.
 func (f FilterBuilder[T]) DoesNotExtendToTheRightOf(column string, r Range) FilterBuilder[T] {
-	return f.appendFilter(column, "nxr", r.rangeLiteral())
+	return f.appendFilter(column, "nxr", r.String())
 }
 
 // IsAdjacentTo matches only rows where the range in column shares no values with
 // r yet leaves no gap between them, sent as the adj operator.
 func (f FilterBuilder[T]) IsAdjacentTo(column string, r Range) FilterBuilder[T] {
-	return f.appendFilter(column, "adj", r.rangeLiteral())
+	return f.appendFilter(column, "adj", r.String())
 }
 
 // TextSearch matches only rows where column matches the full-text search
