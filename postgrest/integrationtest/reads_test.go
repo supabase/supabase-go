@@ -1297,6 +1297,13 @@ func TestFilters(t *testing.T) {
 			[]int{3, 4, 5, 6},
 		},
 		{
+			"or",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.RawLiteralCondition("or", "(priority.eq.1,priority.eq.5)")
+			},
+			[]int{1, 4},
+		},
+		{
 			"filter",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
 				return builder.RawLiteralCondition("status", "eq(any).{open,closed}")
