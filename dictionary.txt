@@ -29,6 +29,7 @@ govulncheck
 GOWORK
 inclusivity
 integrationtest
+isdistinct
 jsonv
 ldflags
 mockability
