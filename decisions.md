@@ -465,6 +465,14 @@ An order term's programmable space is two independent binary axes - direction an
 **Why**:  
 The zero-based inclusive contract is family-wide - every sibling SDK computes `offset=from` and `limit=to-from+1` with set-semantics on both keys, and the Supabase documentation teaches `range(0, 9)` returns ten rows - so a half-open Go spelling in the slice tradition would silently return one fewer row to anyone porting a documented example, an invisible off-by-one this SDK refuses to create; the doc comment carries the inclusivity and the arithmetic instead. PostgREST's Range-header mechanism carries the same information but no sibling uses it, it cannot address embedded resources and it would open a second serialization surface beside the query-string model. The Limit interplay is not bespoke code: both methods write the singleton `limit` key through `WithParameterReplacing`, so last-cap-wins falls out of the multimap decision, exactly the observable contract the sibling SDKs pin in their tests. A typestate exclusion of a second cap writer was considered and passed over: caps have no grammar to enforce (unlike direction-before-nulls), and a capped state would have to re-expose the whole filter surface for one unrepresentable-repeat guarantee the family universally spells as last-write-wins. A standalone Offset method exists only in supabase-py, has no capability id in the canonical matrix and adds nothing Range does not express. The referenced-table variant is deferred to the block that introduces relationship embedding, where Order, Limit and Range need one uniformly spelled referenced-table story rather than three ad-hoc ones.
 
+## No `Or`/`And` methods - `RawLiteralCondition` is the escape hatch for logical operators
+
+**What**:  
+`FilterBuilder` offers no `Or`, `And` or grouping API. `RawLiteralCondition(key, value)` is the only route to PostgREST's logical operators: it sends one verbatim query-string pair, where `key` is a column or a logical operator (`or`, `and`, optionally `not`-prefixed) and `value` passes through with no rendering, quoting or validation.
+
+**Why**:  
+PostgREST's logical grammar is recursive - nested groups, negation at any depth and embedded-resource prefixes - so faithful `Or`/`And` methods mean designing a whole expression-tree API for advanced usage most queries never need. One verbatim pass-through covers the entire grammar at the accepted cost that the caller owns the syntax and a malformed condition invalidates the whole query. The friction is deliberate: the long method name and the wire-level `key`/`value` parameters (PostgREST has no term unifying column and logical-operator keys) signal an unguarded surface, where a `column` parameter would falsely advertise the safety of the dedicated methods.
+
 ## Reads execute in package-level generic functions, context-first
 
 **What**:  

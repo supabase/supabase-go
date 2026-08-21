@@ -296,13 +296,20 @@ func (f FilterBuilder[T]) Not(column, operator, value string) FilterBuilder[T] {
 	return f.appendFilter(column, "not."+operator, value)
 }
 
-// Filter matches only rows satisfying one verbatim PostgREST condition, sent
-// as operator.value with no rendering or quoting: the escape hatch for
-// operators and forms without a dedicated method, for example
-// Filter("status", "eq(any)", "{ONLINE,OFFLINE}"). The caller owns the
-// entire condition's syntax.
-func (f FilterBuilder[T]) Filter(column, operator, value string) FilterBuilder[T] {
-	return f.appendFilter(column, operator, value)
+// RawLiteralCondition matches only rows satisfying one verbatim PostgREST
+// condition, sent as the query-string pair key=value with no rendering,
+// quoting or validation. The key is either a column, optionally carrying a
+// JSON path or embedded-resource path, or a logical operator (or, and,
+// not.or, not.and), and the value is everything after the pair's =
+// separator, for example
+// RawLiteralCondition("or", "(age.eq.14,not.and(age.gte.11,age.lte.17))").
+// This method provides the escape hatch for operators and forms without a
+// dedicated method. The caller owns the entire condition's syntax, which
+// must conform with PostgREST requirements - a malformed condition renders
+// the whole query invalid. This method should only be used sparingly and
+// very carefully!
+func (f FilterBuilder[T]) RawLiteralCondition(key, value string) FilterBuilder[T] {
+	return FilterBuilder[T]{request: f.request.WithParameter(key, value)}
 }
 
 // appendFilter returns a builder carrying one more filter pair for column.

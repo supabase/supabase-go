@@ -1299,7 +1299,7 @@ func TestFilters(t *testing.T) {
 		{
 			"filter",
 			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
-				return builder.Filter("status", "eq(any)", "{open,closed}")
+				return builder.RawLiteralCondition("status", "eq(any).{open,closed}")
 			},
 			[]int{1, 2, 6},
 		},
