@@ -296,16 +296,6 @@ func (f FilterBuilder[T]) Not(column, operator, value string) FilterBuilder[T] {
 	return f.appendFilter(column, "not."+operator, value)
 }
 
-// Or matches only rows satisfying at least one of filters, a group written
-// in PostgREST filter syntax - conditions of the form column.operator.value,
-// comma-separated, nesting through and(...), or(...) and a not. prefix - sent
-// verbatim inside or=(...), for example
-// Or("age.lt.18,age.gt.21"). The caller owns any quoting the values need.
-// Each Or call appends its own group and every group must be satisfied.
-func (f FilterBuilder[T]) Or(filters string) FilterBuilder[T] {
-	return FilterBuilder[T]{request: f.request.WithParameter("or", "("+filters+")")}
-}
-
 // Filter matches only rows satisfying one verbatim PostgREST condition, sent
 // as operator.value with no rendering or quoting: the escape hatch for
 // operators and forms without a dedicated method, for example
