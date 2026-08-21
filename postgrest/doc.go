@@ -16,9 +16,8 @@
 // Between [From] and execution the chain narrows and shapes the read: filter
 // methods named for PostgREST's operators - [FilterBuilder.Eq],
 // [FilterBuilder.In], [FilterBuilder.TextSearch] and their kin - choose the
-// rows, combining with AND unless [FilterBuilder.Or] groups alternatives,
-// while [FilterBuilder.Order], [FilterBuilder.Limit] and
-// [FilterBuilder.Range] shape the result.
+// rows, combining with AND, while [FilterBuilder.Order], [FilterBuilder.Limit]
+// and [FilterBuilder.Range] shape the result.
 //
 // Builders are pure immutable values carrying no client reference: every step
 // returns a new independent builder, so queries may be declared at package

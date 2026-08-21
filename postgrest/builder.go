@@ -39,8 +39,8 @@ type QueryBuilder[T any] struct {
 //
 // Filter methods narrow which rows the query returns and are named for the
 // PostgREST operators they send. Filters chained onto one builder must all
-// be satisfied, and [FilterBuilder.Or] expresses alternatives. A filter
-// value typed any renders as text by its Go type:
+// be satisfied.
+// A filter value typed any renders as text by its Go type:
 //   - string: sent verbatim
 //   - bool: true or false
 //   - integer types: decimal digits
