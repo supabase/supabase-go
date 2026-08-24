@@ -42,6 +42,7 @@ type QueryBuilder[T any] struct {
 // be satisfied.
 // A filter value typed any renders as text by its Go type:
 //   - string: sent verbatim
+//   - []byte: bytea hex format (\x followed by two lowercase hex digits per byte)
 //   - bool: true or false
 //   - integer types: decimal digits
 //   - float32 and float64: the shortest decimal text that round-trips,

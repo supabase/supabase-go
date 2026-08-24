@@ -114,6 +114,12 @@ func TestRenderFilterValue(t *testing.T) {
 		{(*int)(nil), "<nil>"},        // typed nil is not untyped nil: only the latter renders null
 		{[]string{"a", "b"}, "[a b]"}, // slices are not expanded: In wants variadic values, not one slice
 
+		// []byte renders as PostgreSQL's bytea hex format
+		{[]byte(nil), `\x`},
+		{[]byte{0}, `\x00`},
+		{[]byte("hello"), `\x68656c6c6f`},
+		{[]byte{0xDE, 0xAD, 0xBE, 0xEF}, `\xdeadbeef`},
+
 		// via fmt.Stringer
 		{90 * time.Minute, "1h30m0s"},
 		{time.Month(8), "August"},

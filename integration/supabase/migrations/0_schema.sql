@@ -150,3 +150,16 @@ create table public.issues (
 alter table public.issues enable row level security;
 create policy "anonymous can read issues" on public.issues for select to anon using (true);
 grant select on table public.issues to anon;
+
+-- The Menagerie, where:
+-- - each table is a family of data types who share similar characteristics
+-- - some families only have one member, and that's ok
+
+create table public."🦁 raw"
+(
+    name text not null primary key,
+    "byte array" bytea
+);
+alter table public."🦁 raw" enable row level security;
+create policy "anonymous can read 🦁 raw" on public."🦁 raw" for select to anon using (true);
+grant select on table public."🦁 raw" to anon;

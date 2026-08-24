@@ -1466,3 +1466,162 @@ func TestFilters(t *testing.T) {
 		})
 	}
 }
+
+type performer struct {
+	name    string
+	perform func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity]
+}
+
+func TestFiltersWithRawMenagerie(t *testing.T) {
+	testCases := []struct {
+		name       string
+		performers []performer
+	}{
+		{
+			"null",
+			[]performer{
+				{
+					"IsNull",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.IsNull("byte array")
+					},
+				},
+			},
+		},
+		{
+			"empty",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("byte array", []byte{})
+					},
+				},
+				{
+					"Lt zero",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Lt("byte array", []byte{0})
+					},
+				},
+			},
+		},
+		{
+			"zero",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("byte array", []byte{0})
+					},
+				},
+				{
+					"Gt empty and Lt count up to ten",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.
+							Gt("byte array", []byte{}).
+							Lt("byte array", []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+					},
+				},
+			},
+		},
+		{
+			"one",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("byte array", []byte{1})
+					},
+				},
+				{
+					"Gt count up to ten and Lt count down from ten",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.
+							Gt("byte array", []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}).
+							Lt("byte array", []byte{10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0})
+					},
+				},
+			},
+		},
+		{
+			"255",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("byte array", []byte{255})
+					},
+				},
+				{
+					"Gt count down from ten",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Gt("byte array", []byte{10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0})
+					},
+				},
+			},
+		},
+		{
+			"count down from ten",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("byte array", []byte{10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0})
+					},
+				},
+				{
+					"Gt one and Lt 255",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Gt("byte array", []byte{1}).Lt("byte array", []byte{255})
+					},
+				},
+			},
+		},
+		{
+			"count up to ten",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("byte array", []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+					},
+				},
+				{
+					"Gt zero and Lt one",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Gt("byte array", []byte{0}).Lt("byte array", []byte{1})
+					},
+				},
+			},
+		},
+	}
+
+	client := newIntegrationClient(t)
+
+	for _, testCase := range testCases {
+		for _, performer := range testCase.performers {
+			t.Run(testCase.name+" with filter "+performer.name, func(t *testing.T) {
+				rows, response, err := postgrest.Collect(
+					t.Context(),
+					client,
+					performer.perform(postgrest.
+						From[justNamedEntity]("🦁 raw").
+						Select("name")),
+				)
+				if err != nil {
+					t.Fatalf("Collect: %v", err)
+				}
+
+				// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+				testkit.AssertOKResponse(t, response)
+				if len(rows) != 1 {
+					t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
+				}
+
+				if rows[0].Name != testCase.name {
+					t.Errorf("want %q, got %q", testCase.name, rows[0].Name)
+				}
+			})
+		}
+	}
+}

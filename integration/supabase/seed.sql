@@ -121,3 +121,15 @@ values
     (4, 'Rate limit uploads',        'triage',      5, 8,   null,  null,    array['backend','performance'], '{"severity":"high","reviewed":false}',    null,                                                            '2026-01-04T09:00:00Z', to_tsvector('english', 'the cat and the fat dog')),
     (5, 'Dark mode theme',           'resolved',    4, 2.5, true,  'ada',   array['feature','ui'],          '{"severity":"low","reviewed":true}',      tstzrange('2026-03-01T00:00:00Z', '2026-03-03T00:00:00Z', '[)'), '2026-01-05T09:00:00Z', to_tsvector('english', 'a dog day afternoon')),
     (6, 'Onboarding copy tweaks',    'closed',      2, 13,  true,  null,    array[]::text[],                null,                                      tstzrange('2026-03-15T00:00:00Z', '2026-03-22T00:00:00Z', '[)'), '2026-01-06T09:00:00Z', null);
+
+-- The Menagerie, where:
+-- - all the exotic value constructions formulate
+-- - inserted data often uses an explicit cast (::type) for clarity and maintainability (less DRY, but more robust to schema drift)
+
+insert into public."🦁 raw" (name, "byte array") values ('null', null);
+insert into public."🦁 raw" (name, "byte array") values ('empty', '');
+insert into public."🦁 raw" (name, "byte array") values ('zero', '\x00'::bytea);
+insert into public."🦁 raw" (name, "byte array") values ('one', '\x01'::bytea);
+insert into public."🦁 raw" (name, "byte array") values ('255', '\xff'::bytea);
+insert into public."🦁 raw" (name, "byte array") values ('count down from ten', '\x0a09080706050403020100'::bytea);
+insert into public."🦁 raw" (name, "byte array") values ('count up to ten', '\x000102030405060708090a'::bytea);
