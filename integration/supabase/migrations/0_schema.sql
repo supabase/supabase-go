@@ -163,3 +163,12 @@ create table public."🦁 raw"
 alter table public."🦁 raw" enable row level security;
 create policy "anonymous can read 🦁 raw" on public."🦁 raw" for select to anon using (true);
 grant select on table public."🦁 raw" to anon;
+
+create table public."🦁 UUID"
+(
+    name text not null primary key,
+    "universally unique identifier" uuid
+);
+alter table public."🦁 UUID" enable row level security;
+create policy "anonymous can read 🦁 UUID" on public."🦁 UUID" for select to anon using (true);
+grant select on table public."🦁 UUID" to anon;
