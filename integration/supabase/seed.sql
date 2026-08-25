@@ -147,3 +147,11 @@ insert into public."🦁 UUID" (name, "universally unique identifier") values ('
 insert into public."🦁 UUID" (name, "universally unique identifier") values ('RFC 9562 UUIDv8 name-based example', '5c146b14-3c52-8afd-938a-375d0df1fbf6'::uuid);
 insert into public."🦁 UUID" (name, "universally unique identifier") values ('PostgreSQL docs example', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::uuid);
 insert into public."🦁 UUID" (name, "universally unique identifier") values ('Max', 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid);
+
+insert into public."🦁 emotion" (emotion, name) values (null, 'null');
+insert into public."🦁 emotion" (emotion, name) values ('schadenfreude', 'The experience of pleasure, joy, or self-satisfaction that comes from learning of the troubles, failures, pain, suffering, or humiliation of another');
+insert into public."🦁 emotion" (emotion, name) values ('😀', 'Happiness');
+insert into public."🦁 emotion" (emotion, name) values ('😢', 'Sadness');
+insert into public."🦁 emotion" (emotion, name) values ('😡', 'Anger');
+insert into public."🦁 emotion" (emotion, name) values ('😨', 'Fear');
+insert into public."🦁 emotion" (emotion, name) values ('😮', 'Surprise');

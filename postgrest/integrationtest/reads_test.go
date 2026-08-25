@@ -1804,3 +1804,91 @@ func TestFiltersWithUUIDMenagerie(t *testing.T) {
 		}
 	}
 }
+
+func TestFiltersWithEmotionMenagerie(t *testing.T) {
+	testCases := []struct {
+		name       string
+		performers []performer
+	}{
+		{
+			"null",
+			[]performer{
+				{
+					"IsNull",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.IsNull("emotion")
+					},
+				},
+			},
+		},
+		{
+			"The experience of pleasure, joy, or self-satisfaction that comes from learning of the troubles, failures, pain, suffering, or humiliation of another",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("emotion", "schadenfreude")
+					},
+				},
+				{
+					"NotIn",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.NotIn("emotion", "😨", "😢", "😡", "😮", "😀")
+					},
+				},
+				{
+					"In",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.In("emotion", "fremdschämen", "weltschmerz", "schadenfreude", "torschlusspanik")
+					},
+				},
+				{
+					"Gt neighbor Lt neighbor",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Gt("emotion", "fremdschämen").Lt("emotion", "😀")
+					},
+				},
+			},
+		},
+		{
+			"Happiness",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("emotion", "😀")
+					},
+				},
+			},
+		},
+	}
+
+	client := newIntegrationClient(t)
+
+	for _, testCase := range testCases {
+		for _, performer := range testCase.performers {
+			t.Run(testCase.name+" with filter "+performer.name, func(t *testing.T) {
+				rows, response, err := postgrest.Collect(
+					t.Context(),
+					client,
+					performer.perform(postgrest.
+						From[justNamedEntity]("🦁 emotion").
+						Select("name")),
+				)
+				if err != nil {
+					t.Fatalf("Collect: %v", err)
+				}
+
+				// No count was requested, so PostgREST reports an unknown total.
+				testkit.AssertOKResponse(t, response)
+				if len(rows) != 1 {
+					t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
+				}
+
+				if rows[0].Name != testCase.name {
+					t.Errorf("want %q, got %q", testCase.name, rows[0].Name)
+				}
+			})
+		}
+	}
+}

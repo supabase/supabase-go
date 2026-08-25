@@ -172,3 +172,26 @@ create table public."🦁 UUID"
 alter table public."🦁 UUID" enable row level security;
 create policy "anonymous can read 🦁 UUID" on public."🦁 UUID" for select to anon using (true);
 grant select on table public."🦁 UUID" to anon;
+
+create type public."🦁 emotions" as enum (
+    -- https://www.postgresql.org/docs/current/datatype-enum.html#DATATYPE-ENUM-ORDERING:
+    -- "The ordering of the values in an enum type is the order in which the values were listed when the type was created."
+    '😨',
+    'weltschmerz',
+    '😢',
+    'torschlusspanik',
+    '😡',
+    '😮',
+    'fremdschämen',
+    'schadenfreude',
+    '😀'
+);
+
+create table public."🦁 emotion"
+(
+    name text not null primary key,
+    emotion public."🦁 emotions"
+);
+alter table public."🦁 emotion" enable row level security;
+create policy "anonymous can read 🦁 emotion" on public."🦁 emotion" for select to anon using (true);
+grant select on table public."🦁 emotion" to anon;
