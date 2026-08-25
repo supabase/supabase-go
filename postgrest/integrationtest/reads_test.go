@@ -1541,6 +1541,12 @@ func TestFiltersWithRawMenagerie(t *testing.T) {
 							Lt("byte array", []byte{10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0})
 					},
 				},
+				{
+					"In",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.In("byte array", []byte{6, 6, 6}, []byte{1}, []byte{4, 2})
+					},
+				},
 			},
 		},
 		{
