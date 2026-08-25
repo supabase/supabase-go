@@ -1581,6 +1581,19 @@ func TestFiltersWithRawMenagerie(t *testing.T) {
 						return builder.Gt("byte array", []byte{1}).Lt("byte array", []byte{255})
 					},
 				},
+				{
+					"NotIn",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.NotIn(
+							"byte array",
+							[]byte{},
+							[]byte{0},
+							[]byte{1},
+							[]byte{255},
+							[]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+						)
+					},
+				},
 			},
 		},
 		{
