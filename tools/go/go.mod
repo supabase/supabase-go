@@ -10,12 +10,13 @@ tool (
 	mvdan.cc/gofumpt
 )
 
+require github.com/google/uuid v1.6.0
+
 require (
 	codeberg.org/chavacava/garif v0.2.0 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.8.0 // indirect
 	github.com/kisielk/errcheck v1.20.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
