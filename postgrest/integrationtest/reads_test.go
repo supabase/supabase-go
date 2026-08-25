@@ -184,7 +184,7 @@ func TestCollectAppliesLimit(t *testing.T) {
 		t.Fatalf("Collect: %v", err)
 	}
 
-	// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+	// No count was requested, so PostgREST reports an unknown total ("0-1/*").
 	testkit.AssertOKResponse(t, response)
 	if len(rows) != 2 {
 		t.Fatalf("row count = %d, want 2 (seed drifted or wrong limit applied?)", len(rows))
@@ -205,7 +205,7 @@ func TestCollectAppliesZeroLimit(t *testing.T) {
 		t.Fatalf("Collect: %v", err)
 	}
 
-	// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+	// No count was requested, so PostgREST reports an unknown total ("*/*").
 	testkit.AssertOKResponse(t, response)
 	if len(rows) != 0 {
 		t.Fatalf("row count = %d, want 0 (wrong limit applied?)", len(rows))
@@ -379,7 +379,7 @@ func TestCollectAppliesMultiColumnOrder(t *testing.T) {
 				t.Fatalf("Collect: %v", err)
 			}
 
-			// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+			// No count was requested, so PostgREST reports an unknown total ("0-5/*").
 			testkit.AssertOKResponse(t, response)
 			if len(rows) != 6 {
 				t.Fatalf("row count = %d, want 6 (seed drifted?)", len(rows))
@@ -510,7 +510,7 @@ func TestDelimitedIdentifierTableNames(t *testing.T) {
 				t.Fatalf("Collect: %v", err)
 			}
 
-			// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+			// No count was requested, so PostgREST reports an unknown total ("0-0/*").
 			testkit.AssertOKResponse(t, response)
 			if len(rows) != 1 {
 				t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
@@ -728,7 +728,7 @@ func TestCollectAppliesRange(t *testing.T) {
 				t.Fatalf("Collect: %v", err)
 			}
 
-			// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+			// No count was requested, so PostgREST reports an unknown total.
 			testkit.AssertOKResponse(t, response)
 			rowCount := len(rows)
 			if rowCount != testCase.wantRowCount {
@@ -863,7 +863,7 @@ func TestFiltersWithReserved(t *testing.T) {
 						t.Fatalf("Collect: %v", err)
 					}
 
-					// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+					// No count was requested, so PostgREST reports an unknown total ("0-0/*").
 					testkit.AssertOKResponse(t, response)
 					if len(rows) != 1 {
 						t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
@@ -1448,7 +1448,7 @@ func TestFilters(t *testing.T) {
 				t.Fatalf("Collect: %v", err)
 			}
 
-			// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+			// No count was requested, so PostgREST reports an unknown total.
 			testkit.AssertOKResponse(t, response)
 			if len(rows) != len(testCase.want) {
 				t.Fatalf("row count = %d, want %d (seed drifted?)", len(rows), len(testCase.want))
@@ -1631,7 +1631,7 @@ func TestFiltersWithRawMenagerie(t *testing.T) {
 					t.Fatalf("Collect: %v", err)
 				}
 
-				// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+				// No count was requested, so PostgREST reports an unknown total ("0-0/*").
 				testkit.AssertOKResponse(t, response)
 				if len(rows) != 1 {
 					t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
@@ -1791,7 +1791,7 @@ func TestFiltersWithUUIDMenagerie(t *testing.T) {
 					t.Fatalf("Collect: %v", err)
 				}
 
-				// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+				// No count was requested, so PostgREST reports an unknown total ("0-0/*").
 				testkit.AssertOKResponse(t, response)
 				if len(rows) != 1 {
 					t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
