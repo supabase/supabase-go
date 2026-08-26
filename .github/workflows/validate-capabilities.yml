@@ -1,0 +1,22 @@
+name: Validate SDK Compliance
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    # Pinned to the main branch in supabase/sdk, until the first
+    # supabase/sdk release that includes this new workflow.
+    # At that point: 
+    # - The uses pin then moves to the tagged release SHA; and
+    # - The sdk-ref override is dropped, matching the sibling repositories
+    uses: supabase/sdk/.github/workflows/validate-sdk-compliance-go.yml@main
+    with:
+      sdk-ref: main

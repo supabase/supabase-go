@@ -114,6 +114,9 @@ features:
       - postgrest.FilterBuilder.NotIn
   database.using_filters.or:
     status: partially_implemented
+    note: |
+      Reachable through FilterBuilder.RawLiteralCondition with a hand-written
+      or=(...) condition. No dedicated Or combinator exists.
     symbols:
       - postgrest.FilterBuilder.RawLiteralCondition
   database.using_filters.overlaps:
