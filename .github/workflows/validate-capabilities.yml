@@ -1,0 +1,22 @@
+name: Validate SDK Compliance
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    # Pinned to the go-compliance branch in supabase/sdk, while the draft PR
+    # for this new Go compliance workflow awaits merged and then its first
+    # supabase/sdk release.
+    # At that point: 
+    # - The uses pin then moves to the tagged release SHA; and
+    # - The sdk-ref override is dropped, matching the sibling repositories
+    uses: supabase/sdk/.github/workflows/validate-sdk-compliance-go.yml@go-compliance
+    with:
+      sdk-ref: go-compliance
