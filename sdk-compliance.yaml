@@ -20,6 +20,9 @@ features:
     symbols:
       - configuration.WithRetry
       - postgrest.WithRetry
+    supporting_symbols:
+      - configuration.Configuration.Retry
+      - postgrest.Option
   database.configuration.request_timeout:
     status: implemented
     note: |
