@@ -60,3 +60,64 @@ insert into public."'" (id, name) values (1, '''');
 insert into public."`" (id, name) values (1, '`');
 insert into public."2026-06-30T11:23:31" (id, name) values (1, '2026-06-30T11:23:31');
 insert into public."a+b" (id, name) values (1, 'a+b');
+
+-- Populate rows with reserved characters.
+-- - Full set from https://docs.postgrest.org/en/latest/references/api/url_grammar.html#reserved-characters:
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just comma', ',', array[',']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just dot', '.', array['.']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just colon', ':', array[':']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just asterisk', '*', array['*']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just opening parenthesis', '(', array['(']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just closing parenthesis', ')', array[')']);
+-- - Extras from https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-SPECIAL-CHARS
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just dollar', '$', array['$']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just opening square bracket', '[', array['[']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just closing square bracket', ']', array[']']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just semi-colon', ';', array[';']);
+-- - Other characters which AI gets excited about when considering escaping for PostgREST.
+--   - "you must put double quotes around it": https://www.postgresql.org/docs/current/arrays.html#ARRAYS-INPUT
+--   - "use curly braces instead of square brackets" re ov: https://docs.postgrest.org/en/latest/references/api/tables_views.html#operators
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just opening brace', '{', array['{']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just closing brace', '}', array['}']);
+-- - Other characters which have common use elsewhere in the grammar of PostgreSQL.
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just caret', '^', array['^']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just percent', '%', array['%']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just left angle bracket', '<', array['<']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just right angle bracket', '>', array['>']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just equals', '=', array['=']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just plus', '+', array['+']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just minus', '-', array['-']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just double quote', '"', array['"']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just single quote', '''', array['''']);
+-- - https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-STRINGS-ESCAPE
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just backslash', E'\\', array[E'\\']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just backspace', E'\b', array[E'\b']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just form feed', E'\f', array[E'\f']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just newline', E'\n', array[E'\n']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just carriage return', E'\r', array[E'\r']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just tab', E'\t', array[E'\t']);
+-- - Other potentially surprising characters.
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just multitudinous', '众', array['众']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just poop', '💩', array['💩']);
+
+-- Populate rows with common hazard forms, more complex than just a single character.
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('a comma b', 'a,b', array['a,b']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('opening brace inside', 'brace{inside', array['brace{inside']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('closing brace inside', 'brace}inside', array['brace}inside']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('opening paren inside', 'paren(open', array['paren(open']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('closing paren inside', 'close)paren', array['close)paren']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('double quoted inside', 'say "hi"', array['say "hi"']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('double quoted', '"The IKEA Effect"', array['"The IKEA Effect"']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('backslash inside', 'back\slash', array['back\slash']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('space padded', ' padded ', array[' padded ']); -- aren't we all! Right?
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('empty', '', array['']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('wildcard version tag', 'v1.2:rc*', array['v1.2:rc*']);
+
+insert into public.issues (id, title, status, priority, effort, resolved, assignee, tags, metadata, active_during, created_at, search)
+values
+    (1, 'Login button unresponsive', 'open',        1, 0.5, false, 'ada',   array['bug','ui'],              '{"severity":"high","browser":"firefox"}', tstzrange('2026-03-01T00:00:00Z', '2026-03-08T00:00:00Z', '[)'), '2026-01-01T09:00:00Z', to_tsvector('english', 'the quick brown fox jumps over the lazy dog')),
+    (2, 'Dashboard chart flickers',  'open',        3, 1.5, null,  null,    array['bug','ui','charts'],     '{"severity":"low"}',                      tstzrange('2026-03-08T00:00:00Z', '2026-03-15T00:00:00Z', '[)'), '2026-01-02T09:00:00Z', to_tsvector('english', 'quick fixes ship fast')),
+    (3, 'Export issues to CSV',      'in_progress', 2, 3,   false, 'grace', array['feature','backend'],     '{"severity":"medium","reviewed":true}',   tstzrange('2026-03-10T00:00:00Z', '2026-03-20T00:00:00Z', '[)'), '2026-01-03T09:00:00Z', to_tsvector('english', 'the fat cat sat on the mat')),
+    (4, 'Rate limit uploads',        'triage',      5, 8,   null,  null,    array['backend','performance'], '{"severity":"high","reviewed":false}',    null,                                                            '2026-01-04T09:00:00Z', to_tsvector('english', 'the cat and the fat dog')),
+    (5, 'Dark mode theme',           'resolved',    4, 2.5, true,  'ada',   array['feature','ui'],          '{"severity":"low","reviewed":true}',      tstzrange('2026-03-01T00:00:00Z', '2026-03-03T00:00:00Z', '[)'), '2026-01-05T09:00:00Z', to_tsvector('english', 'a dog day afternoon')),
+    (6, 'Onboarding copy tweaks',    'closed',      2, 13,  true,  null,    array[]::text[],                null,                                      tstzrange('2026-03-15T00:00:00Z', '2026-03-22T00:00:00Z', '[)'), '2026-01-06T09:00:00Z', null);

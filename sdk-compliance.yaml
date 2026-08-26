@@ -23,6 +23,143 @@ features:
     status: implemented
     symbols:
       - postgrest.QueryBuilder.Select
+  database.using_filters.contained_by:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.ContainedBy
+      - postgrest.FilterBuilder.ContainedByRange
+      - postgrest.FilterBuilder.ContainedByJSON
+  database.using_filters.contains:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Contains
+      - postgrest.FilterBuilder.ContainsRange
+      - postgrest.FilterBuilder.ContainsJSON
+  database.using_filters.eq:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Eq
+  database.using_filters.gt:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Gt
+  database.using_filters.gte:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Gte
+  database.using_filters.ilike:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.ILike
+  database.using_filters.ilike_all:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.ILikeAllOf
+  database.using_filters.ilike_any:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.ILikeAnyOf
+  database.using_filters.in:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.In
+  database.using_filters.is:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.IsNull
+      - postgrest.FilterBuilder.IsNotNull
+      - postgrest.FilterBuilder.IsTrue
+      - postgrest.FilterBuilder.IsFalse
+      - postgrest.FilterBuilder.IsUnknown
+  database.using_filters.is_distinct:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.IsDistinct
+  database.using_filters.like:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Like
+  database.using_filters.like_all:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.LikeAllOf
+  database.using_filters.like_any:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.LikeAnyOf
+  database.using_filters.lt:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Lt
+  database.using_filters.lte:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Lte
+  database.using_filters.match:
+    status: not_applicable
+    note: |
+      Clashes with PostgREST's 'match' filter operator (pattern matching with regular expression).
+      Is a client-side only 'convenience' method.
+  database.using_filters.neq:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Neq
+  database.using_filters.not:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Not
+  database.using_filters.not_in:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.NotIn
+  database.using_filters.or:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Or
+  database.using_filters.overlaps:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Overlaps
+      - postgrest.FilterBuilder.OverlapsRange
+  database.using_filters.range_adjacent:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.RangeAdjacent
+  database.using_filters.range_gt:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.RangeGt
+  database.using_filters.range_gte:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.RangeGte
+  database.using_filters.range_lt:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.RangeLt
+  database.using_filters.range_lte:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.RangeLte
+  database.using_filters.raw:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Filter
+  database.using_filters.regex:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Match
+  database.using_filters.regex_icase:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.IMatch
+  database.using_filters.text_search:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.TextSearch
+      - postgrest.FilterBuilder.TextSearchPlain
+      - postgrest.FilterBuilder.TextSearchPhrase
+      - postgrest.FilterBuilder.TextSearchWebsearch
   database.using_modifiers.limit:
     status: implemented
     symbols:
