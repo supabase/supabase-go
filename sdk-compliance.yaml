@@ -15,6 +15,11 @@ features:
     status: implemented
     symbols:
       - configuration.WithHeader
+  database.configuration.auto_retry:
+    status: implemented
+    symbols:
+      - configuration.WithRetry
+      - postgrest.FilterBuilder.Retry
   database.configuration.request_timeout:
     status: implemented
     note: |

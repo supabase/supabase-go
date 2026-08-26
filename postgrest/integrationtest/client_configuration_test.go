@@ -19,10 +19,13 @@ import (
 // request timeout against real PostgREST: reading the slow_instruments view
 // (a two-second server-side sleep) with a 250ms http.Client.Timeout fails
 // fast with a timeout error. The elapsed bound is what shows the request was
-// cancelled in flight rather than run to completion.
+// cancelled in flight rather than run to completion. Automatic retries are
+// disabled because a per-attempt timeout is a retryable transport failure -
+// left on, the read would lawfully take four attempts plus backoff.
 func TestRequestTimeoutCancelsInFlightRequest(t *testing.T) {
 	client := newIntegrationClient(t,
-		configuration.WithHTTPClient(&http.Client{Timeout: 250 * time.Millisecond}))
+		configuration.WithHTTPClient(&http.Client{Timeout: 250 * time.Millisecond}),
+		configuration.WithRetry(false))
 
 	started := time.Now()
 	rows, response, err := postgrest.Collect(
@@ -96,4 +99,67 @@ func TestContextDeadlineWinsOverClientTimeout(t *testing.T) {
 	if elapsed >= time.Second {
 		t.Errorf("Collect returned after %v, want well under the view's 2s sleep and the client's 30s allowance", elapsed)
 	}
+}
+
+// TestRetryDisabledReadSucceeds proves the client-level retry switch leaves
+// the happy path untouched against real PostgREST. A healthy stack cannot
+// emit the transient failures that would exercise the loop itself - that is
+// covered hermetically by the postgrest package's unit tests.
+func TestRetryDisabledReadSucceeds(t *testing.T) {
+	client := newIntegrationClient(t, configuration.WithRetry(false))
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.From[seededInstrument]("instruments"),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	testkit.AssertOKResponse(t, response)
+	if len(rows) != 3 {
+		t.Fatalf("row count = %d, want 3 (seed drifted?)", len(rows))
+	}
+}
+
+// TestPerQueryRetryOverrideReadSucceeds proves the per-query override
+// composes with real chains in both directions, including promotion through
+// the ordered builders.
+func TestPerQueryRetryOverrideReadSucceeds(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	t.Run("opt in", func(t *testing.T) {
+		rows, response, err := postgrest.Collect(
+			t.Context(),
+			client,
+			postgrest.From[seededInstrument]("instruments").Retry(true),
+		)
+		if err != nil {
+			t.Fatalf("Collect: %v", err)
+		}
+		testkit.AssertOKResponse(t, response)
+		if len(rows) != 3 {
+			t.Fatalf("row count = %d, want 3 (seed drifted?)", len(rows))
+		}
+	})
+
+	t.Run("opt out after order and limit", func(t *testing.T) {
+		rows, response, err := postgrest.Collect(
+			t.Context(),
+			client,
+			postgrest.
+				From[seededInstrument]("instruments").
+				Select("id, name").
+				Order("name").
+				Limit(2).
+				Retry(false),
+		)
+		if err != nil {
+			t.Fatalf("Collect: %v", err)
+		}
+		testkit.AssertOKResponse(t, response)
+		if len(rows) != 2 {
+			t.Fatalf("row count = %d, want 2 (limited)", len(rows))
+		}
+	})
 }

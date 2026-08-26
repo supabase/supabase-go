@@ -44,6 +44,7 @@ type Configuration struct {
 	apiKey     string
 	httpClient *http.Client
 	headers    http.Header
+	retry      bool
 }
 
 // Option configures a [Configuration]. Options are applied by [New]
@@ -61,6 +62,17 @@ func WithHTTPClient(client *http.Client) Option {
 		if client != nil {
 			c.httpClient = client
 		}
+	}
+}
+
+// WithRetry sets whether the SDK's domain clients retry failed requests
+// automatically. Retries are enabled by default. Only requests that are safe
+// to repeat are ever retried, and each domain client documents the exact
+// contract it enforces: which requests qualify, on which failures and with
+// what backoff.
+func WithRetry(enabled bool) Option {
+	return func(c *Configuration) {
+		c.retry = enabled
 	}
 }
 
@@ -90,7 +102,8 @@ func WithHeader(key, value string) Option {
 //   - [ErrInvalidURL] when rawURL is not an absolute http or https URL. The
 //     underlying parse failure, when there is one, is wrapped.
 //
-// See [WithHTTPClient] and [WithHeader] for the available options.
+// See [WithHTTPClient], [WithHeader] and [WithRetry] for the available
+// options.
 func New(entryModulePath core.ModulePath, rawURL, apiKey string, options ...Option) (*Configuration, error) {
 	if rawURL == "" {
 		return nil, ErrMissingURL
@@ -112,6 +125,7 @@ func New(entryModulePath core.ModulePath, rawURL, apiKey string, options ...Opti
 		apiKey:     apiKey,
 		httpClient: http.DefaultClient,
 		headers:    make(http.Header),
+		retry:      true,
 	}
 	for _, option := range options {
 		option(configuration)
@@ -124,6 +138,12 @@ func New(entryModulePath core.ModulePath, rawURL, apiKey string, options ...Opti
 // HTTPClient performs an HTTP request. The standard library's [*http.Client] satisfies it.
 type HTTPClient interface {
 	Do(request *http.Request) (*http.Response, error)
+}
+
+// Retry reports whether automatic retries are enabled for this project's
+// clients.
+func (c *Configuration) Retry() bool {
+	return c.retry
 }
 
 // HTTPClient returns the [HTTPClient] configured for this project. Its transport
