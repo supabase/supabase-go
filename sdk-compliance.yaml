@@ -15,6 +15,15 @@ features:
     status: implemented
     symbols:
       - configuration.WithHeader
+  database.configuration.request_timeout:
+    status: implemented
+    note: |
+      Construction-time timeouts ride the standard library: pass WithHTTPClient
+      an http.Client whose Timeout field is set. The wrapped transport
+      preserves the field and the deadline cancels in-flight requests,
+      response-body reads included.
+    symbols:
+      - configuration.WithHTTPClient
   database.query.from_table:
     status: implemented
     symbols:

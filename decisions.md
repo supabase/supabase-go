@@ -579,3 +579,15 @@ The policy is stated consumer-facing in [our root `README.md`](README.md) ("Supp
 The standard library is statically linked into every consumer binary and only the two newest majors receive security fixes, so a floor inside Go's support window never claims compatibility with toolchains whose binaries cannot be patched.
 A lower floor buys no reach: every Go line below `1.25` is end of life, so no supported-toolchain consumer distinguishes `1.25` from lower floors.
 The ecosystem this SDK composes with already sits at the same point - `golang.org/x` applies the two-release policy to itself and [pgx](https://github.com/jackc/pgx), [grpc-go](https://github.com/grpc/grpc-go), [google-cloud-go](https://github.com/googleapis/google-cloud-go) and [the original Supabase community postgrest-go](https://github.com/supabase-community/postgrest-go) all require 1.25 - so the floor is aligned rather than pioneering.
+
+## `request_timeout` is satisfied by `http.Client.Timeout` through `WithHTTPClient`, not a dedicated option
+
+**What**:  
+The `database.configuration.request_timeout` capability is claimed in [`sdk-compliance.yaml`](sdk-compliance.yaml) with `configuration.WithHTTPClient` as its symbol and no new API: consumers set a construction-time deadline by passing an `http.Client` whose `Timeout` field is set.
+The wrap in [`transport.WrapClient`](core/internal/transport/transport.go) clones the caller's client, so the field survives construction, and the deadline spans exactly the SDK's I/O - connection, headers and the response-body read - cancelling in-flight requests when it elapses.
+A per-request context deadline composes with it the Go-native way: whichever fires first cancels, and both surface as errors matching `context.DeadlineExceeded`.
+
+**Why**:  
+Go's standard `http.Client` already expresses the canonical semantic natively ("Timeout specifies a time limit for requests made by this Client", cancelling as if the request's context ended), so a dedicated `WithTimeout` option would be a second spelling of a field the injected client already carries - configuration surface without new capability.
+The sibling precedent is Python's, which claims the capability through the language-native mechanism plus an explanatory note.
+JS and Flutter needed explicit options only because `fetch` and Dart's `http` lack a native construction-time whole-request client timeout.
