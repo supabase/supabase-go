@@ -1,15 +1,30 @@
 package postgrest
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // Range is a PostgreSQL range value accepted by the range filter methods, such
-// as [FilterBuilder.Contains]. Build one with [NewRange], setting either bound
-// through the returned builder and leaving a bound unset to make it unbounded.
-// The builder satisfies Range at every stage, so a range with one or both ends
-// unbounded is itself a Range.
+// as [FilterBuilder.Contains], and by any filter method whose value is typed
+// any, such as [FilterBuilder.Eq], which sends it as its range literal. Build
+// one with [NewRange], setting either bound through the returned builder and
+// leaving a bound unset to make it unbounded, or take the empty range from
+// [EmptyRange]. The builder satisfies Range at every stage, so a range with
+// one or both ends unbounded is itself a Range. String hands the same literal
+// to the verbatim escape hatches, such as [FilterBuilder.Not].
 type Range interface {
-	// rangeLiteral returns the PostgreSQL range literal for the value.
-	rangeLiteral() string
+	// String returns the PostgreSQL range literal for the value, for
+	// example [2,7) or empty.
+	fmt.Stringer
+
+	// isRange ensures only this package's types satisfy Range. Interfaces
+	// are satisfied structurally in Go, so with String alone any
+	// fmt.Stringer would pass as a Range. No type outside this package can
+	// declare a method matching an unexported name, which closes the set
+	// to values built by NewRange and EmptyRange, whose literals are
+	// well-formed by construction.
+	isRange()
 }
 
 // NewRange begins a PostgreSQL range whose bounds hold values of type T, for a
@@ -91,11 +106,11 @@ type rangeValue struct {
 // they appear in a bound value of a range literal.
 const rangeBoundGrammar = `()[],"\`
 
-// rangeLiteral renders the range as one PostgreSQL range literal, for example
+// String renders the range as one PostgreSQL range literal, for example
 // [2,7) or (,2026-01-01T00:00:00Z]. Each bound value is rendered by
 // renderFilterValue and quoted by quoteIfNeeded, and an unbounded end renders as
 // no bound at all.
-func (r rangeValue) rangeLiteral() string {
+func (r rangeValue) String() string {
 	var b strings.Builder
 	if r.lower.inclusive {
 		b.WriteByte('[')
@@ -117,14 +132,20 @@ func (r rangeValue) rangeLiteral() string {
 	return b.String()
 }
 
+// isRange has no behavior. See [Range] for the compile-time job it does.
+func (rangeValue) isRange() {}
+
 // emptyRange is the PostgreSQL empty range, a field-less singleton that renders
 // as the bare literal empty rather than through the bracket grammar.
 type emptyRange struct{}
 
-// rangeLiteral renders the empty range as the bare literal empty.
-func (emptyRange) rangeLiteral() string {
+// String renders the empty range as the bare literal empty.
+func (emptyRange) String() string {
 	return "empty"
 }
+
+// isRange has no behavior. See [Range] for the compile-time job it does.
+func (emptyRange) isRange() {}
 
 // Compile-time proof that every concrete [Range] in this package satisfies the
 // interface. If a type drifts so a proof no longer holds, the build fails here

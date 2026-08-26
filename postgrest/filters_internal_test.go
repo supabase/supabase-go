@@ -127,6 +127,10 @@ func TestRenderFilterValue(t *testing.T) {
 		{virtualRouterRedundancyProtocolMAC, "00:00:5e:00:01:01"},
 		{&url.URL{Scheme: "https", Host: "www.example.com", Path: "/about"}, "https://www.example.com/about"},
 		{&url.URL{Scheme: "https", Host: "github.com", Path: "/golang/go", RawQuery: "tab=readme-ov-file"}, "https://github.com/golang/go?tab=readme-ov-file"},
+
+		// via fmt.Stringer: a Range renders as its PostgreSQL range literal
+		{NewRange[int]().FromInclusive(2).ToExclusive(7), "[2,7)"},
+		{EmptyRange(), "empty"},
 	}
 
 	for _, testCase := range testCases {

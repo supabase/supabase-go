@@ -1366,6 +1366,71 @@ func TestFilters(t *testing.T) {
 			},
 			[]int{}, // adjacency is constant-false with empty
 		},
+		{
+			"tstzrange equals range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Eq("active_during", postgrest.NewRange[time.Time]().
+					FromInclusive(testkit.TimeRFC3339(t, `2026-03-08T00:00:00Z`)).
+					ToExclusive(testkit.TimeRFC3339(t, `2026-03-15T00:00:00Z`)))
+			},
+			[]int{2}, // ranges compare by value, so the timezone spelling of the bounds is irrelevant
+		},
+		{
+			"tstzrange not equal range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Neq("active_during", postgrest.NewRange[time.Time]().
+					FromInclusive(testkit.TimeRFC3339(t, `2026-03-08T00:00:00Z`)).
+					ToExclusive(testkit.TimeRFC3339(t, `2026-03-15T00:00:00Z`)))
+			},
+			[]int{1, 3, 5, 6}, // row 4's null never matches
+		},
+		{
+			"tstzrange distinct from range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.IsDistinct("active_during", postgrest.NewRange[time.Time]().
+					FromInclusive(testkit.TimeRFC3339(t, `2026-03-08T00:00:00Z`)).
+					ToExclusive(testkit.TimeRFC3339(t, `2026-03-15T00:00:00Z`)))
+			},
+			[]int{1, 3, 4, 5, 6}, // unlike Neq, null is distinct from a non-null range, so row 4 matches
+		},
+		{
+			"tstzrange in range list",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.In("active_during",
+					postgrest.NewRange[time.Time]().
+						FromInclusive(testkit.TimeRFC3339(t, `2026-03-01T00:00:00Z`)).
+						ToExclusive(testkit.TimeRFC3339(t, `2026-03-08T00:00:00Z`)),
+					postgrest.NewRange[time.Time]().
+						FromInclusive(testkit.TimeRFC3339(t, `2026-03-15T00:00:00Z`)).
+						ToExclusive(testkit.TimeRFC3339(t, `2026-03-22T00:00:00Z`)))
+			},
+			[]int{1, 6}, // each comma-bearing literal rides double-quoted in the list
+		},
+		{
+			"tstzrange greater than range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Gt("active_during", postgrest.NewRange[time.Time]().
+					FromInclusive(testkit.TimeRFC3339(t, `2026-03-08T00:00:00Z`)).
+					ToExclusive(testkit.TimeRFC3339(t, `2026-03-15T00:00:00Z`)))
+			},
+			[]int{3, 6}, // b-tree order: lower bounds first, upper bounds only on ties
+		},
+		{
+			"tstzrange less than range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Lt("active_during", postgrest.NewRange[time.Time]().
+					FromInclusive(testkit.TimeRFC3339(t, `2026-03-08T00:00:00Z`)).
+					ToExclusive(testkit.TimeRFC3339(t, `2026-03-15T00:00:00Z`)))
+			},
+			[]int{1, 5},
+		},
+		{
+			"tstzrange greater than empty range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Gt("active_during", postgrest.EmptyRange())
+			},
+			[]int{1, 2, 3, 5, 6}, // empty ranges sort before all else
+		},
 	}
 
 	client := newIntegrationClient(t)

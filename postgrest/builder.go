@@ -49,6 +49,7 @@ type QueryBuilder[T any] struct {
 //     -Infinity and NaN
 //   - [time.Time]: RFC 3339 with up to nanosecond precision
 //   - nil: null
+//   - [Range]: its PostgreSQL range literal, such as [2,7) or empty
 //   - [fmt.Stringer]: what String returns
 //   - anything else: the fmt package's %v rendering
 //

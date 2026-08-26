@@ -157,6 +157,59 @@ func TestQueryBuilderPromotedModifierSkipsSelect(t *testing.T) {
 	}
 }
 
+// TestCollectSendsRangeValuesThroughScalarFilters pins the wire text of a
+// Range given to the filter methods whose value is typed any: the literal
+// rides bare in single-value position and double-quoted inside list
+// position, where its commas would otherwise split the elements.
+func TestCollectSendsRangeValuesThroughScalarFilters(t *testing.T) {
+	b := postgrest.From[instrument]("instruments")
+	testCases := []struct {
+		name  string
+		query postgrest.Query[instrument]
+		want  string
+	}{
+		{
+			name:  "eq carries the literal bare",
+			query: b.Eq("active_during", postgrest.NewRange[int]().FromInclusive(2).ToExclusive(7)),
+			want:  "eq.[2,7)",
+		},
+		{
+			name: "in double-quotes each range element",
+			query: b.In("active_during",
+				postgrest.NewRange[int]().FromInclusive(1).ToExclusive(3),
+				postgrest.NewRange[int]().FromInclusive(4).ToExclusive(6)),
+			want: `in.("[1,3)","[4,6)")`,
+		},
+		{
+			name:  "isdistinct carries the empty range bare",
+			query: b.IsDistinct("active_during", postgrest.EmptyRange()),
+			want:  "isdistinct.empty",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			var observed *http.Request
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				observed = request.Clone(request.Context())
+				_, _ = writer.Write([]byte(`[]`))
+			}))
+			defer server.Close()
+
+			rows, response, err := postgrest.Collect(t.Context(), newTestClient(t, server), testCase.query)
+			if err != nil {
+				t.Fatalf("Collect: %v", err)
+			}
+			if len(rows) != 0 {
+				t.Errorf("len(rows) = %d, want 0", len(rows))
+			}
+			testkit.AssertOKResponse(t, response)
+			if got := observed.URL.Query().Get("active_during"); got != testCase.want {
+				t.Errorf("active_during = %q, want %q", got, testCase.want)
+			}
+		})
+	}
+}
+
 // TestCollectEmptyResultYieldsEmptySlice pins Collect's documented
 // empty-result contract: a JSON [] decodes to an empty, non-nil slice, so
 // callers range over results without a nil check.
