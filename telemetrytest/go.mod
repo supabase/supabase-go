@@ -11,14 +11,14 @@ go 1.25
 // require of the same module path in this build, or the higher one becomes the
 // selected version that build information records and main.go asserts.
 require (
-	github.com/supabase/supabase-go v0.999.1-fabricated
+	github.com/supabase/supabase-go/supabase v0.999.1-fabricated
 	github.com/supabase/supabase-go/postgrest v0.999.2-fabricated
 )
 
 require github.com/supabase/supabase-go/core v0.0.0-00010101000000-000000000000 // indirect
 
 replace (
-	github.com/supabase/supabase-go => ../
+	github.com/supabase/supabase-go/supabase => ../supabase
 	github.com/supabase/supabase-go/core => ../core
 	github.com/supabase/supabase-go/postgrest => ../postgrest
 )

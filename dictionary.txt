@@ -56,7 +56,7 @@ SQLSTATE
 staticcheck
 stdlib
 subtest
-Supabase
+supabase
 synctest
 telemetrytest
 testkit

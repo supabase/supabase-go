@@ -4,6 +4,7 @@ package telemetry
 
 import (
 	"fmt"
+	"path"
 	"runtime"
 	"runtime/debug"
 	"strings"
@@ -138,9 +139,10 @@ func buildClientInformationHeaderValues() map[core.ModulePath]string {
 // that case a client module is the main module or a workspace sibling, so its
 // version is not resolvable from build information.
 func builtWithinSDK(buildInformation *debug.BuildInfo) bool {
-	rootModulePath := string(core.ModulePathRoot)
-	return buildInformation.Main.Path == rootModulePath ||
-		strings.HasPrefix(buildInformation.Main.Path, rootModulePath+"/")
+	// All SDK modules share the repository's base import path, established
+	// here as the parent of this module(core)'s path.
+	sdkModuleTreeBase := path.Dir(string(core.ModulePathCore))
+	return strings.HasPrefix(buildInformation.Main.Path, sdkModuleTreeBase+"/")
 }
 
 // Regarding runtime.GOOS and runtime.GOARCH...

@@ -1,4 +1,4 @@
-module github.com/supabase/supabase-go
+module github.com/supabase/supabase-go/supabase
 
 // This module's consumer compatibility floor - the minimum Go version required
 // to use it. It is a minimum, not the toolchain we build with, and it tracks

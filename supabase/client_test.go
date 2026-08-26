@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/supabase/supabase-go"
 	"github.com/supabase/supabase-go/core/configuration"
+	"github.com/supabase/supabase-go/supabase"
 )
 
 // TestNewValidationPropagates pins that New surfaces the configuration
