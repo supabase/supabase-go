@@ -19,7 +19,7 @@ features:
     status: implemented
     symbols:
       - configuration.WithRetry
-      - postgrest.FilterBuilder.Retry
+      - postgrest.WithRetry
   database.configuration.request_timeout:
     status: implemented
     note: |

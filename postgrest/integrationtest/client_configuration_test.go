@@ -122,17 +122,17 @@ func TestRetryDisabledReadSucceeds(t *testing.T) {
 	}
 }
 
-// TestPerQueryRetryOverrideReadSucceeds proves the per-query override
-// composes with real chains in both directions, including promotion through
-// the ordered builders.
-func TestPerQueryRetryOverrideReadSucceeds(t *testing.T) {
+// TestPerReadRetryOverrideSucceeds proves the per-read override leaves live
+// reads untouched in both directions, composing with a full query chain.
+func TestPerReadRetryOverrideSucceeds(t *testing.T) {
 	client := newIntegrationClient(t)
 
 	t.Run("opt in", func(t *testing.T) {
 		rows, response, err := postgrest.Collect(
 			t.Context(),
 			client,
-			postgrest.From[seededInstrument]("instruments").Retry(true),
+			postgrest.From[seededInstrument]("instruments"),
+			postgrest.WithRetry(true),
 		)
 		if err != nil {
 			t.Fatalf("Collect: %v", err)
@@ -143,7 +143,7 @@ func TestPerQueryRetryOverrideReadSucceeds(t *testing.T) {
 		}
 	})
 
-	t.Run("opt out after order and limit", func(t *testing.T) {
+	t.Run("opt out on a chained query", func(t *testing.T) {
 		rows, response, err := postgrest.Collect(
 			t.Context(),
 			client,
@@ -151,8 +151,8 @@ func TestPerQueryRetryOverrideReadSucceeds(t *testing.T) {
 				From[seededInstrument]("instruments").
 				Select("id, name").
 				Order("name").
-				Limit(2).
-				Retry(false),
+				Limit(2),
+			postgrest.WithRetry(false),
 		)
 		if err != nil {
 			t.Fatalf("Collect: %v", err)

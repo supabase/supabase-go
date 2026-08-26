@@ -245,30 +245,31 @@ func TestCollectDoesNotRetryWhenDisabledByClient(t *testing.T) {
 	}
 }
 
-// TestCollectPerQueryRetryOverridesClient proves FilterBuilder.Retry wins
-// over the client default in both directions, and that the override lives
-// in the forked query value alone - the base builder is left untouched, per
-// the queries-are-pure-values contract.
-func TestCollectPerQueryRetryOverridesClient(t *testing.T) {
+// TestCollectPerReadRetryOverridesClient proves the per-call WithRetry
+// option wins over the client default in both directions and applies to
+// that call alone - the same client and query without the option follow
+// the client default again.
+func TestCollectPerReadRetryOverridesClient(t *testing.T) {
 	t.Run("opts a retrying client out", func(t *testing.T) {
 		stubRetrySleep(t)
 		server, retryCounts := scriptedServer(t, scriptedResponse{status: 520})
 		client := newRetryTestClient(t, server.URL)
-		base := From[map[string]any]("instruments")
+		query := From[map[string]any]("instruments")
 
-		if _, _, err := Collect(t.Context(), client, base.Retry(false)); err == nil {
+		if _, _, err := Collect(t.Context(), client, query, WithRetry(false)); err == nil {
 			t.Fatal("Collect succeeded, want an error")
 		}
 		if got := len(*retryCounts); got != 1 {
-			t.Errorf("requests with Retry(false) = %d, want 1", got)
+			t.Errorf("requests with WithRetry(false) = %d, want 1", got)
 		}
 
-		// The fork did not leak into base: it still retries in full.
-		if _, _, err := Collect(t.Context(), client, base); err == nil {
+		// The override was scoped to that call: the same read without the
+		// option retries in full.
+		if _, _, err := Collect(t.Context(), client, query); err == nil {
 			t.Fatal("Collect succeeded, want an error")
 		}
 		if got := len(*retryCounts) - 1; got != 1+maximumRetries {
-			t.Errorf("requests with base = %d, want %d", got, 1+maximumRetries)
+			t.Errorf("requests without the option = %d, want %d", got, 1+maximumRetries)
 		}
 	})
 
@@ -276,21 +277,22 @@ func TestCollectPerQueryRetryOverridesClient(t *testing.T) {
 		stubRetrySleep(t)
 		server, retryCounts := scriptedServer(t, scriptedResponse{status: 520})
 		client := newRetryTestClient(t, server.URL, configuration.WithRetry(false))
-		base := From[map[string]any]("instruments")
+		query := From[map[string]any]("instruments")
 
-		if _, _, err := Collect(t.Context(), client, base.Retry(true)); err == nil {
+		if _, _, err := Collect(t.Context(), client, query, WithRetry(true)); err == nil {
 			t.Fatal("Collect succeeded, want an error")
 		}
 		if got := len(*retryCounts); got != 1+maximumRetries {
-			t.Errorf("requests with Retry(true) = %d, want %d", got, 1+maximumRetries)
+			t.Errorf("requests with WithRetry(true) = %d, want %d", got, 1+maximumRetries)
 		}
 
-		// The fork did not leak into base: it still sends exactly once.
-		if _, _, err := Collect(t.Context(), client, base); err == nil {
+		// The override was scoped to that call: the same read without the
+		// option sends exactly once.
+		if _, _, err := Collect(t.Context(), client, query); err == nil {
 			t.Fatal("Collect succeeded, want an error")
 		}
 		if got := len(*retryCounts) - (1 + maximumRetries); got != 1 {
-			t.Errorf("requests with base = %d, want 1", got)
+			t.Errorf("requests without the option = %d, want 1", got)
 		}
 	})
 }

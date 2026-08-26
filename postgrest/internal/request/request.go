@@ -25,8 +25,6 @@ type Request struct {
 	method     string
 	path       []string
 	parameters []parameter
-
-	retry RetryPolicy
 }
 
 // New returns a Request for the given HTTP method and URL path, one path
@@ -106,38 +104,6 @@ func (r Request) WithParameterValueAppended(key, addition string) Request {
 		}
 	}
 	return clone
-}
-
-// RetryPolicy is a Request's automatic-retry override. The zero value,
-// RetryUnset, leaves the executing client's own default in force, so an
-// unmodified Request follows whatever the client decides.
-type RetryPolicy int
-
-const (
-	// RetryUnset defers to the executing client's default.
-	RetryUnset RetryPolicy = iota
-	// RetryEnabled requires automatic retries for this request.
-	RetryEnabled
-	// RetryDisabled forbids automatic retries for this request.
-	RetryDisabled
-)
-
-// WithRetry returns a new Request carrying an automatic-retry override for
-// the executing client to honor in place of its own default. A later
-// WithRetry replaces an earlier one.
-func (r Request) WithRetry(enabled bool) Request {
-	clone := r
-	if enabled {
-		clone.retry = RetryEnabled
-	} else {
-		clone.retry = RetryDisabled
-	}
-	return clone
-}
-
-// Retry returns the Request's automatic-retry override.
-func (r Request) Retry() RetryPolicy {
-	return r.retry
 }
 
 // HTTPRequest assembles the Request into an *http.Request against the given

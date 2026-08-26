@@ -38,7 +38,9 @@ type Query[Row any] interface {
 // are not known at compile time. An empty result yields an empty slice. The
 // client supplies the HTTP connection and base URL, and Collect is the only
 // place I/O is performed. The context governs cancellation and deadline for
-// the entire request. On success it also returns a [Response] carrying the
+// the entire request. Options adjust how the read executes: [WithRetry]
+// overrides the client's automatic-retry default for this call alone. On
+// success it also returns a [Response] carrying the
 // HTTP status and, when the server
 // reported one, the total row count.
 //
@@ -51,8 +53,8 @@ type Query[Row any] interface {
 //   - [ErrMissingTable], when the builder was created with an empty table
 //     name. No I/O is performed in this case.
 //   - a wrapped transport or decoding failure.
-func Collect[Row any](ctx context.Context, client *Client, query Query[Row]) ([]Row, Response, error) {
-	responseBody, response, err := execute(ctx, client, query)
+func Collect[Row any](ctx context.Context, client *Client, query Query[Row], options ...Option) ([]Row, Response, error) {
+	responseBody, response, err := execute(ctx, client, query, options...)
 	if err != nil {
 		return nil, Response{}, err
 	}
@@ -83,7 +85,7 @@ var (
 // [Response] metadata. It is the single I/O path shared by the generic read
 // functions, re-sending retryable failures per the automatic-retry contract
 // documented on [Client].
-func execute[T any](ctx context.Context, client *Client, query Query[T]) ([]byte, Response, error) {
+func execute[T any](ctx context.Context, client *Client, query Query[T], options ...Option) ([]byte, Response, error) {
 	if client == nil {
 		return nil, Response{}, ErrMissingClient
 	}
@@ -92,14 +94,19 @@ func execute[T any](ctx context.Context, client *Client, query Query[T]) ([]byte
 		return nil, Response{}, ErrMissingTable
 	}
 
-	retryEnabled := client.retry
-	switch requestState.Retry() {
-	case request.RetryEnabled:
-		retryEnabled = true
-	case request.RetryDisabled:
-		retryEnabled = false
+	var settings readSettings
+	for _, option := range options {
+		option(&settings)
 	}
-	retryable := retryEnabled && retryableMethods[requestState.Method()]
+
+	retry := client.retry
+	switch settings.retry {
+	case retryEnabled:
+		retry = true
+	case retryDisabled:
+		retry = false
+	}
+	retryable := retry && retryableMethods[requestState.Method()]
 
 	for attempt := 0; ; attempt++ {
 		httpRequest, err := requestState.HTTPRequest(ctx, client.baseURL)
@@ -143,6 +150,41 @@ func execute[T any](ctx context.Context, client *Client, query Query[T]) ([]byte
 			HTTPStatus: httpResponse.StatusCode,
 			Count:      parseContentRangeTotal(httpResponse.Header.Get("Content-Range")),
 		}, nil
+	}
+}
+
+// Option adjusts how a single read executes. The read functions apply
+// options in the order they are supplied.
+type Option func(*readSettings)
+
+// readSettings collects the execution adjustments carried by a read call's
+// Options.
+type readSettings struct {
+	retry retryPolicy
+}
+
+// retryPolicy is a read call's automatic-retry override. The zero value
+// leaves the executing client's own default in force.
+type retryPolicy int
+
+const (
+	// retryEnabled requires automatic retries for this read.
+	retryEnabled retryPolicy = iota + 1
+	// retryDisabled forbids automatic retries for this read.
+	retryDisabled
+)
+
+// WithRetry overrides the executing client's automatic-retry default for one
+// read, in either direction. A later WithRetry replaces an earlier one. The
+// retry contract - which requests qualify, on which failures, with what
+// backoff - is documented on [Client].
+func WithRetry(enabled bool) Option {
+	return func(settings *readSettings) {
+		if enabled {
+			settings.retry = retryEnabled
+		} else {
+			settings.retry = retryDisabled
+		}
 	}
 }
 

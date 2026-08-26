@@ -145,14 +145,6 @@ func (o OrderedDescendingFilterBuilder[T]) NullsLast() FilterBuilder[T] {
 	return FilterBuilder[T]{request: o.request.WithParameterValueAppended("order", ".nullslast")}
 }
 
-// Retry sets whether this query may be retried automatically, overriding the
-// executing client's default in either direction. The retry contract - which
-// requests qualify, on which failures, with what backoff - is documented on
-// [Client].
-func (f FilterBuilder[T]) Retry(enabled bool) FilterBuilder[T] {
-	return FilterBuilder[T]{request: f.request.WithRetry(enabled)}
-}
-
 // cleanSelectColumns strips whitespace from a PostgREST column list except
 // inside double-quoted identifiers. An empty list means all columns.
 func cleanSelectColumns(columns string) string {

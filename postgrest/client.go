@@ -15,9 +15,9 @@ import (
 // client does. A Client is safe for concurrent use by multiple goroutines.
 //
 // When automatic retries are enabled - the default, controlled by
-// [configuration.WithRetry] and overridable per query with
-// [FilterBuilder.Retry] - the client retries GET and HEAD requests that fail
-// with HTTP 503, HTTP 520 or a transport error. A construction-time client
+// [configuration.WithRetry] and overridable per read with [WithRetry] - the
+// client retries GET and HEAD requests that fail with HTTP 503, HTTP 520 or
+// a transport error. A construction-time client
 // timeout ([configuration.WithHTTPClient]) applies to each attempt
 // separately and a timed-out attempt retries like any other transport
 // failure, so bound a whole read, backoff included, through ctx.

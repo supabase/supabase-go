@@ -144,28 +144,27 @@ func ExampleCollect_requestTimeout() {
 	fmt.Println(len(instruments))
 }
 
-// ExampleFilterBuilder_Retry demonstrates the per-query override of the
-// client-wide automatic-retry default set by [configuration.WithRetry]:
-// retries are on by default, and a single query can opt out - or back in -
-// without touching the client. The contract itself - which requests
-// qualify, on which failures and with what backoff - is documented on
-// [postgrest.Client].
-func ExampleFilterBuilder_Retry() {
+// ExampleWithRetry demonstrates the per-read override of the client-wide
+// automatic-retry default set by [configuration.WithRetry]: retries are on
+// by default, and a single read can opt out - or back in - without touching
+// the client or the query. The contract itself - which requests qualify, on
+// which failures and with what backoff - is documented on [postgrest.Client].
+func ExampleWithRetry() {
 	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	// This query opts out of automatic retries, so a transient failure
+	// This read opts out of automatic retries, so a transient failure
 	// surfaces immediately instead of after the client's re-send attempts.
 	instruments, _, err := postgrest.Collect(
 		context.Background(),
 		client,
 		postgrest.
 			From[Instrument]("instruments").
-			Select("id, name").
-			Retry(false),
+			Select("id, name"),
+		postgrest.WithRetry(false),
 	)
 	if err != nil {
 		fmt.Println(err)
