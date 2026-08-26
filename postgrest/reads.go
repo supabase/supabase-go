@@ -19,8 +19,8 @@ type queryState[Row any] struct {
 }
 
 // Query is a fully-specified query awaiting execution by a read function
-// such as [Collect]. Every builder state in this package satisfies it;
-// nothing outside the package can, as its method is unexported.
+// such as [Collect]. Satisfying types include [QueryBuilder], [FilterBuilder],
+// [OrderedFilterBuilder] and [OrderedDescendingFilterBuilder].
 type Query[Row any] interface {
 	// state returns the query's accumulated request, bound to its row type.
 	state() queryState[Row]
@@ -63,6 +63,17 @@ func Collect[Row any](ctx context.Context, client *Client, query Query[Row]) ([]
 func (f FilterBuilder[T]) state() queryState[T] {
 	return queryState[T](f)
 }
+
+// Compile-time proof that every builder state in this package satisfies
+// [Query]. If the interface or a builder's embedding drifts so that one of
+// these no longer holds, the build fails here rather than at a distant
+// [Collect] call site.
+var (
+	_ Query[any] = QueryBuilder[any]{}
+	_ Query[any] = FilterBuilder[any]{}
+	_ Query[any] = OrderedFilterBuilder[any]{}
+	_ Query[any] = OrderedDescendingFilterBuilder[any]{}
+)
 
 // execute sends the query and returns the raw response body alongside its
 // [Response] metadata. It is the single I/O path shared by the generic read
