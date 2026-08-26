@@ -113,9 +113,9 @@ features:
     symbols:
       - postgrest.FilterBuilder.NotIn
   database.using_filters.or:
-    status: implemented
+    status: partially_implemented
     symbols:
-      - postgrest.FilterBuilder.Or
+      - postgrest.FilterBuilder.RawLiteralCondition
   database.using_filters.overlaps:
     status: implemented
     symbols:
@@ -144,7 +144,7 @@ features:
   database.using_filters.raw:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.Filter
+      - postgrest.FilterBuilder.RawLiteralCondition
   database.using_filters.regex:
     status: implemented
     symbols:
