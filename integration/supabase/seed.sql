@@ -121,3 +121,37 @@ values
     (4, 'Rate limit uploads',        'triage',      5, 8,   null,  null,    array['backend','performance'], '{"severity":"high","reviewed":false}',    null,                                                            '2026-01-04T09:00:00Z', to_tsvector('english', 'the cat and the fat dog')),
     (5, 'Dark mode theme',           'resolved',    4, 2.5, true,  'ada',   array['feature','ui'],          '{"severity":"low","reviewed":true}',      tstzrange('2026-03-01T00:00:00Z', '2026-03-03T00:00:00Z', '[)'), '2026-01-05T09:00:00Z', to_tsvector('english', 'a dog day afternoon')),
     (6, 'Onboarding copy tweaks',    'closed',      2, 13,  true,  null,    array[]::text[],                null,                                      tstzrange('2026-03-15T00:00:00Z', '2026-03-22T00:00:00Z', '[)'), '2026-01-06T09:00:00Z', null);
+
+-- The Menagerie, where:
+-- - all the exotic value constructions formulate
+-- - inserted data often uses an explicit cast (::type) for clarity and maintainability (less DRY, but more robust to schema drift)
+
+insert into public."🦁 raw" (name, "byte array") values ('null', null);
+insert into public."🦁 raw" (name, "byte array") values ('empty', '');
+insert into public."🦁 raw" (name, "byte array") values ('zero', '\x00'::bytea);
+insert into public."🦁 raw" (name, "byte array") values ('one', '\x01'::bytea);
+insert into public."🦁 raw" (name, "byte array") values ('255', '\xff'::bytea);
+insert into public."🦁 raw" (name, "byte array") values ('count down from ten', '\x0a09080706050403020100'::bytea);
+insert into public."🦁 raw" (name, "byte array") values ('count up to ten', '\x000102030405060708090a'::bytea);
+
+insert into public."🦁 UUID" (name, "universally unique identifier") values ('null', null);
+insert into public."🦁 UUID" (name, "universally unique identifier") values ('Nil', '00000000-0000-0000-0000-000000000000'::uuid);
+insert into public."🦁 UUID" (name, "universally unique identifier") values ('RFC 9562 canonical example', 'f81d4fae-7dec-11d0-a765-00a0c91e6bf6'::uuid);
+insert into public."🦁 UUID" (name, "universally unique identifier") values ('RFC 9562 UUIDv1 example', 'c232ab00-9414-11ec-b3c8-9f6bdeced846'::uuid);
+insert into public."🦁 UUID" (name, "universally unique identifier") values ('RFC 9562 UUIDv3 example', '5df41881-3aed-3515-88a7-2f4a814cf09e'::uuid);
+insert into public."🦁 UUID" (name, "universally unique identifier") values ('RFC 9562 UUIDv4 example', '919108f7-52d1-4320-9bac-f847db4148a8'::uuid);
+insert into public."🦁 UUID" (name, "universally unique identifier") values ('RFC 9562 UUIDv5 example', '2ed6657d-e927-568b-95e1-2665a8aea6a2'::uuid);
+insert into public."🦁 UUID" (name, "universally unique identifier") values ('RFC 9562 UUIDv6 example', '1ec9414c-232a-6b00-b3c8-9f6bdeced846'::uuid);
+insert into public."🦁 UUID" (name, "universally unique identifier") values ('RFC 9562 UUIDv7 example', '017f22e2-79b0-7cc3-98c4-dc0c0c07398f'::uuid);
+insert into public."🦁 UUID" (name, "universally unique identifier") values ('RFC 9562 UUIDv8 time-based example', '2489e9ad-2ee2-8e00-8ec9-32d5f69181c0'::uuid);
+insert into public."🦁 UUID" (name, "universally unique identifier") values ('RFC 9562 UUIDv8 name-based example', '5c146b14-3c52-8afd-938a-375d0df1fbf6'::uuid);
+insert into public."🦁 UUID" (name, "universally unique identifier") values ('PostgreSQL docs example', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::uuid);
+insert into public."🦁 UUID" (name, "universally unique identifier") values ('Max', 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid);
+
+insert into public."🦁 emotion" (emotion, name) values (null, 'null');
+insert into public."🦁 emotion" (emotion, name) values ('schadenfreude', 'The experience of pleasure, joy, or self-satisfaction that comes from learning of the troubles, failures, pain, suffering, or humiliation of another');
+insert into public."🦁 emotion" (emotion, name) values ('😀', 'Happiness');
+insert into public."🦁 emotion" (emotion, name) values ('😢', 'Sadness');
+insert into public."🦁 emotion" (emotion, name) values ('😡', 'Anger');
+insert into public."🦁 emotion" (emotion, name) values ('😨', 'Fear');
+insert into public."🦁 emotion" (emotion, name) values ('😮', 'Surprise');

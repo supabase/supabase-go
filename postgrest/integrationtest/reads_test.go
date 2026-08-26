@@ -184,7 +184,7 @@ func TestCollectAppliesLimit(t *testing.T) {
 		t.Fatalf("Collect: %v", err)
 	}
 
-	// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+	// No count was requested, so PostgREST reports an unknown total ("0-1/*").
 	testkit.AssertOKResponse(t, response)
 	if len(rows) != 2 {
 		t.Fatalf("row count = %d, want 2 (seed drifted or wrong limit applied?)", len(rows))
@@ -205,7 +205,7 @@ func TestCollectAppliesZeroLimit(t *testing.T) {
 		t.Fatalf("Collect: %v", err)
 	}
 
-	// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+	// No count was requested, so PostgREST reports an unknown total ("*/*").
 	testkit.AssertOKResponse(t, response)
 	if len(rows) != 0 {
 		t.Fatalf("row count = %d, want 0 (wrong limit applied?)", len(rows))
@@ -379,7 +379,7 @@ func TestCollectAppliesMultiColumnOrder(t *testing.T) {
 				t.Fatalf("Collect: %v", err)
 			}
 
-			// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+			// No count was requested, so PostgREST reports an unknown total ("0-5/*").
 			testkit.AssertOKResponse(t, response)
 			if len(rows) != 6 {
 				t.Fatalf("row count = %d, want 6 (seed drifted?)", len(rows))
@@ -510,7 +510,7 @@ func TestDelimitedIdentifierTableNames(t *testing.T) {
 				t.Fatalf("Collect: %v", err)
 			}
 
-			// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+			// No count was requested, so PostgREST reports an unknown total ("0-0/*").
 			testkit.AssertOKResponse(t, response)
 			if len(rows) != 1 {
 				t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
@@ -728,7 +728,7 @@ func TestCollectAppliesRange(t *testing.T) {
 				t.Fatalf("Collect: %v", err)
 			}
 
-			// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+			// No count was requested, so PostgREST reports an unknown total.
 			testkit.AssertOKResponse(t, response)
 			rowCount := len(rows)
 			if rowCount != testCase.wantRowCount {
@@ -863,7 +863,7 @@ func TestFiltersWithReserved(t *testing.T) {
 						t.Fatalf("Collect: %v", err)
 					}
 
-					// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+					// No count was requested, so PostgREST reports an unknown total ("0-0/*").
 					testkit.AssertOKResponse(t, response)
 					if len(rows) != 1 {
 						t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
@@ -1448,7 +1448,7 @@ func TestFilters(t *testing.T) {
 				t.Fatalf("Collect: %v", err)
 			}
 
-			// No count was requested, so PostgREST reports an unknown total ("0-2/*").
+			// No count was requested, so PostgREST reports an unknown total.
 			testkit.AssertOKResponse(t, response)
 			if len(rows) != len(testCase.want) {
 				t.Fatalf("row count = %d, want %d (seed drifted?)", len(rows), len(testCase.want))
@@ -1464,5 +1464,431 @@ func TestFilters(t *testing.T) {
 				t.Errorf("want %q, got %q", testCase.want, rowIds)
 			}
 		})
+	}
+}
+
+type performer struct {
+	name    string
+	perform func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity]
+}
+
+func TestFiltersWithRawMenagerie(t *testing.T) {
+	testCases := []struct {
+		name       string
+		performers []performer
+	}{
+		{
+			"null",
+			[]performer{
+				{
+					"IsNull",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.IsNull("byte array")
+					},
+				},
+			},
+		},
+		{
+			"empty",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("byte array", []byte{})
+					},
+				},
+				{
+					"Lt zero",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Lt("byte array", []byte{0})
+					},
+				},
+			},
+		},
+		{
+			"zero",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("byte array", []byte{0})
+					},
+				},
+				{
+					"Gt empty and Lt count up to ten",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.
+							Gt("byte array", []byte{}).
+							Lt("byte array", []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+					},
+				},
+			},
+		},
+		{
+			"one",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("byte array", []byte{1})
+					},
+				},
+				{
+					"Gt count up to ten and Lt count down from ten",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.
+							Gt("byte array", []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}).
+							Lt("byte array", []byte{10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0})
+					},
+				},
+				{
+					"In",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.In("byte array", []byte{6, 6, 6}, []byte{1}, []byte{4, 2})
+					},
+				},
+			},
+		},
+		{
+			"255",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("byte array", []byte{255})
+					},
+				},
+				{
+					"Gt count down from ten",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Gt("byte array", []byte{10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0})
+					},
+				},
+			},
+		},
+		{
+			"count down from ten",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("byte array", []byte{10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0})
+					},
+				},
+				{
+					"Gt one and Lt 255",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Gt("byte array", []byte{1}).Lt("byte array", []byte{255})
+					},
+				},
+				{
+					"NotIn",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.NotIn(
+							"byte array",
+							[]byte{},
+							[]byte{0},
+							[]byte{1},
+							[]byte{255},
+							[]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+						)
+					},
+				},
+			},
+		},
+		{
+			"count up to ten",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("byte array", []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+					},
+				},
+				{
+					"Gt zero and Lt one",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Gt("byte array", []byte{0}).Lt("byte array", []byte{1})
+					},
+				},
+			},
+		},
+	}
+
+	client := newIntegrationClient(t)
+
+	for _, testCase := range testCases {
+		for _, performer := range testCase.performers {
+			t.Run(testCase.name+" with filter "+performer.name, func(t *testing.T) {
+				rows, response, err := postgrest.Collect(
+					t.Context(),
+					client,
+					performer.perform(postgrest.
+						From[justNamedEntity]("🦁 raw").
+						Select("name")),
+				)
+				if err != nil {
+					t.Fatalf("Collect: %v", err)
+				}
+
+				// No count was requested, so PostgREST reports an unknown total ("0-0/*").
+				testkit.AssertOKResponse(t, response)
+				if len(rows) != 1 {
+					t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
+				}
+
+				if rows[0].Name != testCase.name {
+					t.Errorf("want %q, got %q", testCase.name, rows[0].Name)
+				}
+			})
+		}
+	}
+}
+
+type wrappedString struct {
+	value string
+}
+
+// String implements [fmt.Stringer], as Google's UUID SDK does (therefore a look-alike).
+func (w wrappedString) String() string {
+	return w.value
+}
+
+func TestFiltersWithUUIDMenagerie(t *testing.T) {
+	testCases := []struct {
+		name       string
+		performers []performer
+	}{
+		{
+			"null",
+			[]performer{
+				{
+					"IsNull",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.IsNull("universally unique identifier")
+					},
+				},
+			},
+		},
+		{
+			"Nil",
+			[]performer{
+				{
+					"Eq fmt.Stringer",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("universally unique identifier", wrappedString{"00000000-0000-0000-0000-000000000000"})
+					},
+				},
+				{
+					"Eq string",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("universally unique identifier", "00000000-0000-0000-0000-000000000000")
+					},
+				},
+				{
+					"Lt RFC 9562 UUIDv7 example",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Lt("universally unique identifier", "017f22e2-79b0-7cc3-98c4-dc0c0c07398f")
+					},
+				},
+				{
+					"Lte self",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Lte("universally unique identifier", "00000000-0000-0000-0000-000000000000")
+					},
+				},
+			},
+		},
+		{
+			"PostgreSQL docs example",
+			[]performer{
+				{
+					"Eq fmt.Stringer",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("universally unique identifier", wrappedString{"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"})
+					},
+				},
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("universally unique identifier", "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
+					},
+				},
+				{
+					"In",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.In(
+							"universally unique identifier",
+							"ffffffff-9414-11ec-b3c8-9f6bdeced846",
+							"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+							"919108f7-52d1-4320-9bac-ffffffffffff",
+						)
+					},
+				},
+				{
+					"NotIn",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.NotIn("universally unique identifier",
+							"00000000-0000-0000-0000-000000000000",
+							"f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+							wrappedString{"c232ab00-9414-11ec-b3c8-9f6bdeced846"},
+							"5df41881-3aed-3515-88a7-2f4a814cf09e",
+							"919108f7-52d1-4320-9bac-f847db4148a8",
+							wrappedString{"2ed6657d-e927-568b-95e1-2665a8aea6a2"},
+							wrappedString{"1ec9414c-232a-6b00-b3c8-9f6bdeced846"},
+							"017f22e2-79b0-7cc3-98c4-dc0c0c07398f",
+							"2489e9ad-2ee2-8e00-8ec9-32d5f69181c0",
+							"5c146b14-3c52-8afd-938a-375d0df1fbf6",
+							"ffffffff-ffff-ffff-ffff-ffffffffffff")
+					},
+				},
+			},
+		},
+		{
+			"Max",
+			[]performer{
+				{
+					"Eq fmt.Stringer",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("universally unique identifier", wrappedString{"ffffffff-ffff-ffff-ffff-ffffffffffff"})
+					},
+				},
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("universally unique identifier", "ffffffff-ffff-ffff-ffff-ffffffffffff")
+					},
+				},
+				{
+					"Gt RFC 9562 canonical example",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Gt("universally unique identifier", "f81d4fae-7dec-11d0-a765-00a0c91e6bf6")
+					},
+				},
+				{
+					"Gte self",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Gte("universally unique identifier", "ffffffff-ffff-ffff-ffff-ffffffffffff")
+					},
+				},
+			},
+		},
+	}
+
+	client := newIntegrationClient(t)
+
+	for _, testCase := range testCases {
+		for _, performer := range testCase.performers {
+			t.Run(testCase.name+" with filter "+performer.name, func(t *testing.T) {
+				rows, response, err := postgrest.Collect(
+					t.Context(),
+					client,
+					performer.perform(postgrest.
+						From[justNamedEntity]("🦁 UUID").
+						Select("name")),
+				)
+				if err != nil {
+					t.Fatalf("Collect: %v", err)
+				}
+
+				// No count was requested, so PostgREST reports an unknown total ("0-0/*").
+				testkit.AssertOKResponse(t, response)
+				if len(rows) != 1 {
+					t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
+				}
+
+				if rows[0].Name != testCase.name {
+					t.Errorf("want %q, got %q", testCase.name, rows[0].Name)
+				}
+			})
+		}
+	}
+}
+
+func TestFiltersWithEmotionMenagerie(t *testing.T) {
+	testCases := []struct {
+		name       string
+		performers []performer
+	}{
+		{
+			"null",
+			[]performer{
+				{
+					"IsNull",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.IsNull("emotion")
+					},
+				},
+			},
+		},
+		{
+			"The experience of pleasure, joy, or self-satisfaction that comes from learning of the troubles, failures, pain, suffering, or humiliation of another",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("emotion", "schadenfreude")
+					},
+				},
+				{
+					"NotIn",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.NotIn("emotion", "😨", "😢", "😡", "😮", "😀")
+					},
+				},
+				{
+					"In",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.In("emotion", "fremdschämen", "weltschmerz", "schadenfreude", "torschlusspanik")
+					},
+				},
+				{
+					"Gt neighbor Lt neighbor",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Gt("emotion", "fremdschämen").Lt("emotion", "😀")
+					},
+				},
+			},
+		},
+		{
+			"Happiness",
+			[]performer{
+				{
+					"Eq",
+					func(builder postgrest.FilterBuilder[justNamedEntity]) postgrest.Query[justNamedEntity] {
+						return builder.Eq("emotion", "😀")
+					},
+				},
+			},
+		},
+	}
+
+	client := newIntegrationClient(t)
+
+	for _, testCase := range testCases {
+		for _, performer := range testCase.performers {
+			t.Run(testCase.name+" with filter "+performer.name, func(t *testing.T) {
+				rows, response, err := postgrest.Collect(
+					t.Context(),
+					client,
+					performer.perform(postgrest.
+						From[justNamedEntity]("🦁 emotion").
+						Select("name")),
+				)
+				if err != nil {
+					t.Fatalf("Collect: %v", err)
+				}
+
+				// No count was requested, so PostgREST reports an unknown total.
+				testkit.AssertOKResponse(t, response)
+				if len(rows) != 1 {
+					t.Fatalf("row count = %d, want 1 (seed drifted?)", len(rows))
+				}
+
+				if rows[0].Name != testCase.name {
+					t.Errorf("want %q, got %q", testCase.name, rows[0].Name)
+				}
+			})
+		}
 	}
 }

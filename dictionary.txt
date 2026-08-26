@@ -1,5 +1,6 @@
 apidiff
 apikey
+bytea
 codegen
 contravariance
 cyclop
@@ -10,6 +11,7 @@ exhaustruct
 firefox
 Firestore
 footgun
+fremdschämen
 GOBIN
 GOENV
 GOEXPERIMENT
@@ -61,6 +63,7 @@ supabase
 synctest
 telemetrytest
 testkit
+torschlusspanik
 tsquery
 tstzrange
 tsvector
@@ -68,3 +71,4 @@ typestate
 unrepresentable
 vulncheck
 websearch
+weltschmerz

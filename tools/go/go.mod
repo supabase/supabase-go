@@ -10,6 +10,8 @@ tool (
 	mvdan.cc/gofumpt
 )
 
+require github.com/google/uuid v1.6.0
+
 require (
 	codeberg.org/chavacava/garif v0.2.0 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect

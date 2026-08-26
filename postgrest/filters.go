@@ -1,6 +1,7 @@
 package postgrest
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -325,6 +326,8 @@ func renderFilterValue(value any) string {
 		return "null"
 	case string:
 		return typed
+	case []byte:
+		return `\x` + hex.EncodeToString(typed)
 	case bool:
 		return strconv.FormatBool(typed)
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
