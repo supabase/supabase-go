@@ -1310,6 +1310,62 @@ func TestFilters(t *testing.T) {
 			},
 			[]int{1, 2, 6},
 		},
+		{
+			"tstzrange contains empty range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Contains("active_during", postgrest.EmptyRange())
+			},
+			[]int{1, 2, 3, 5, 6}, // every non-null range contains empty - row 4's null never matches
+		},
+		{
+			"tstzrange contained in empty range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.ContainedIn("active_during", postgrest.EmptyRange())
+			},
+			[]int{}, // only empty lies within empty and no seeded row holds it
+		},
+		{
+			"tstzrange overlaps empty range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.Overlaps("active_during", postgrest.EmptyRange())
+			},
+			[]int{}, // empty shares no points with anything
+		},
+		{
+			"tstzrange strictly left of empty range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.StrictlyLeftOf("active_during", postgrest.EmptyRange())
+			},
+			[]int{}, // positional operators are constant-false with empty
+		},
+		{
+			"tstzrange strictly right of empty range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.StrictlyRightOf("active_during", postgrest.EmptyRange())
+			},
+			[]int{},
+		},
+		{
+			"tstzrange does not extend to the left of empty range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.DoesNotExtendToTheLeftOf("active_during", postgrest.EmptyRange())
+			},
+			[]int{},
+		},
+		{
+			"tstzrange does not extend to the right of empty range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.DoesNotExtendToTheRightOf("active_during", postgrest.EmptyRange())
+			},
+			[]int{},
+		},
+		{
+			"tstzrange is adjacent to empty range",
+			func(builder postgrest.FilterBuilder[seededEntity]) postgrest.Query[seededEntity] {
+				return builder.IsAdjacentTo("active_during", postgrest.EmptyRange())
+			},
+			[]int{}, // adjacency is constant-false with empty
+		},
 	}
 
 	client := newIntegrationClient(t)

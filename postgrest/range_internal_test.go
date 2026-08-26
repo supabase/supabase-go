@@ -25,6 +25,7 @@ func TestRange(t *testing.T) {
 		{func() Range { return NewRange[string]().FromInclusive(`say "hi"`) }, `["say \"hi\"",)`},
 		{func() Range { return NewRange[string]().FromInclusive(`back\slash`) }, `["back\\slash",)`},
 		{func() Range { return NewRange[string]().FromInclusive(" padded ") }, `[" padded ",)`}, // over-quoting, harmless and explicit
+		{func() Range { return EmptyRange() }, "empty"},
 	}
 
 	for _, testCase := range testCases {
