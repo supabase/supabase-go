@@ -27,13 +27,13 @@ features:
     status: implemented
     symbols:
       - postgrest.FilterBuilder.ContainedBy
-      - postgrest.FilterBuilder.ContainedByRange
+      - postgrest.FilterBuilder.ContainedIn
       - postgrest.FilterBuilder.ContainedByJSON
   database.using_filters.contains:
     status: implemented
     symbols:
+      - postgrest.FilterBuilder.ContainsAll
       - postgrest.FilterBuilder.Contains
-      - postgrest.FilterBuilder.ContainsRange
       - postgrest.FilterBuilder.ContainsJSON
   database.using_filters.eq:
     status: implemented
@@ -54,11 +54,11 @@ features:
   database.using_filters.ilike_all:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.ILikeAllOf
+      - postgrest.FilterBuilder.ILikeAll
   database.using_filters.ilike_any:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.ILikeAnyOf
+      - postgrest.FilterBuilder.ILikeAny
   database.using_filters.in:
     status: implemented
     symbols:
@@ -82,11 +82,11 @@ features:
   database.using_filters.like_all:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.LikeAllOf
+      - postgrest.FilterBuilder.LikeAll
   database.using_filters.like_any:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.LikeAnyOf
+      - postgrest.FilterBuilder.LikeAny
   database.using_filters.lt:
     status: implemented
     symbols:
@@ -119,28 +119,28 @@ features:
   database.using_filters.overlaps:
     status: implemented
     symbols:
+      - postgrest.FilterBuilder.OverlapsAny
       - postgrest.FilterBuilder.Overlaps
-      - postgrest.FilterBuilder.OverlapsRange
   database.using_filters.range_adjacent:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.RangeAdjacent
+      - postgrest.FilterBuilder.IsAdjacentTo
   database.using_filters.range_gt:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.RangeGt
+      - postgrest.FilterBuilder.StrictlyRightOf
   database.using_filters.range_gte:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.RangeGte
+      - postgrest.FilterBuilder.DoesNotExtendToTheLeftOf
   database.using_filters.range_lt:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.RangeLt
+      - postgrest.FilterBuilder.StrictlyLeftOf
   database.using_filters.range_lte:
     status: implemented
     symbols:
-      - postgrest.FilterBuilder.RangeLte
+      - postgrest.FilterBuilder.DoesNotExtendToTheRightOf
   database.using_filters.raw:
     status: implemented
     symbols:

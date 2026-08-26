@@ -69,17 +69,17 @@ func (f FilterBuilder[T]) Like(column, pattern string) FilterBuilder[T] {
 	return f.appendFilter(column, "like", pattern)
 }
 
-// LikeAllOf matches only rows where column matches every one of patterns
+// LikeAll matches only rows where column matches every one of patterns
 // case-sensitively, sent as the like operator with its all modifier over a
 // pattern list.
-func (f FilterBuilder[T]) LikeAllOf(column string, patterns ...string) FilterBuilder[T] {
+func (f FilterBuilder[T]) LikeAll(column string, patterns ...string) FilterBuilder[T] {
 	return f.appendFilter(column, "like(all)", renderFilterList(bracesListGrammar, patterns))
 }
 
-// LikeAnyOf matches only rows where column matches at least one of patterns
+// LikeAny matches only rows where column matches at least one of patterns
 // case-sensitively, sent as the like operator with its any modifier over a
 // pattern list.
-func (f FilterBuilder[T]) LikeAnyOf(column string, patterns ...string) FilterBuilder[T] {
+func (f FilterBuilder[T]) LikeAny(column string, patterns ...string) FilterBuilder[T] {
 	return f.appendFilter(column, "like(any)", renderFilterList(bracesListGrammar, patterns))
 }
 
@@ -91,17 +91,17 @@ func (f FilterBuilder[T]) ILike(column, pattern string) FilterBuilder[T] {
 	return f.appendFilter(column, "ilike", pattern)
 }
 
-// ILikeAllOf matches only rows where column matches every one of patterns
+// ILikeAll matches only rows where column matches every one of patterns
 // case-insensitively, sent as the ilike operator with its all modifier over
 // a pattern list.
-func (f FilterBuilder[T]) ILikeAllOf(column string, patterns ...string) FilterBuilder[T] {
+func (f FilterBuilder[T]) ILikeAll(column string, patterns ...string) FilterBuilder[T] {
 	return f.appendFilter(column, "ilike(all)", renderFilterList(bracesListGrammar, patterns))
 }
 
-// ILikeAnyOf matches only rows where column matches at least one of patterns
+// ILikeAny matches only rows where column matches at least one of patterns
 // case-insensitively, sent as the ilike operator with its any modifier over
 // a pattern list.
-func (f FilterBuilder[T]) ILikeAnyOf(column string, patterns ...string) FilterBuilder[T] {
+func (f FilterBuilder[T]) ILikeAny(column string, patterns ...string) FilterBuilder[T] {
 	return f.appendFilter(column, "ilike(any)", renderFilterList(bracesListGrammar, patterns))
 }
 
@@ -165,20 +165,18 @@ func (f FilterBuilder[T]) NotIn(column string, values ...any) FilterBuilder[T] {
 	return f.appendFilter(column, "not.in", renderFilterList(parenthesesListGrammar, values))
 }
 
-// Contains matches only rows where the array in column contains every one of
-// values, sent as the cs operator over an array literal.
-// [FilterBuilder.ContainsRange] and [FilterBuilder.ContainsJSON] cover range
-// and jsonb columns.
-func (f FilterBuilder[T]) Contains(column string, values ...any) FilterBuilder[T] {
+// ContainsAll matches only rows where the array in column contains every one
+// of values, sent as the cs operator over an array literal.
+// [FilterBuilder.Contains] and [FilterBuilder.ContainsJSON] cover range and
+// jsonb columns.
+func (f FilterBuilder[T]) ContainsAll(column string, values ...any) FilterBuilder[T] {
 	return f.appendFilter(column, "cs", renderFilterList(bracesListGrammar, values))
 }
 
-// ContainsRange matches only rows where the range in column contains
-// rangeLiteral, sent as the cs operator. The literal travels verbatim, its
-// brackets and parentheses choosing inclusive or exclusive bounds, for
-// example [2,7) or (1,5).
-func (f FilterBuilder[T]) ContainsRange(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "cs", rangeLiteral)
+// Contains matches only rows where the range in column contains the whole of
+// r, sent as the cs operator.
+func (f FilterBuilder[T]) Contains(column string, r Range) FilterBuilder[T] {
+	return f.appendFilter(column, "cs", r.rangeLiteral())
 }
 
 // ContainsJSON matches only rows where the jsonb document in column contains
@@ -190,18 +188,16 @@ func (f FilterBuilder[T]) ContainsJSON(column string, value any) FilterBuilder[T
 
 // ContainedBy matches only rows where every element of the array in column
 // appears among values, sent as the cd operator over an array literal.
-// [FilterBuilder.ContainedByRange] and [FilterBuilder.ContainedByJSON] cover
-// range and jsonb columns.
+// [FilterBuilder.ContainedIn] and [FilterBuilder.ContainedByJSON] cover range
+// and jsonb columns.
 func (f FilterBuilder[T]) ContainedBy(column string, values ...any) FilterBuilder[T] {
 	return f.appendFilter(column, "cd", renderFilterList(bracesListGrammar, values))
 }
 
-// ContainedByRange matches only rows where the range in column lies entirely
-// within rangeLiteral, sent as the cd operator. The literal travels verbatim,
-// its brackets and parentheses choosing inclusive or exclusive bounds, for
-// example [2,7) or (1,5).
-func (f FilterBuilder[T]) ContainedByRange(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "cd", rangeLiteral)
+// ContainedIn matches only rows where the range in column lies entirely within
+// r, sent as the cd operator.
+func (f FilterBuilder[T]) ContainedIn(column string, r Range) FilterBuilder[T] {
+	return f.appendFilter(column, "cd", r.rangeLiteral())
 }
 
 // ContainedByJSON matches only rows where the jsonb document in column is
@@ -211,59 +207,50 @@ func (f FilterBuilder[T]) ContainedByJSON(column string, value any) FilterBuilde
 	return f.appendFilter(column, "cd", renderFilterJSON(value))
 }
 
-// Overlaps matches only rows where the array in column shares at least one
+// OverlapsAny matches only rows where the array in column shares at least one
 // element with values, sent as the ov operator over an array literal.
-// [FilterBuilder.OverlapsRange] covers range columns.
-func (f FilterBuilder[T]) Overlaps(column string, values ...any) FilterBuilder[T] {
+// [FilterBuilder.Overlaps] covers range columns.
+func (f FilterBuilder[T]) OverlapsAny(column string, values ...any) FilterBuilder[T] {
 	return f.appendFilter(column, "ov", renderFilterList(bracesListGrammar, values))
 }
 
-// OverlapsRange matches only rows where the range in column has values in
-// common with rangeLiteral, sent as the ov operator. The literal travels
-// verbatim, its brackets and parentheses choosing inclusive or exclusive
-// bounds, for example [2,7) or (1,5).
-func (f FilterBuilder[T]) OverlapsRange(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "ov", rangeLiteral)
+// Overlaps matches only rows where the range in column shares at least one
+// value with r, sent as the ov operator.
+func (f FilterBuilder[T]) Overlaps(column string, r Range) FilterBuilder[T] {
+	return f.appendFilter(column, "ov", r.rangeLiteral())
 }
 
-// RangeGt matches only rows where the range in column is strictly right of
-// rangeLiteral - every value in it greater than every value in the literal -
-// sent as the sr operator. The literal travels verbatim, its brackets and
-// parentheses choosing inclusive or exclusive bounds, for example [2,7).
-func (f FilterBuilder[T]) RangeGt(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "sr", rangeLiteral)
+// StrictlyRightOf matches only rows where the range in column is strictly right
+// of r - every value in it greater than every value in r - sent as the sr
+// operator.
+func (f FilterBuilder[T]) StrictlyRightOf(column string, r Range) FilterBuilder[T] {
+	return f.appendFilter(column, "sr", r.rangeLiteral())
 }
 
-// RangeGte matches only rows where the range in column does not extend to
-// the left of rangeLiteral - no value in it below the literal's start - sent
-// as the nxl operator. The literal travels verbatim, its brackets and
-// parentheses choosing inclusive or exclusive bounds, for example [2,7).
-func (f FilterBuilder[T]) RangeGte(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "nxl", rangeLiteral)
+// DoesNotExtendToTheLeftOf matches only rows where the range in column does not
+// extend to the left of r - no value in it below r's lower bound - sent as the
+// nxl operator.
+func (f FilterBuilder[T]) DoesNotExtendToTheLeftOf(column string, r Range) FilterBuilder[T] {
+	return f.appendFilter(column, "nxl", r.rangeLiteral())
 }
 
-// RangeLt matches only rows where the range in column is strictly left of
-// rangeLiteral - every value in it less than every value in the literal -
-// sent as the sl operator. The literal travels verbatim, its brackets and
-// parentheses choosing inclusive or exclusive bounds, for example [2,7).
-func (f FilterBuilder[T]) RangeLt(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "sl", rangeLiteral)
+// StrictlyLeftOf matches only rows where the range in column is strictly left of
+// r - every value in it less than every value in r - sent as the sl operator.
+func (f FilterBuilder[T]) StrictlyLeftOf(column string, r Range) FilterBuilder[T] {
+	return f.appendFilter(column, "sl", r.rangeLiteral())
 }
 
-// RangeLte matches only rows where the range in column does not extend to
-// the right of rangeLiteral - no value in it above the literal's end - sent
-// as the nxr operator. The literal travels verbatim, its brackets and
-// parentheses choosing inclusive or exclusive bounds, for example [2,7).
-func (f FilterBuilder[T]) RangeLte(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "nxr", rangeLiteral)
+// DoesNotExtendToTheRightOf matches only rows where the range in column does not
+// extend to the right of r - no value in it above r's upper bound - sent as the
+// nxr operator.
+func (f FilterBuilder[T]) DoesNotExtendToTheRightOf(column string, r Range) FilterBuilder[T] {
+	return f.appendFilter(column, "nxr", r.rangeLiteral())
 }
 
-// RangeAdjacent matches only rows where the range in column shares no values
-// with rangeLiteral yet leaves no gap between them, sent as the adj
-// operator. The literal travels verbatim, its brackets and parentheses
-// choosing inclusive or exclusive bounds, for example [2,7).
-func (f FilterBuilder[T]) RangeAdjacent(column, rangeLiteral string) FilterBuilder[T] {
-	return f.appendFilter(column, "adj", rangeLiteral)
+// IsAdjacentTo matches only rows where the range in column shares no values with
+// r yet leaves no gap between them, sent as the adj operator.
+func (f FilterBuilder[T]) IsAdjacentTo(column string, r Range) FilterBuilder[T] {
+	return f.appendFilter(column, "adj", r.rangeLiteral())
 }
 
 // TextSearch matches only rows where column matches the full-text search
