@@ -74,15 +74,15 @@ func (r Request) WithParameterReplacing(key, value string) Request {
 func (r Request) WithParameterJoining(key, value string) Request {
 	clone := r
 	retained := make([]parameter, 0, len(r.parameters)+1)
-	joined := ""
+	var joined strings.Builder
 	for _, pair := range r.parameters {
 		if pair.key == key {
-			joined += pair.value + ","
+			joined.WriteString(pair.value + ",")
 			continue
 		}
 		retained = append(retained, pair)
 	}
-	clone.parameters = append(retained, parameter{key: key, value: joined + value})
+	clone.parameters = append(retained, parameter{key: key, value: joined.String() + value})
 	return clone
 }
 
