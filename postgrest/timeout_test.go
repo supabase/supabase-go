@@ -20,7 +20,9 @@ import (
 // up on a stalled server, surfacing an error that reports itself as a
 // timeout through both idiomatic detection routes. The handler blocks until
 // the test finishes, so the only way Collect can return is the deadline -
-// no wall-clock assertions are needed.
+// no wall-clock assertions are needed. Automatic retries are disabled so the
+// first timed-out attempt surfaces immediately: a per-attempt timeout is
+// otherwise retryable, and the re-sends would sleep through real backoff.
 func TestCollectHonorsClientTimeout(t *testing.T) {
 	release := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
@@ -33,7 +35,8 @@ func TestCollectHonorsClientTimeout(t *testing.T) {
 	defer close(release) // unblocks the handler before Close waits on it
 
 	projectConfiguration, err := configuration.New(core.ModulePathPostgrest, server.URL, "TEST_API_KEY",
-		configuration.WithHTTPClient(&http.Client{Timeout: 50 * time.Millisecond}))
+		configuration.WithHTTPClient(&http.Client{Timeout: 50 * time.Millisecond}),
+		configuration.WithRetry(false))
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}

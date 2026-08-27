@@ -5,7 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"slices"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/supabase/supabase-go/postgrest/internal/request"
 )
@@ -34,7 +38,9 @@ type Query[Row any] interface {
 // are not known at compile time. An empty result yields an empty slice. The
 // client supplies the HTTP connection and base URL, and Collect is the only
 // place I/O is performed. The context governs cancellation and deadline for
-// the entire request. On success it also returns a [Response] carrying the
+// the entire request. Options adjust how the read executes: [WithRetry]
+// overrides the client's automatic-retry default for this call alone. On
+// success it also returns a [Response] carrying the
 // HTTP status and, when the server
 // reported one, the total row count.
 //
@@ -47,8 +53,8 @@ type Query[Row any] interface {
 //   - [ErrMissingTable], when the builder was created with an empty table
 //     name. No I/O is performed in this case.
 //   - a wrapped transport or decoding failure.
-func Collect[Row any](ctx context.Context, client *Client, query Query[Row]) ([]Row, Response, error) {
-	responseBody, response, err := execute(ctx, client, query)
+func Collect[Row any](ctx context.Context, client *Client, query Query[Row], options ...Option) ([]Row, Response, error) {
+	responseBody, response, err := execute(ctx, client, query, options...)
 	if err != nil {
 		return nil, Response{}, err
 	}
@@ -77,8 +83,9 @@ var (
 
 // execute sends the query and returns the raw response body alongside its
 // [Response] metadata. It is the single I/O path shared by the generic read
-// functions.
-func execute[T any](ctx context.Context, client *Client, query Query[T]) ([]byte, Response, error) {
+// functions, re-sending retryable failures per the automatic-retry contract
+// documented on [Client].
+func execute[T any](ctx context.Context, client *Client, query Query[T], options ...Option) ([]byte, Response, error) {
 	if client == nil {
 		return nil, Response{}, ErrMissingClient
 	}
@@ -87,28 +94,140 @@ func execute[T any](ctx context.Context, client *Client, query Query[T]) ([]byte
 		return nil, Response{}, ErrMissingTable
 	}
 
-	httpRequest, err := requestState.HTTPRequest(ctx, client.baseURL)
-	if err != nil {
-		return nil, Response{}, fmt.Errorf("postgrest: building request: %w", err)
+	var settings readSettings
+	for _, option := range options {
+		option(&settings)
 	}
 
-	httpResponse, err := client.httpClient.Do(httpRequest)
-	if err != nil {
-		return nil, Response{}, fmt.Errorf("postgrest: executing request: %w", err)
+	retry := client.retry
+	switch settings.retry {
+	case retryEnabled:
+		retry = true
+	case retryDisabled:
+		retry = false
 	}
-	defer func() { _ = httpResponse.Body.Close() }()
+	retryable := retry && retryableMethods[requestState.Method()]
 
-	responseBody, err := io.ReadAll(httpResponse.Body)
-	if err != nil {
-		return nil, Response{}, fmt.Errorf("postgrest: reading response: %w", err)
+	for attempt := 0; ; attempt++ {
+		httpRequest, err := requestState.HTTPRequest(ctx, client.baseURL)
+		if err != nil {
+			return nil, Response{}, fmt.Errorf("postgrest: building request: %w", err)
+		}
+		if attempt > 0 {
+			httpRequest.Header.Set("X-Retry-Count", strconv.Itoa(attempt))
+		}
+
+		httpResponse, err := client.httpClient.Do(httpRequest)
+		if err != nil {
+			if retryable && attempt < maximumRetries && ctx.Err() == nil &&
+				retrySleep(ctx, retryDelay(attempt, "")) == nil {
+				continue
+			}
+			return nil, Response{}, fmt.Errorf("postgrest: executing request: %w", err)
+		}
+
+		if retryable && attempt < maximumRetries && retryableStatusCodes[httpResponse.StatusCode] {
+			delay := retryDelay(attempt, httpResponse.Header.Get("Retry-After"))
+			_, _ = io.Copy(io.Discard, httpResponse.Body)
+			_ = httpResponse.Body.Close()
+			if retrySleep(ctx, delay) == nil {
+				continue
+			}
+			return nil, Response{}, fmt.Errorf("postgrest: executing request: %w", ctx.Err())
+		}
+
+		responseBody, err := io.ReadAll(httpResponse.Body)
+		_ = httpResponse.Body.Close()
+		if err != nil {
+			return nil, Response{}, fmt.Errorf("postgrest: reading response: %w", err)
+		}
+
+		if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 300 {
+			return nil, Response{}, newError(httpResponse.StatusCode, responseBody)
+		}
+
+		return responseBody, Response{
+			HTTPStatus: httpResponse.StatusCode,
+			Count:      parseContentRangeTotal(httpResponse.Header.Get("Content-Range")),
+		}, nil
 	}
+}
 
-	if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 300 {
-		return nil, Response{}, newError(httpResponse.StatusCode, responseBody)
+// Option adjusts how a single read executes. The read functions apply
+// options in the order they are supplied.
+type Option func(*readSettings)
+
+// readSettings collects the execution adjustments carried by a read call's
+// Options.
+type readSettings struct {
+	retry retryPolicy
+}
+
+// retryPolicy is a read call's automatic-retry override. The zero value
+// leaves the executing client's own default in force.
+type retryPolicy int
+
+const (
+	// retryEnabled requires automatic retries for this read.
+	retryEnabled retryPolicy = iota + 1
+	// retryDisabled forbids automatic retries for this read.
+	retryDisabled
+)
+
+// WithRetry overrides the executing client's automatic-retry default for one
+// read, in either direction. A later WithRetry replaces an earlier one. The
+// retry contract - which requests qualify, on which failures, with what
+// backoff - is documented on [Client].
+func WithRetry(enabled bool) Option {
+	return func(settings *readSettings) {
+		if enabled {
+			settings.retry = retryEnabled
+		} else {
+			settings.retry = retryDisabled
+		}
 	}
+}
 
-	return responseBody, Response{
-		HTTPStatus: httpResponse.StatusCode,
-		Count:      parseContentRangeTotal(httpResponse.Header.Get("Content-Range")),
-	}, nil
+// maximumRetries is how many times one query is re-sent after its first
+// attempt fails in a retryable way.
+const maximumRetries = 3
+
+// retryableMethods holds the HTTP methods whose requests are safe to repeat
+// and so may be retried automatically.
+var retryableMethods = map[string]bool{
+	http.MethodGet:  true,
+	http.MethodHead: true,
+}
+
+// retryableStatusCodes holds the response statuses treated as transient:
+// 503, sent while the service cannot reach or is rebuilding its view of the
+// database, and 520, sent by fronting infrastructure for a transient origin
+// failure.
+var retryableStatusCodes = map[int]bool{
+	http.StatusServiceUnavailable: true,
+	520:                           true,
+}
+
+// retryDelay returns the wait before the retry that follows the zero-based
+// attempt: one second doubled per attempt, or the whole seconds requested by
+// a parseable non-negative retryAfterHeader.
+func retryDelay(attempt int, retryAfterHeader string) time.Duration {
+	if seconds, err := strconv.Atoi(strings.TrimSpace(retryAfterHeader)); err == nil && seconds >= 0 {
+		return time.Duration(seconds) * time.Second
+	}
+	return time.Second << attempt
+}
+
+// retrySleep pauses for the given duration, returning early with ctx's error
+// when ctx ends first and nil after a full pause. It is a variable so tests
+// substitute an instantaneous recorder.
+var retrySleep = func(ctx context.Context, duration time.Duration) error {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }

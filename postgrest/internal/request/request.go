@@ -42,6 +42,11 @@ func (r Request) Path() []string {
 	return slices.Clone(r.path)
 }
 
+// Method returns the HTTP method the Request sends.
+func (r Request) Method() string {
+	return r.method
+}
+
 // WithParameter returns a new Request with the given query-string pair appended.
 // Keys may repeat, and insertion order is preserved: PostgREST assigns meaning to
 // both, for example age=gte.18&age=lte.65 ANDs two filters on the same column.
