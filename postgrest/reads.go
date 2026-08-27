@@ -36,13 +36,12 @@ type Query[Row any] interface {
 // may decode any subset of the selected columns. Row may also be a dynamic
 // container such as map[string]any or [json.RawMessage] when column shapes
 // are not known at compile time. An empty result yields an empty slice. The
-// client supplies the HTTP connection and base URL, and Collect is the only
-// place I/O is performed. The context governs cancellation and deadline for
-// the entire request. Options adjust how the read executes: [WithRetry]
-// overrides the client's automatic-retry default for this call alone. On
-// success it also returns a [Response] carrying the
-// HTTP status and, when the server
-// reported one, the total row count.
+// client supplies the HTTP connection and base URL, and the read functions
+// are the only place I/O is performed. The context governs cancellation and
+// deadline for the entire request. Options adjust how the read executes:
+// [WithRetry] overrides the client's automatic-retry default for this call
+// alone. On success it also returns a [Response] carrying the HTTP status
+// and, when the server reported one, the total row count.
 //
 // On failure the returned slice is nil, the Response is the zero value, and
 // the error is one of:
@@ -54,15 +53,37 @@ type Query[Row any] interface {
 //     name. No I/O is performed in this case.
 //   - a wrapped transport or decoding failure.
 func Collect[Row any](ctx context.Context, client *Client, query Query[Row], options ...Option) ([]Row, Response, error) {
+	return collect[Row, []Row](ctx, client, query, options...)
+}
+
+// CollectSingle executes the query through client and returns the single row
+// of the result decoded into Row. It requests PostgREST's singular response
+// format (an Accept header of application/vnd.pgrst.object+json), so the
+// server answers with one JSON object rather than an array and refuses the
+// request when the query matches zero rows or more than one, surfacing as an
+// [*Error] carrying HTTP status 406 and code "PGRST116". On failure the
+// returned Row and Response are their zero values. Context, decoding into
+// Row and Options otherwise behave as documented on [Collect].
+func CollectSingle[Row any](ctx context.Context, client *Client, query Query[Row], options ...Option) (Row, Response, error) {
+	options = append(
+		slices.Clip(options),
+		withAccept("application/vnd.pgrst.object+json"),
+	)
+
+	return collect[Row, Row](ctx, client, query, options...)
+}
+
+func collect[Row any, T any](ctx context.Context, client *Client, query Query[Row], options ...Option) (T, Response, error) {
 	responseBody, response, err := execute(ctx, client, query, options...)
+	var decoded T
+
 	if err != nil {
-		return nil, Response{}, err
+		return decoded, Response{}, err
 	}
-	var rows []Row
-	if err := json.Unmarshal(responseBody, &rows); err != nil {
-		return nil, Response{}, fmt.Errorf("postgrest: decoding response: %w", err)
+	if err := json.Unmarshal(responseBody, &decoded); err != nil {
+		return decoded, Response{}, fmt.Errorf("postgrest: decoding response: %w", err)
 	}
-	return rows, response, nil
+	return decoded, response, nil
 }
 
 // state implements [Query].
@@ -113,6 +134,13 @@ func execute[T any](ctx context.Context, client *Client, query Query[T], options
 		if err != nil {
 			return nil, Response{}, fmt.Errorf("postgrest: building request: %w", err)
 		}
+
+		if settings.acceptHeaderValue == "" {
+			httpRequest.Header.Set("Accept", "application/json")
+		} else {
+			httpRequest.Header.Set("Accept", settings.acceptHeaderValue)
+		}
+
 		if attempt > 0 {
 			httpRequest.Header.Set("X-Retry-Count", strconv.Itoa(attempt))
 		}
@@ -160,7 +188,8 @@ type Option func(*readSettings)
 // readSettings collects the execution adjustments carried by a read call's
 // Options.
 type readSettings struct {
-	retry retryPolicy
+	retry             retryPolicy
+	acceptHeaderValue string
 }
 
 // retryPolicy is a read call's automatic-retry override. The zero value
@@ -185,6 +214,13 @@ func WithRetry(enabled bool) Option {
 		} else {
 			settings.retry = retryDisabled
 		}
+	}
+}
+
+// withAccept overrides the executing read request's default Accept header.
+func withAccept(value string) Option {
+	return func(settings *readSettings) {
+		settings.acceptHeaderValue = value
 	}
 }
 

@@ -35,8 +35,8 @@ func newTestClient(t *testing.T, server *httptest.Server) *postgrest.Client {
 // TestCollectDecodesRows pins the read happy path end to end: rows decode
 // into the caller's type and the request reaches the wire with the cleaned
 // select list, the /rest/v1 path, the injected apikey header and the
-// plural-form Accept header (the SDK never requests
-// application/vnd.pgrst.object+json).
+// plural-form Accept header (application/json - the singular form belongs
+// to CollectSingle alone).
 func TestCollectDecodesRows(t *testing.T) {
 	var observed *http.Request
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

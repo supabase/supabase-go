@@ -250,10 +250,10 @@ func TestWithParameterValueAppended(t *testing.T) {
 	}
 }
 
-// TestHTTPRequestCarriesContextMethodAndAcceptHeader pins request assembly:
-// the caller's context rides the HTTP request, the method is preserved and
-// Accept asks for JSON.
-func TestHTTPRequestCarriesContextMethodAndAcceptHeader(t *testing.T) {
+// TestHTTPRequestCarriesContextAndMethod pins request assembly: the caller's
+// context rides the HTTP request, the method is preserved and no headers are
+// injected - the Accept header must be set at execution.
+func TestHTTPRequestCarriesContextAndMethod(t *testing.T) {
 	type contextKey struct{}
 	ctx := context.WithValue(t.Context(), contextKey{}, "present")
 
@@ -265,8 +265,11 @@ func TestHTTPRequestCarriesContextMethodAndAcceptHeader(t *testing.T) {
 	if httpRequest.Method != http.MethodGet {
 		t.Errorf("method = %q, want %q", httpRequest.Method, http.MethodGet)
 	}
-	if got := httpRequest.Header.Get("Accept"); got != "application/json" {
-		t.Errorf("Accept = %q, want application/json", got)
+	if got := httpRequest.Header.Get("Accept"); got != "" {
+		t.Errorf("Accept = %q, want no Accept header", got)
+	}
+	if values, present := httpRequest.Header["Accept"]; present {
+		t.Errorf("Accept header is present with values %q, want absent", values)
 	}
 	if httpRequest.Context().Value(contextKey{}) != "present" {
 		t.Error("context was not propagated onto the HTTP request")
