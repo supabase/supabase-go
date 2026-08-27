@@ -109,8 +109,8 @@ func (r Request) WithParameterValueAppended(key, addition string) Request {
 // HTTPRequest assembles the Request into an *http.Request against the given
 // base URL, carrying ctx. The base is not mutated. Each path segment is
 // percent-escaped and appended below base's path, so segment text never
-// alters which resource the path names. The Accept header is set for JSON.
-// Authentication headers are not injected here.
+// alters which resource the path names.
+// Authentication headers are not injected here, nor is the Accept header.
 func (r Request) HTTPRequest(ctx context.Context, base *url.URL) (*http.Request, error) {
 	escaped := make([]string, len(r.path))
 	for index, segment := range r.path {
@@ -122,7 +122,6 @@ func (r Request) HTTPRequest(ctx context.Context, base *url.URL) (*http.Request,
 	if err != nil {
 		return nil, err
 	}
-	httpRequest.Header.Set("Accept", "application/json")
 	return httpRequest, nil
 }
 

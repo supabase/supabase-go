@@ -75,6 +75,74 @@ func TestSelectAllColumns(t *testing.T) {
 	}
 }
 
+func TestCollectSingle(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	row, response, err := postgrest.CollectSingle(
+		t.Context(),
+		client,
+		postgrest.From[seededInstrument]("instruments").Eq("name", "cello"),
+	)
+	if err != nil {
+		t.Fatalf("CollectSingle: %v", err)
+	}
+
+	testkit.AssertOKResponse(t, response)
+	if row.Name != "cello" {
+		t.Fatalf("CollectSingle got %v, want %v", row.Name, "cello")
+	}
+}
+
+func TestCollectSingleWhenNotAcceptable(t *testing.T) {
+	testCases := []struct {
+		name    string
+		perform func(builder postgrest.QueryBuilder[seededInstrument]) postgrest.Query[seededInstrument]
+	}{
+		{
+			"zero matches",
+			func(builder postgrest.QueryBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
+				return builder.Eq("name", "Ford Fiesta")
+			},
+		},
+		{
+			"multiple matches",
+			func(builder postgrest.QueryBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
+				return builder.In("name", "viola", "cello")
+			},
+		},
+	}
+
+	client := newIntegrationClient(t)
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			row, response, err := postgrest.CollectSingle(
+				t.Context(),
+				client,
+				testCase.perform(postgrest.From[seededInstrument]("instruments")),
+			)
+
+			var typedError *postgrest.Error
+			if !errors.As(err, &typedError) {
+				t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+			}
+			if typedError.Code != "PGRST116" {
+				t.Errorf("Code = %q, want PGRST116 (More than 1 or no items where returned when requesting a singular response)", typedError.Code)
+			}
+			if typedError.HTTPStatus != http.StatusNotAcceptable {
+				t.Errorf("HTTPStatus = %d, want 406", typedError.HTTPStatus)
+			}
+
+			if row != (seededInstrument{}) {
+				t.Errorf("row = %+v, want zero value on error", row)
+			}
+			if response != (postgrest.Response{}) {
+				t.Errorf("response = %+v, want zero value on error", response)
+			}
+		})
+	}
+}
+
 // TestCollectAllColumnsWithoutSelect proves the select-less read against
 // real PostgREST: a bare From sends no select parameter and the server's
 // documented default of * answers with every column, populating a field the

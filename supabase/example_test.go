@@ -41,9 +41,9 @@ func ExampleNew_invalidInput() {
 	// Output: true
 }
 
-// ExampleClient_Database runs a basic Database query.
+// ExampleClient_Database_collect runs a basic Database query for zero or more rows.
 // It requires a reachable Supabase project, so it is compiled but not run by go test.
-func ExampleClient_Database() {
+func ExampleClient_Database_collect() {
 	type Instrument struct {
 		ID   int    `json:"id"`
 		Name string `json:"name"`
@@ -74,4 +74,40 @@ func ExampleClient_Database() {
 		return
 	}
 	fmt.Println(len(instruments), response.HTTPStatus)
+}
+
+// ExampleClient_Database_collectSingle runs a basic Database query for a single row.
+// It requires a reachable Supabase project, so it is compiled but not run by go test.
+func ExampleClient_Database_collectSingle() {
+	type Instrument struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+
+	supabase, err := supabase.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	instrument, response, err := postgrest.CollectSingle(
+		context.Background(),
+		supabase.Database(),
+		postgrest.
+			From[Instrument]("instruments").
+			Select("name").
+			Eq("id", 1234),
+	)
+	if err != nil {
+		var postgrestError *postgrest.Error
+		if errors.As(err, &postgrestError) {
+			// Branch on the stable code, not the message text. When the
+			// database knows the fix it says so in Hint.
+			fmt.Println(postgrestError.Code, postgrestError.Hint)
+			return
+		}
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(instrument, response.HTTPStatus)
 }

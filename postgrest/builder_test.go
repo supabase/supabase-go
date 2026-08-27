@@ -35,8 +35,8 @@ func newTestClient(t *testing.T, server *httptest.Server) *postgrest.Client {
 // TestCollectDecodesRows pins the read happy path end to end: rows decode
 // into the caller's type and the request reaches the wire with the cleaned
 // select list, the /rest/v1 path, the injected apikey header and the
-// plural-form Accept header (the SDK never requests
-// application/vnd.pgrst.object+json).
+// plural-form Accept header (application/json - the singular form belongs
+// to CollectSingle alone).
 func TestCollectDecodesRows(t *testing.T) {
 	var observed *http.Request
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -678,5 +678,65 @@ func TestBuildersForkIndependently(t *testing.T) {
 	first, second, third := <-queries, <-queries, <-queries
 	if first != "select=id" || second != "select=name" || third != "limit=1" {
 		t.Errorf("queries = %q, %q, %q; want select=id, select=name then limit=1", first, second, third)
+	}
+}
+
+// TestCollectSingleDecodesRow pins the singular read end to end: the request
+// reaches the wire with the singular-form Accept header and the lone JSON
+// object decodes into the caller's type directly, no array wrapper involved.
+func TestCollectSingleDecodesRow(t *testing.T) {
+	var observed *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		observed = request.Clone(request.Context())
+		writer.Header().Set("Content-Type", "application/vnd.pgrst.object+json")
+		_ = json.NewEncoder(writer).Encode(instrument{ID: 1, Name: "violin"})
+	}))
+	defer server.Close()
+
+	row, response, err := postgrest.CollectSingle(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.From[instrument]("instruments").Eq("id", 1),
+	)
+	if err != nil {
+		t.Fatalf("CollectSingle: %v", err)
+	}
+	if row != (instrument{ID: 1, Name: "violin"}) {
+		t.Errorf("row = %+v", row)
+	}
+	testkit.AssertOKResponse(t, response)
+	if got, want := observed.Header.Get("Accept"), "application/vnd.pgrst.object+json"; got != want {
+		t.Errorf("Accept = %q, want %q", got, want)
+	}
+}
+
+// TestCollectSingleReturnsZeroValuesOnError pins the failure contract: a
+// non-2xx answer surfaces as *Error and the returned row and Response are
+// zero values.
+func TestCollectSingleReturnsZeroValuesOnError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNotAcceptable)
+		_, _ = writer.Write([]byte(`{"code":"PGRST116","message":"JSON object requested, multiple (or no) rows returned"}`))
+	}))
+	defer server.Close()
+
+	row, response, err := postgrest.CollectSingle(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.From[instrument]("instruments"),
+	)
+
+	var typedError *postgrest.Error
+	if !errors.As(err, &typedError) {
+		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+	}
+	if typedError.Code != "PGRST116" || typedError.HTTPStatus != http.StatusNotAcceptable {
+		t.Errorf("error = %+v", typedError)
+	}
+	if row != (instrument{}) {
+		t.Errorf("row = %+v, want zero value", row)
+	}
+	if response != (postgrest.Response{}) {
+		t.Errorf("response = %+v, want zero value", response)
 	}
 }

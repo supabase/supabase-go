@@ -199,3 +199,7 @@ features:
     status: implemented
     symbols:
       - postgrest.Collect
+  database.using_modifiers.single_row:
+    status: implemented
+    symbols:
+      - postgrest.CollectSingle
