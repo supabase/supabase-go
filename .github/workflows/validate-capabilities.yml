@@ -17,6 +17,6 @@ jobs:
     # At that point: 
     # - The uses pin then moves to the tagged release SHA; and
     # - The sdk-ref override is dropped, matching the sibling repositories
-    uses: supabase/sdk/.github/workflows/validate-sdk-compliance-go.yml@main
+    uses: supabase/sdk/.github/workflows/validate-sdk-compliance-go.yml@4d74492587bde35691e8a85470c0a7ebd7badb3e # v1.3.0
     with:
       sdk-ref: main
