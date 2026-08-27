@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"time"
 
+	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest"
 )
 
@@ -99,4 +102,44 @@ func ExampleFrom_packageLevel() {
 		return
 	}
 	fmt.Println(len(instruments), response.HTTPStatus)
+}
+
+// ExampleCollect_requestTimeout demonstrates a construction-time request
+// timeout influencing a read: the client abandons any request still in
+// flight when its http.Client's Timeout elapses - connecting, awaiting
+// headers and reading the response body all count - and Collect surfaces
+// the failure as an error matching context.DeadlineExceeded, exactly as an
+// expired per-request context deadline would.
+func ExampleCollect_requestTimeout() {
+	type Instrument struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+
+	client, err := postgrest.New(
+		"https://PROJECT_ID.supabase.co",
+		"API_KEY",
+		configuration.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	instruments, _, err := postgrest.Collect(
+		context.Background(),
+		client,
+		postgrest.
+			From[Instrument]("instruments").
+			Select("id, name"),
+	)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			fmt.Println("the read did not finish within the client's timeout")
+			return
+		}
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(len(instruments))
 }

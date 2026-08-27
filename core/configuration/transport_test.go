@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
@@ -51,6 +52,24 @@ func TestWithHTTPClientDoesNotMutateInput(t *testing.T) {
 	}
 	if projectConfiguration.HTTPClient() == custom {
 		t.Error("Configuration reused the caller's client instead of cloning it")
+	}
+}
+
+// TestWithHTTPClientPreservesTimeout guards the request_timeout capability's
+// only moving part: the clone taken by the transport wrap must keep the
+// caller's construction-time Timeout, or the deadline would silently vanish.
+func TestWithHTTPClientPreservesTimeout(t *testing.T) {
+	projectConfiguration, err := configuration.New(core.ModulePathRoot, "https://PROJECT_ID.supabase.co", "API_KEY",
+		configuration.WithHTTPClient(&http.Client{Timeout: 250 * time.Millisecond}))
+	if err != nil {
+		t.Fatalf("configuration.New: %v", err)
+	}
+	wrapped, ok := projectConfiguration.HTTPClient().(*http.Client)
+	if !ok {
+		t.Fatalf("HTTPClient() concrete type = %T, want *http.Client", projectConfiguration.HTTPClient())
+	}
+	if got, want := wrapped.Timeout, 250*time.Millisecond; got != want {
+		t.Errorf("Timeout = %v, want %v (the wrap's clone dropped it)", got, want)
 	}
 }
 

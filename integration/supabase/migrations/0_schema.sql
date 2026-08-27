@@ -195,3 +195,14 @@ create table public."🦁 emotion"
 alter table public."🦁 emotion" enable row level security;
 create policy "anonymous can read 🦁 emotion" on public."🦁 emotion" for select to anon using (true);
 grant select on table public."🦁 emotion" to anon;
+
+-- A deliberately slow relation for proving client-side timeouts: each read
+-- sleeps server-side for two seconds before yielding the instruments rows
+-- (pg_sleep sits in the from list as a function scan, so it runs once per
+-- statement, not once per row). Views cannot enable row level security of
+-- their own, so security_invoker makes reads run with the caller's rights
+-- and the anon path still traverses the instruments policy like every table
+-- here.
+create view public.slow_instruments with (security_invoker = true) as
+    select instruments.* from public.instruments, pg_sleep(2);
+grant select on table public.slow_instruments to anon;
