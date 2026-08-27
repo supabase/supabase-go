@@ -143,6 +143,76 @@ func TestCollectSingleWhenNotAcceptable(t *testing.T) {
 	}
 }
 
+// TestCollectSingleMaybe proves the tolerant singular read against real
+// PostgREST: exactly one seeded match decodes alongside true.
+func TestCollectSingleMaybe(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	row, found, response, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		client,
+		postgrest.From[seededInstrument]("instruments").Eq("name", "cello"),
+	)
+	if err != nil {
+		t.Fatalf("CollectSingleMaybe: %v", err)
+	}
+	if !found {
+		t.Fatal("found = false, want true")
+	}
+	testkit.AssertOKResponse(t, response)
+	if row.Name != "cello" {
+		t.Errorf("row.Name = %q, want cello", row.Name)
+	}
+}
+
+// TestCollectSingleMaybeNoRows proves absence is an ordinary outcome live:
+// no matching row yields false with a successful response and no error.
+func TestCollectSingleMaybeNoRows(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	row, found, response, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		client,
+		postgrest.From[seededInstrument]("instruments").Eq("name", "Ford Fiesta"),
+	)
+	if err != nil {
+		t.Fatalf("CollectSingleMaybe: %v", err)
+	}
+	if found {
+		t.Error("found = true, want false")
+	}
+	if row != (seededInstrument{}) {
+		t.Errorf("row = %+v, want zero value", row)
+	}
+	testkit.AssertOKResponse(t, response)
+}
+
+// TestCollectSingleMaybeTooManyRows proves client-side cardinality
+// enforcement live: two seeded matches fail with ErrTooManyRows even though
+// the server answered 200 with the plural format.
+func TestCollectSingleMaybeTooManyRows(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	row, found, response, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		client,
+		postgrest.From[seededInstrument]("instruments").In("name", "viola", "cello"),
+	)
+
+	if !errors.Is(err, postgrest.ErrTooManyRows) {
+		t.Fatalf("err = %v, want ErrTooManyRows", err)
+	}
+	if found {
+		t.Error("found = true, want false")
+	}
+	if row != (seededInstrument{}) {
+		t.Errorf("row = %+v, want zero value", row)
+	}
+	if response != (postgrest.Response{}) {
+		t.Errorf("response = %+v, want zero value", response)
+	}
+}
+
 // TestCollectAllColumnsWithoutSelect proves the select-less read against
 // real PostgREST: a bare From sends no select parameter and the server's
 // documented default of * answers with every column, populating a field the

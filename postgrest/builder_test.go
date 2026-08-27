@@ -740,3 +740,126 @@ func TestCollectSingleReturnsZeroValuesOnError(t *testing.T) {
 		t.Errorf("response = %+v, want zero value", response)
 	}
 }
+
+// TestCollectSingleMaybeDecodesRow pins the tolerant singular read end to
+// end: the request reaches the wire with the default plural Accept header -
+// never the singular form - and the lone row is unwrapped alongside true.
+func TestCollectSingleMaybeDecodesRow(t *testing.T) {
+	var observed *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		observed = request.Clone(request.Context())
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode([]instrument{{ID: 1, Name: "violin"}})
+	}))
+	defer server.Close()
+
+	row, found, response, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.From[instrument]("instruments").Eq("id", 1),
+	)
+	if err != nil {
+		t.Fatalf("CollectSingleMaybe: %v", err)
+	}
+	if !found {
+		t.Error("found = false, want true")
+	}
+	if row != (instrument{ID: 1, Name: "violin"}) {
+		t.Errorf("row = %+v", row)
+	}
+	testkit.AssertOKResponse(t, response)
+	if got, want := observed.Header.Get("Accept"), "application/json"; got != want {
+		t.Errorf("Accept = %q, want %q", got, want)
+	}
+}
+
+// TestCollectSingleMaybeNoRows pins absence as an ordinary outcome: an empty
+// result yields the zero value alongside false with no error, and the
+// Response still carries the successful request's metadata.
+func TestCollectSingleMaybeNoRows(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`[]`))
+	}))
+	defer server.Close()
+
+	row, found, response, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.From[instrument]("instruments").Eq("id", 404),
+	)
+	if err != nil {
+		t.Fatalf("CollectSingleMaybe: %v", err)
+	}
+	if found {
+		t.Error("found = true, want false")
+	}
+	if row != (instrument{}) {
+		t.Errorf("row = %+v, want zero value", row)
+	}
+	testkit.AssertOKResponse(t, response)
+}
+
+// TestCollectSingleMaybeTooManyRows pins client-side cardinality
+// enforcement: a result of more than one row fails with ErrTooManyRows and
+// zero values throughout.
+func TestCollectSingleMaybeTooManyRows(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode([]instrument{{ID: 1, Name: "violin"}, {ID: 2, Name: "flute"}})
+	}))
+	defer server.Close()
+
+	row, found, response, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.From[instrument]("instruments"),
+	)
+
+	if !errors.Is(err, postgrest.ErrTooManyRows) {
+		t.Fatalf("err = %v, want ErrTooManyRows", err)
+	}
+	if found {
+		t.Error("found = true, want false")
+	}
+	if row != (instrument{}) {
+		t.Errorf("row = %+v, want zero value", row)
+	}
+	if response != (postgrest.Response{}) {
+		t.Errorf("response = %+v, want zero value", response)
+	}
+}
+
+// TestCollectSingleMaybeReturnsZeroValuesOnError pins that server failures
+// pass through unchanged rather than being mistaken for cardinality
+// outcomes: a non-2xx answer surfaces as *Error with zero values throughout.
+func TestCollectSingleMaybeReturnsZeroValuesOnError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusBadRequest)
+		_, _ = writer.Write([]byte(`{"code":"22P02","message":"invalid input syntax"}`))
+	}))
+	defer server.Close()
+
+	row, found, response, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.From[instrument]("instruments"),
+	)
+
+	var typedError *postgrest.Error
+	if !errors.As(err, &typedError) {
+		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+	}
+	if typedError.Code != "22P02" || typedError.HTTPStatus != http.StatusBadRequest {
+		t.Errorf("error = %+v", typedError)
+	}
+	if found {
+		t.Error("found = true, want false")
+	}
+	if row != (instrument{}) {
+		t.Errorf("row = %+v, want zero value", row)
+	}
+	if response != (postgrest.Response{}) {
+		t.Errorf("response = %+v, want zero value", response)
+	}
+}

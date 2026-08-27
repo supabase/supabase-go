@@ -20,6 +20,10 @@ const ErrMissingTable = postgrestError("table name is required")
 // [Collect], when the supplied client is nil.
 const ErrMissingClient = postgrestError("client is required")
 
+// ErrTooManyRows is reported by [CollectSingleMaybe] when the query matched
+// more than one row.
+const ErrTooManyRows = postgrestError("query matched more than one row")
+
 // Error is the typed failure returned when PostgREST answers a query with a
 // non-2xx status.
 //
