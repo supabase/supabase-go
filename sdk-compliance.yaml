@@ -38,6 +38,8 @@ features:
       - postgrest.QueryBuilder.Insert
     supporting_symbols:
       - postgrest.Execute
+      - postgrest.Mutation
+      - postgrest.InsertBuilder
   database.mutate.select_after_mutation:
     status: partially_implemented
     note: |
