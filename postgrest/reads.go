@@ -27,7 +27,7 @@ type queryState[Row any] struct {
 // builder satisfies it, and so does every mutation builder, since executing a
 // write through a read function returns the rows it affects. Satisfying types
 // include [QueryBuilder], [FilterBuilder], [OrderedFilterBuilder],
-// [OrderedDescendingFilterBuilder] and [InsertBuilder].
+// [OrderedDescendingFilterBuilder] and [MutationBuilder].
 type Query[Row any] interface {
 	// state returns the accumulated request, bound to its row type.
 	state() queryState[Row]

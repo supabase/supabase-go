@@ -275,3 +275,142 @@ func TestInsertDuplicateKeyConflict(t *testing.T) {
 		t.Errorf("HTTPStatus = %d, want 409", typedError.HTTPStatus)
 	}
 }
+
+// TestUpdateFilteredRowReturningRepresentation proves a filtered update through
+// Collect against real PostgREST: after seeding a row, an update behind an Eq
+// filter returns exactly the affected row carrying the changed column, at 200.
+func TestUpdateFilteredRowReturningRepresentation(t *testing.T) {
+	client := newIntegrationClient(t)
+	title := "Update filtered row returning representation"
+
+	if _, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.From[repertoirePiece]("repertoire").Insert(repertoirePiece{Title: title, Composer: "Glass"}),
+	); err != nil {
+		t.Fatalf("seed Execute: %v", err)
+	}
+
+	updated, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[repertoirePiece]("repertoire").
+			Eq("title", title).
+			Update(map[string]any{"composer": "Bridge"}),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if response.HTTPStatus != http.StatusOK {
+		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
+	}
+	if len(updated) != 1 {
+		t.Fatalf("updated %d rows, want 1", len(updated))
+	}
+	if updated[0].Title != title || updated[0].Composer != "Bridge" {
+		t.Errorf("row = %+v, want title %q composer Bridge", updated[0], title)
+	}
+}
+
+// TestUpdateClearsColumnWithExplicitNull proves the map[string]any null contract
+// against real PostgREST: a key carrying nil clears its column to SQL null,
+// which a pointer field in the returned representation decodes as nil.
+func TestUpdateClearsColumnWithExplicitNull(t *testing.T) {
+	client := newIntegrationClient(t)
+	title := "Update clears column with explicit null"
+
+	if _, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.From[repertoirePiece]("repertoire").Insert(repertoirePiece{Title: title, Composer: "Glass"}),
+	); err != nil {
+		t.Fatalf("seed Execute: %v", err)
+	}
+
+	type nullableComposer struct {
+		Title    string  `json:"title"`
+		Composer *string `json:"composer"`
+	}
+	updated, _, err := postgrest.CollectSingle(
+		t.Context(),
+		client,
+		postgrest.
+			From[nullableComposer]("repertoire").
+			Eq("title", title).
+			Update(map[string]any{"composer": nil}),
+	)
+	if err != nil {
+		t.Fatalf("CollectSingle: %v", err)
+	}
+	if updated.Composer != nil {
+		t.Errorf("composer = %q, want nil (cleared to SQL null)", *updated.Composer)
+	}
+}
+
+// TestUpdateMinimal proves an Execute update against real PostgREST: the change
+// applies with a 204 and no body, and a follow-up read sees the new value.
+func TestUpdateMinimal(t *testing.T) {
+	client := newIntegrationClient(t)
+	title := "Update minimal"
+
+	if _, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.From[repertoirePiece]("repertoire").Insert(repertoirePiece{Title: title, Composer: "Glass", Difficulty: 4}),
+	); err != nil {
+		t.Fatalf("seed Execute: %v", err)
+	}
+
+	response, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.
+			From[repertoirePiece]("repertoire").
+			Eq("title", title).
+			Update(map[string]any{"difficulty": 9}),
+	)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if response.HTTPStatus != http.StatusNoContent {
+		t.Errorf("HTTPStatus = %d, want 204", response.HTTPStatus)
+	}
+
+	row, _, err := postgrest.CollectSingle(
+		t.Context(),
+		client,
+		postgrest.From[repertoirePiece]("repertoire").Eq("title", title),
+	)
+	if err != nil {
+		t.Fatalf("CollectSingle: %v", err)
+	}
+	if row.Difficulty != 9 {
+		t.Errorf("difficulty = %d, want 9 after the update", row.Difficulty)
+	}
+}
+
+// TestUpdateMatchingNoRows proves an update whose filter matches nothing is an
+// ordinary empty result against real PostgREST: Collect returns an empty slice
+// at 200, not an error.
+func TestUpdateMatchingNoRows(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	updated, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[repertoirePiece]("repertoire").
+			Eq("title", "No such title ever inserted by any test").
+			Update(map[string]any{"composer": "Nobody"}),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if response.HTTPStatus != http.StatusOK {
+		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
+	}
+	if len(updated) != 0 {
+		t.Errorf("updated %d rows, want 0 (filter matched nothing)", len(updated))
+	}
+}

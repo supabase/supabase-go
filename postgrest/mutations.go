@@ -13,7 +13,7 @@ import (
 // applies it and reads nothing back. Because every Mutation is also a [Query],
 // the same write may instead be passed to a read function such as [Collect] to
 // return the rows it affects, decoded into Row. A read query is not a Mutation,
-// so [Execute] accepts writes alone. Satisfying types include [InsertBuilder].
+// so [Execute] accepts writes alone. [MutationBuilder] is the satisfying type.
 type Mutation[Row any] interface {
 	Query[Row]
 	// mutation seals this interface to the package's own write builders and
@@ -43,51 +43,77 @@ func Execute[Row any](ctx context.Context, client *Client, mutation Mutation[Row
 //
 // The executing function chooses what the database returns: [Execute] applies
 // the insert and reads nothing back, while [Collect] and its kin return the
-// created rows, with [InsertBuilder.Returning] narrowing their columns. An
+// created rows, with [MutationBuilder.Returning] narrowing their columns. An
 // insert is never retried automatically.
-func (q QueryBuilder[T]) Insert(rows ...T) InsertBuilder[T] {
+func (q QueryBuilder[T]) Insert(rows ...T) MutationBuilder[T] {
 	if rows == nil {
 		rows = []T{}
 	}
 	post := q.request.WithMethod(http.MethodPost)
 	body, err := json.Marshal(rows)
 	if err != nil {
-		return InsertBuilder[T]{request: post.WithError(fmt.Errorf("postgrest: encoding insert rows: %w", err))}
+		return MutationBuilder[T]{request: post.WithError(fmt.Errorf("postgrest: encoding insert rows: %w", err))}
 	}
-	return InsertBuilder[T]{request: post.WithBody(body)}
+	return MutationBuilder[T]{request: post.WithBody(body)}
 }
 
-// InsertBuilder represents an insert awaiting execution. Pass it to [Execute]
-// to apply the insert and read nothing back, or to a read function such as
-// [Collect] to have the created rows returned and decoded into T. An
-// InsertBuilder is an immutable value, like every builder in this package.
-type InsertBuilder[T any] struct {
+// Update changes columns on every row the preceding filters chose, sent as a
+// PATCH request: the row-choosing filters chain first, exactly as they do on
+// a read, and the verb ends the chain. Called with no filters, directly on
+// [From]'s builder, it updates every row of the table. The changes value
+// marshals with [encoding/json] to one JSON object of column assignments: a
+// map[string]any is the recommended shape, where a key carrying nil clears
+// that column to SQL null and an absent key leaves the column untouched. A
+// struct works too, with the caution that every marshaled field is assigned,
+// its zero value included.
+//
+// The executing function chooses what the database returns, exactly as it does
+// for an insert: [Execute] applies the update and reads nothing back, while
+// [Collect] and its kin return the affected rows, with
+// [MutationBuilder.Returning] narrowing their columns. An update is never
+// retried automatically.
+func (f FilterBuilder[T]) Update(changes any) MutationBuilder[T] {
+	patch := f.request.WithMethod(http.MethodPatch)
+	body, err := json.Marshal(changes)
+	if err != nil {
+		return MutationBuilder[T]{request: patch.WithError(fmt.Errorf("postgrest: encoding update changes: %w", err))}
+	}
+	return MutationBuilder[T]{request: patch.WithBody(body)}
+}
+
+// MutationBuilder represents a write awaiting execution, the terminal state
+// every write verb returns. Pass it to [Execute] to apply the write and read
+// nothing back, or to a read function such as [Collect] to have the affected
+// rows returned and decoded into T. A MutationBuilder is an immutable value,
+// like every builder in this package.
+type MutationBuilder[T any] struct {
 	request request.Request
 }
 
 // Returning narrows the columns that a representation-returning execution,
-// such as [Collect], reports for the created rows, exactly as
+// such as [Collect], reports for the affected rows, exactly as
 // [QueryBuilder.Select] projects a read: columns are comma-separated, cleaned
 // of whitespace outside quoted identifiers, and an empty string means every
 // column. It has no effect under [Execute], which reads nothing back. A later
-// Returning replaces an earlier one.
-func (i InsertBuilder[T]) Returning(columns string) InsertBuilder[T] {
-	return InsertBuilder[T]{request: i.request.WithParameterReplacing("select", cleanSelectColumns(columns))}
+// Returning replaces an earlier one, along with any projection a
+// [QueryBuilder.Select] wrote earlier in the chain.
+func (m MutationBuilder[T]) Returning(columns string) MutationBuilder[T] {
+	return MutationBuilder[T]{request: m.request.WithParameterReplacing("select", cleanSelectColumns(columns))}
 }
 
 // state implements [Query].
-func (i InsertBuilder[T]) state() queryState[T] {
-	return queryState[T](i)
+func (m MutationBuilder[T]) state() queryState[T] {
+	return queryState[T](m)
 }
 
 // mutation implements [Mutation].
-func (i InsertBuilder[T]) mutation() {}
+func (m MutationBuilder[T]) mutation() {}
 
-// Compile-time proof that InsertBuilder satisfies both sealed interfaces:
-// [Query], so a read function decodes the rows an insert returns, and
+// Compile-time proof that MutationBuilder satisfies both sealed interfaces:
+// [Query], so a read function decodes the rows a write returns, and
 // [Mutation], so [Execute] sends it. A read builder satisfies only Query, so
 // passing one to Execute is the compile error this arrangement pins.
 var (
-	_ Query[any]    = InsertBuilder[any]{}
-	_ Mutation[any] = InsertBuilder[any]{}
+	_ Query[any]    = MutationBuilder[any]{}
+	_ Mutation[any] = MutationBuilder[any]{}
 )

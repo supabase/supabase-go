@@ -415,7 +415,7 @@ These wrapper structs have identical definitions on purpose: a builder type's id
 **Why**:  
 The types encode the phase of the chain, so illegal chains are compile errors: `Select` twice is unrepresentable, because `Select` consumes the `QueryBuilder` and `FilterBuilder` has no `Select`.
 Every sibling SDK accepts the double call and resolves it silently, last write wins (postgrest-js `searchParams.set('select', ...)`, supabase-swift `appendOrUpdate`, postgrest-dart `overrideSearchParams`, supabase-py via inheritance).
-They re-expose select after a verb because mutations need a "return these columns" variant; when this SDK's write verbs land, that variant will appear deliberately on the mutation builders' types with replace semantics.
+They re-expose select after a verb because mutations need a "return these columns" variant, which this SDK spells as the terminal mutation builder's `Returning`, with replace semantics.
 
 Interface-typed returns would hide the fluent surface from godoc and autocomplete without buying substitutability we need, so chain methods return concrete types and the read functions instead accept the sealed `Query` interface - interfaces in, concrete types out, the posture Google's Go style guidance names outright, with the interface living in the package that consumes query values.
 A type parameter no method signature mentions is inert - `Query[Instrument]` and `Query[Section]` would define identical type sets and so be the same type, letting a wrong-row `Collect[Section](instrumentsQuery)` compile while `Row` inference fails at every call site - so the row type is bound where the read path already has a genuine method, `state`'s return type, keeping the public interface free of never-called members (a dedicated phantom anchor method was drafted and rejected for exactly that deadness).
@@ -436,7 +436,7 @@ PostgREST does not require `select` on a read: its reference marks the parameter
 The one deep reason the reference SDK makes `select()` central does not translate to Go: postgrest-js infers the TypeScript result type from the select string (`GetResult`), where this SDK names the decode type at `From[Row]` before `Select` is ever reachable.
 What is not said is not sent - the ordering entry's principle - so the absent parameter relies on the server's documented `*` default rather than restating it, and `Select("")` keeps its documented `select=*` meaning because argument values, unlike chain steps, cannot be policed by the type system anyway (`Select("*")` proves as much).
 Sibling behavior marks the safe boundary: postgrest-dart's dispatcher can be awaited through inheritance while its HTTP method is still null, forcing a runtime `ArgumentError`, whereas supabase-swift bakes `.get` into the request at `from()` and its inherited `execute()` serves the select-less GET successfully - opening the boundary is sound exactly when the method is fixed at `From`, as this SDK's request model does.
-The write verbs keep their home: they will land on `QueryBuilder`, where any promoted method already closes the verb window the same way it closes the projection window.
+The write verbs sit where their inputs demand: `Insert` on `QueryBuilder`, where any promoted method closes the verb window the same way it closes the projection window, and `Update` on `FilterBuilder`, after the row-choosing filters.
 
 ## Builder state serializes immediately into the request model
 
@@ -579,19 +579,18 @@ Go's standard `http.Client` already expresses the canonical semantic natively ("
 The sibling precedent is Python's, which claims the capability through the language-native mechanism plus an explanatory note.
 JS and Flutter needed explicit options only because `fetch` and Dart's `http` lack a native construction-time whole-request client timeout.
 
-## Mutations are verb methods on `QueryBuilder` with compile-checked payloads and a `Returning` projection
+## Mutations are verb methods with compile-checked payloads, sharing one terminal `MutationBuilder` and its `Returning` projection
 
 **What**:  
-`Insert(rows ...T)` is a method on `QueryBuilder[T]`, the root `From[T]` returns, and gives back a dedicated `InsertBuilder[T]` rather than a `FilterBuilder`.
-The rows are the query's own row type `T`, marshalled with `encoding/json` and always sent as one JSON array - a single row, many rows or, for no arguments, the empty array `[]`, never `null`.
+`Insert(rows ...T)` is a method on `QueryBuilder[T]`, the root `From[T]` returns, taking rows of the query's own row type `T`, marshalled with `encoding/json` and always sent as one JSON array - a single row, many rows or, for no arguments, the empty array `[]`, never `null`.
 No client-side column union is computed for a bulk insert: each row sends exactly the keys its own marshalling produces.
-`InsertBuilder.Returning(columns)` is the only projection, writing the `select` parameter with replace semantics where an empty string means every column, shaping only what a representation-returning execution reports.
+Every write verb returns the same terminal `MutationBuilder[T]`, whose one shaping method, `Returning(columns)`, writes the `select` parameter with replace semantics where an empty string means every column, shaping only what a representation-returning execution reports.
 
 **Why**:  
-`From[Row]("table")` is the one place the table and row type are named, so a write belongs on the builder it returns, matching every sibling SDK's `from(...).insert(...)`.
-A verb returns its own type so only that verb's methods are reachable - an insert has no filters, so `InsertBuilder` offers none - the same typestate discipline that keeps a second `Select` unrepresentable, and the direction each later verb extends: `Update` and `Delete` will carry the row-choosing filters as a deliberate, visible step rather than admitting a filter-less call that silently touches every row.
-Typing the payload as `T` makes the row shape compile-checked against the query's declared type, the payoff the read path set up by naming `Row` at `From`, and sending a variadic as one array gives the single-row and bulk cases one wire shape, where an empty array is the server's to rule on rather than a no-op the SDK invents.
+`From[Row]("table")` is the one place the table and row type are named, so writes belong on the builders it produces, and typing insert's payload as `T` makes the row shape compile-checked against the query's declared type - the payoff the read path set up by naming `Row` at `From`.
+Sending a variadic as one array gives the single-row and bulk cases one wire shape, where an empty array is the server's to rule on rather than a no-op the SDK invents.
 A client-side column union is refused because it would send keys a row never named, silently overriding the table's column defaults - what is not said is not sent, so a ragged batch is the server's PGRST102 to raise.
+One terminal type serves every verb because every write's end state is identical - a fully-specified mutation whose only remaining choice is what a representation-returning execution reports - and a builder type's identity is its method set (per the typestate entry), which is the same for all of them.
 `Returning` is named for PostgreSQL's own `RETURNING`, which is what PostgREST applies here, and is deliberately not a `Select`: on a write "select" would misname the act, and whether any representation returns at all is an execution-layer choice, not builder state.
 
 ## Whether a mutation returns its rows is chosen at execution: `Execute` for none, a read function for the affected rows
@@ -610,3 +609,29 @@ Minimal by default matches the PostgREST server default and the JS, Flutter and 
 Injecting the preference at execution, the layer that already sets `Accept` and `X-Retry-Count`, keeps the request model carrying only what the builder said and keeps every read's wire unchanged.
 `Mutation` extends `Query` rather than the reverse because the read-function injection already made every builder decodable, so the only nonsense left to forbid is executing a read without body, which the sealed marker turns into a compile error.
 This is also why the row-level-security interaction is a pure function of the executing function: an insert whose role may not SELECT succeeds through `Execute` yet fails through `Collect` with PostgreSQL's 42501, because only the representation path emits the RETURNING that needs the SELECT right.
+
+## Update changes are an opaque `any` payload marshaled to one JSON object
+
+**What**:  
+`Update(changes any)` takes the column assignments as an opaque value, marshaled with `encoding/json` to one JSON object and sent as the PATCH body.
+A `map[string]any` is the recommended shape, where a key carrying nil clears its column to SQL null and an absent key leaves the column untouched, and a struct is accepted with the documented caution that every marshaled field is assigned, its zero value included.
+There is no typed-changes type and no client-side pruning of which fields to send.
+
+**Why**:  
+An insert names whole rows, so its payload is the query's row type `T`, but an update assigns an arbitrary subset of columns that no single Go type expresses without a per-table partial-update wrapper or pervasive pointer fields.
+Taking `any` and marshaling it straight to JSON matches how every sibling SDK accepts update values and lets the caller pick the shape that fits: a `map[string]any` to send exactly the named columns with explicit nulls, or a tagged struct when a fixed shape is more convenient.
+The map's null-versus-absent distinction is the one PostgREST acts on, so the SDK carries it faithfully rather than inventing a sentinel for "clear this column", and the struct caution is documented rather than hidden because Go's zero values are indistinguishable from unset without field tags.
+
+## `Update` is a terminal verb on `FilterBuilder`, so writes reuse the read filter surface
+
+**What**:  
+`Update(changes)` is a method on `FilterBuilder[T]`: the row-choosing filters chain first, exactly as they do on a read, and the verb ends the chain by returning the terminal `MutationBuilder`, which offers no filter methods.
+Reachable through promotion, the verb called directly on `From`'s builder - no filters - addresses every row of the table.
+`Insert` stays on `QueryBuilder` alone, so a filtered chain reaching `Insert` does not compile.
+`Order`, `Limit`, `Range` and `Select` remain reachable before `Update`, traveling for the server to rule on, and there is no mutation-typed mirror of any filter method.
+
+**Why**:  
+An update scopes its rows with the same filters a read scopes its result, and placing the verb after the filters lets the one `FilterBuilder` surface serve both sides - one representation of every operator, with every future filter extending reads and writes at once, and a stored filtered scope reusable as a read through `Collect` and as a write through the verb.
+The sibling SDKs' verb-first ordering (`update(...).eq(...)`) would require a mutation-typed duplicate of the entire filter surface, because the sealed `Mutation` typestate must survive the filter chain and a chained Go method cannot return its receiver's concrete type generically: a mirror of every filter method plus a compliance registration per method, a cost out of all proportion to the ordering familiarity it buys.
+A porter reordering a sibling chain is guided by compile errors, since the terminal builder offers no filter methods.
+The read-shaped modifiers are deliberately not fenced off the write path: PostgREST 13 dropped limited update/delete ("The feature was complicated and largely unused", [PostgREST changelog](https://github.com/PostgREST/postgrest/blob/main/CHANGELOG.md)), so `order` or `limit` riding a mutation is the server's to rule on - the same posture this SDK takes for a negative limit or an empty list - and a `Select` written before `Update` genuinely projects the returned representation, exactly as `Returning` does, with `Returning` replacing any projection `Select` wrote.

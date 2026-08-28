@@ -380,3 +380,25 @@ func TestInsertIsNeverRetried(t *testing.T) {
 		t.Errorf("requests = %d, want 1 (a write is never retried, even with WithRetry(true))", got)
 	}
 }
+
+// TestUpdateIsNeverRetried proves an update is never re-sent either: a PATCH
+// answered with a transient 503 sees exactly one attempt even with retries
+// forced on, because only GET and HEAD are retryable.
+func TestUpdateIsNeverRetried(t *testing.T) {
+	stubRetrySleep(t)
+	server, retryCounts := scriptedServer(t, scriptedResponse{status: http.StatusServiceUnavailable})
+	client := newRetryTestClient(t, server.URL)
+
+	_, err := Execute(
+		t.Context(),
+		client,
+		From[map[string]any]("instruments").Update(map[string]any{"name": "violin"}),
+		WithRetry(true),
+	)
+	if err == nil {
+		t.Fatal("Execute succeeded, want an error")
+	}
+	if got := len(*retryCounts); got != 1 {
+		t.Errorf("requests = %d, want 1 (a write is never retried, even with WithRetry(true))", got)
+	}
+}
