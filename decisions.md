@@ -488,19 +488,6 @@ Execution is a package-level function - methods cannot declare type parameters b
 `Response` stays a plain exported-field record because it is returned by value and holds only scalars, so consumers hold independent copies and no aliasing exists to defend against, while unexported fields would stop consumers fabricating a `Response` in their own test doubles.
 This argument is scalar-dependent: a reference-typed field (headers, raw body) must not be added to `Response` without revisiting it.
 
-## The SDK never sends `Accept: application/vnd.pgrst.object+json`
-
-**What**:  
-Every read requests and decodes the plural JSON-array form.
-Singular semantics are client-side: single-row read functions unwrap the array and report contract violations as sentinels (`ErrNoRows`, `ErrTooManyRows`) after inspecting what the server returned, sending the consumer's query unmodified.
-
-**Why**:  
-The singular media type exists to spare hand-written clients an unwrap that an SDK performs anyway, and its error model collapses absence and multiplicity into one 406/PGRST116 whose disambiguation requires parsing a human-readable details string - unusable for a `MaybeSingle` that must treat absence as routine.
-postgrest-js retreated from the media type for GET `maybeSingle` (its issue #361) and now fabricates synthetic PGRST116 error objects client-side for compatibility with its own past, a contortion a fresh surface need not inherit.
-One wire shape keeps a single decode path and keeps `Content-Range` parsing universal, and sentinels give Gophers `errors.Is` matching in the `database/sql.ErrNoRows` tradition instead of string-matching a server code.
-Cost accepted: a violated single-row expectation transfers up to one server-capped page before erroring, where server-side coercion would return a body-less 406 - a bug-path-only cost, bounded by Supabase's `max_rows` (default 1000).
-Injecting `limit=2` to bound that cost further was rejected because it silently rewrites the consumer's query, collides with a consumer-set `Limit` and breaks this file's serialize-immediately decision (read functions perform no assembly).
-
 ## `postgrest.Error` carries the parsed PostgREST body plus HTTP status
 
 **What**:  
