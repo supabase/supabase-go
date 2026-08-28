@@ -240,17 +240,18 @@ func ExampleInsertBuilder_Returning() {
 		return
 	}
 
-	created, response, err := postgrest.Collect(
+	// Insert one row and recover only the server-assigned id.
+	created, _, err := postgrest.CollectSingle(
 		context.Background(),
 		client,
 		postgrest.
 			From[Instrument]("instruments").
 			Insert(Instrument{Name: "viola"}).
-			Returning("id, name"),
+			Returning("id"),
 	)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(len(created), response.HTTPStatus)
+	fmt.Println(created.ID)
 }
