@@ -204,3 +204,53 @@ func ExampleCollectSingleMaybe() {
 	}
 	fmt.Println(instrument.ID)
 }
+
+// ExampleQueryBuilder_Insert creates rows without reading them back:
+// [postgrest.Execute] applies the insert and returns only the response
+// metadata, taking PostgREST's default minimal return.
+func ExampleQueryBuilder_Insert() {
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	response, err := postgrest.Execute(
+		context.Background(),
+		client,
+		postgrest.From[Instrument]("instruments").Insert(
+			Instrument{Name: "viola"},
+			Instrument{Name: "cello"},
+		),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(response.HTTPStatus)
+}
+
+// ExampleInsertBuilder_Returning creates a row and reads it back in one call:
+// passing an insert to [postgrest.Collect] returns the created rows, and
+// [postgrest.InsertBuilder.Returning] narrows which columns they carry.
+func ExampleInsertBuilder_Returning() {
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	created, response, err := postgrest.Collect(
+		context.Background(),
+		client,
+		postgrest.
+			From[Instrument]("instruments").
+			Insert(Instrument{Name: "viola"}).
+			Returning("id, name"),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(len(created), response.HTTPStatus)
+}

@@ -22,11 +22,14 @@ type queryState[Row any] struct {
 	request request.Request
 }
 
-// Query is a fully-specified query awaiting execution by a read function
-// such as [Collect]. Satisfying types include [QueryBuilder], [FilterBuilder],
-// [OrderedFilterBuilder] and [OrderedDescendingFilterBuilder].
+// Query is a fully-specified request awaiting execution by a read function
+// such as [Collect], which decodes the rows it returns into Row. Every read
+// builder satisfies it, and so does every mutation builder, since executing a
+// write through a read function returns the rows it affects. Satisfying types
+// include [QueryBuilder], [FilterBuilder], [OrderedFilterBuilder],
+// [OrderedDescendingFilterBuilder] and [InsertBuilder].
 type Query[Row any] interface {
-	// state returns the query's accumulated request, bound to its row type.
+	// state returns the accumulated request, bound to its row type.
 	state() queryState[Row]
 }
 
@@ -100,6 +103,7 @@ func CollectSingleMaybe[Row any](ctx context.Context, client *Client, query Quer
 }
 
 func collect[Row any, T any](ctx context.Context, client *Client, query Query[Row], options ...Option) (T, Response, error) {
+	options = append(slices.Clip(options), withRepresentation())
 	responseBody, response, err := execute(ctx, client, query, options...)
 	var decoded T
 
@@ -167,6 +171,11 @@ func execute[T any](ctx context.Context, client *Client, query Query[T], options
 			httpRequest.Header.Set("Accept", settings.acceptHeaderValue)
 		}
 
+		if settings.requestRepresentation &&
+			httpRequest.Method != http.MethodGet && httpRequest.Method != http.MethodHead {
+			httpRequest.Header.Add("Prefer", "return=representation")
+		}
+
 		if attempt > 0 {
 			httpRequest.Header.Set("X-Retry-Count", strconv.Itoa(attempt))
 		}
@@ -214,8 +223,9 @@ type Option func(*readSettings)
 // readSettings collects the execution adjustments carried by a read call's
 // Options.
 type readSettings struct {
-	retry             retryPolicy
-	acceptHeaderValue string
+	retry                 retryPolicy
+	acceptHeaderValue     string
+	requestRepresentation bool
 }
 
 // retryPolicy is a read call's automatic-retry override. The zero value
@@ -247,6 +257,17 @@ func WithRetry(enabled bool) Option {
 func withAccept(value string) Option {
 	return func(settings *readSettings) {
 		settings.acceptHeaderValue = value
+	}
+}
+
+// withRepresentation makes execute ask for the affected rows of a write back,
+// adding Prefer: return=representation when the request is not a GET or HEAD.
+// The read functions set it, so a write passed to one returns its rows, while
+// a read is unaffected: its GET never carries the preference and stays
+// byte-identical on the wire.
+func withRepresentation() Option {
+	return func(settings *readSettings) {
+		settings.requestRepresentation = true
 	}
 }
 

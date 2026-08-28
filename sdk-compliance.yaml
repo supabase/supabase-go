@@ -32,6 +32,22 @@ features:
       response-body reads included.
     symbols:
       - configuration.WithHTTPClient
+  database.mutate.insert:
+    status: implemented
+    symbols:
+      - postgrest.QueryBuilder.Insert
+    supporting_symbols:
+      - postgrest.Execute
+  database.mutate.select_after_mutation:
+    status: partially_implemented
+    note: |
+      Insert only so far: executing an insert through Collect returns the
+      created rows, with InsertBuilder.Returning narrowing the returned
+      columns. The remaining verbs' builders land with those verbs.
+    symbols:
+      - postgrest.InsertBuilder.Returning
+    supporting_symbols:
+      - postgrest.Collect
   database.query.from_table:
     status: implemented
     symbols:

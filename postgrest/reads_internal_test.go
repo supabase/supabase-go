@@ -358,3 +358,25 @@ func TestRetryDelay(t *testing.T) {
 		})
 	}
 }
+
+// TestInsertIsNeverRetried proves a write is never re-sent, even with retries
+// forced on: a POST answered with a transient 503 sees exactly one attempt,
+// because only GET and HEAD are retryable.
+func TestInsertIsNeverRetried(t *testing.T) {
+	stubRetrySleep(t)
+	server, retryCounts := scriptedServer(t, scriptedResponse{status: http.StatusServiceUnavailable})
+	client := newRetryTestClient(t, server.URL)
+
+	_, err := Execute(
+		t.Context(),
+		client,
+		From[map[string]any]("instruments").Insert(map[string]any{"name": "violin"}),
+		WithRetry(true),
+	)
+	if err == nil {
+		t.Fatal("Execute succeeded, want an error")
+	}
+	if got := len(*retryCounts); got != 1 {
+		t.Errorf("requests = %d, want 1 (a write is never retried, even with WithRetry(true))", got)
+	}
+}
