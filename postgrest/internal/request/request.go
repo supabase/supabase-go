@@ -4,7 +4,9 @@
 package request
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -25,6 +27,8 @@ type Request struct {
 	method     string
 	path       []string
 	parameters []parameter
+	body       []byte
+	err        error
 }
 
 // New returns a Request for the given HTTP method and URL path, one path
@@ -45,6 +49,15 @@ func (r Request) Path() []string {
 // Method returns the HTTP method the Request sends.
 func (r Request) Method() string {
 	return r.method
+}
+
+// WithMethod returns a new Request carrying the given HTTP method in place of
+// the receiver's. The mutation builders use it to turn the GET that New opens
+// into the POST, PATCH or DELETE their verb sends.
+func (r Request) WithMethod(method string) Request {
+	clone := r
+	clone.method = method
+	return clone
 }
 
 // WithParameter returns a new Request with the given query-string pair appended.
@@ -106,21 +119,57 @@ func (r Request) WithParameterValueAppended(key, addition string) Request {
 	return clone
 }
 
+// WithBody returns a new Request carrying body as its payload. The bytes are
+// copied, so a later change to the caller's slice cannot alter what the
+// Request sends. HTTPRequest sends the body under Content-Type:
+// application/json, the media type PostgREST requires on a JSON write. A nil
+// body means no body, and then HTTPRequest sets no Content-Type.
+func (r Request) WithBody(body []byte) Request {
+	clone := r
+	clone.body = slices.Clone(body)
+	return clone
+}
+
+// WithError returns a new Request carrying err as a deferred build failure.
+// HTTPRequest returns it before assembling anything, so a failure raised while
+// a builder prepares a request - a payload that will not marshal, say - reaches
+// the caller at execution rather than being lost.
+func (r Request) WithError(err error) Request {
+	clone := r
+	clone.err = err
+	return clone
+}
+
 // HTTPRequest assembles the Request into an *http.Request against the given
-// base URL, carrying ctx. The base is not mutated. Each path segment is
-// percent-escaped and appended below base's path, so segment text never
-// alters which resource the path names.
-// Authentication headers are not injected here, nor is the Accept header.
+// base URL, carrying ctx. A deferred error set by [Request.WithError] is
+// returned before any assembly, so a failure raised while a builder prepared
+// the request surfaces here rather than on the wire. The base is not mutated.
+// Each path segment is percent-escaped and appended below base's path, so
+// segment text never alters which resource the path names. A body set by
+// [Request.WithBody] rides the request under Content-Type: application/json.
+// With no body, neither is set. Authentication headers are not injected here,
+// nor is the Accept header.
 func (r Request) HTTPRequest(ctx context.Context, base *url.URL) (*http.Request, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
 	escaped := make([]string, len(r.path))
 	for index, segment := range r.path {
 		escaped[index] = escapePathSegment(segment)
 	}
 	target := base.JoinPath(escaped...)
 	target.RawQuery = rawQuery(r.parameters)
-	httpRequest, err := http.NewRequestWithContext(ctx, r.method, target.String(), nil)
+
+	var body io.Reader
+	if r.body != nil {
+		body = bytes.NewReader(r.body)
+	}
+	httpRequest, err := http.NewRequestWithContext(ctx, r.method, target.String(), body)
 	if err != nil {
 		return nil, err
+	}
+	if r.body != nil {
+		httpRequest.Header.Set("Content-Type", "application/json")
 	}
 	return httpRequest, nil
 }
