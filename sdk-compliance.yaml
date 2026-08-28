@@ -54,6 +54,10 @@ features:
     status: implemented
     symbols:
       - postgrest.FilterBuilder.Update
+    supporting_symbols:
+      - postgrest.Execute
+      - postgrest.Mutation
+      - postgrest.MutationBuilder
   database.query.from_table:
     status: implemented
     symbols:
