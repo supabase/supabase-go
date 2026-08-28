@@ -184,6 +184,12 @@ features:
     status: implemented
     symbols:
       - postgrest.FilterBuilder.Limit
+  database.using_modifiers.maybe_single_row:
+    status: implemented
+    symbols:
+      - postgrest.CollectSingleMaybe
+    supporting_symbols:
+      - postgrest.ErrTooManyRows
   database.using_modifiers.order:
     status: implemented
     symbols:

@@ -73,6 +73,32 @@ func CollectSingle[Row any](ctx context.Context, client *Client, query Query[Row
 	return collect[Row, Row](ctx, client, query, options...)
 }
 
+// CollectSingleMaybe executes the query through client for a result expected
+// to hold at most one row. Exactly one matching row is returned decoded into
+// Row alongside true. An empty result is an ordinary outcome, not a failure:
+// it yields Row's zero value alongside false with a nil error. In both cases
+// the [Response] carries the request's metadata. The query travels the wire
+// in PostgREST's default array format, exactly as [Collect]'s does, and
+// cardinality is enforced client-side: a result of more than one row fails
+// with [ErrTooManyRows]. On failure the returned Row, boolean and Response
+// are their zero values. Context, decoding into Row and Options otherwise
+// behave as documented on [Collect].
+func CollectSingleMaybe[Row any](ctx context.Context, client *Client, query Query[Row], options ...Option) (Row, bool, Response, error) {
+	var zero Row
+	rows, response, err := Collect(ctx, client, query, options...)
+	if err != nil {
+		return zero, false, Response{}, err
+	}
+	switch len(rows) {
+	case 0:
+		return zero, false, response, nil
+	case 1:
+		return rows[0], true, response, nil
+	default:
+		return zero, false, Response{}, ErrTooManyRows
+	}
+}
+
 func collect[Row any, T any](ctx context.Context, client *Client, query Query[Row], options ...Option) (T, Response, error) {
 	responseBody, response, err := execute(ctx, client, query, options...)
 	var decoded T

@@ -172,3 +172,35 @@ func ExampleWithRetry() {
 	}
 	fmt.Println(len(instruments))
 }
+
+// ExampleCollectSingleMaybe reads a row that may legitimately be absent: the
+// boolean distinguishes a missing row from a present one whose fields hold
+// zero values, and more than one match fails with ErrTooManyRows.
+func ExampleCollectSingleMaybe() {
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	instrument, found, _, err := postgrest.CollectSingleMaybe(
+		context.Background(),
+		client,
+		postgrest.
+			From[Instrument]("instruments").
+			Eq("name", "theremin"),
+	)
+	if err != nil {
+		if errors.Is(err, postgrest.ErrTooManyRows) {
+			fmt.Println("instrument names were expected to be unique")
+			return
+		}
+		fmt.Println(err)
+		return
+	}
+	if !found {
+		fmt.Println("no such instrument")
+		return
+	}
+	fmt.Println(instrument.ID)
+}
