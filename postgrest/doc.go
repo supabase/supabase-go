@@ -19,8 +19,11 @@
 // rows, combining with AND, while [FilterBuilder.Order], [FilterBuilder.Limit]
 // and [FilterBuilder.Range] shape the result.
 //
-// Writes mirror reads. [QueryBuilder.Insert] creates rows, returning a
-// mutation builder that [Execute] applies without reading anything back:
+// Writes mirror reads. [QueryBuilder.Insert] creates rows, while
+// [FilterBuilder.Update] ends a filtered chain by changing the rows the
+// preceding filters chose - the same filters that scope a read. Every write
+// verb returns a [MutationBuilder], which [Execute] applies without reading
+// anything back:
 //
 //	response, err := postgrest.Execute(
 //	    ctx,
@@ -28,8 +31,8 @@
 //	    postgrest.From[Instrument]("instruments").Insert(Instrument{Name: "viola"}))
 //
 // To read the affected rows back in the same call, pass the mutation to
-// [Collect] instead of [Execute]: the server returns the created rows, and
-// [InsertBuilder.Returning] narrows which columns they carry.
+// [Collect] instead of [Execute]: the server returns the rows, and
+// [MutationBuilder.Returning] narrows which columns they carry.
 //
 // Builders are pure immutable values carrying no client reference: every step
 // returns a new independent builder, so queries may be declared at package

@@ -121,6 +121,11 @@ func TestCollectAddsRepresentationPreferenceToWrites(t *testing.T) {
 			wantPrefer: true,
 		},
 		{
+			name:       "update is a write",
+			query:      postgrest.From[instrument]("instruments").Eq("id", 1).Update(map[string]any{"name": "violin"}),
+			wantPrefer: true,
+		},
+		{
 			name:       "read is unchanged",
 			query:      postgrest.From[instrument]("instruments").Select("id, name"),
 			wantPrefer: false,
@@ -156,7 +161,7 @@ func TestInsertReturningProjectsColumns(t *testing.T) {
 	base := postgrest.From[instrument]("instruments").Insert(instrument{ID: 1, Name: "violin"})
 	testCases := []struct {
 		name       string
-		builder    postgrest.InsertBuilder[instrument]
+		builder    postgrest.MutationBuilder[instrument]
 		wantSelect string
 	}{
 		{
@@ -265,4 +270,84 @@ func TestExecuteSentinels(t *testing.T) {
 			t.Errorf("want ErrMissingTable, got %v", err)
 		}
 	})
+}
+
+// TestUpdateSendsPatchWithChanges pins the update wire shape through Execute: a
+// PATCH to the table path carrying the changes as one JSON object under the
+// JSON media type, the row-choosing filter in the query string, and - since
+// Execute reads nothing back - no Prefer header at all.
+func TestUpdateSendsPatchWithChanges(t *testing.T) {
+	server, record := captureServer(t, http.StatusNoContent, "")
+
+	response, err := postgrest.Execute(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.From[instrument]("instruments").
+			Eq("id", 1).
+			Update(map[string]any{"name": "viola"}),
+	)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if response.HTTPStatus != http.StatusNoContent {
+		t.Errorf("HTTPStatus = %d, want 204", response.HTTPStatus)
+	}
+	if got, want := record.request.Method, http.MethodPatch; got != want {
+		t.Errorf("method = %q, want %q", got, want)
+	}
+	if got, want := string(record.body), `{"name":"viola"}`; got != want {
+		t.Errorf("body = %s, want %s", got, want)
+	}
+	if got, want := record.request.URL.RawQuery, "id=eq.1"; got != want {
+		t.Errorf("query = %q, want %q", got, want)
+	}
+	if got, want := record.request.Header.Get("Content-Type"), "application/json"; got != want {
+		t.Errorf("Content-Type = %q, want %q", got, want)
+	}
+	if got := record.request.Header.Values("Prefer"); len(got) != 0 {
+		t.Errorf("Prefer = %q, want none on an Execute", got)
+	}
+}
+
+// TestUpdateReturningProjectsColumns pins Returning on a mutation exactly as the
+// insert case pins it: the cleaned select parameter with replace semantics, an
+// empty string meaning every column, and - under Execute - no return preference.
+func TestUpdateReturningProjectsColumns(t *testing.T) {
+	base := postgrest.From[instrument]("instruments").Update(map[string]any{"name": "viola"})
+	testCases := []struct {
+		name       string
+		builder    postgrest.MutationBuilder[instrument]
+		wantSelect string
+	}{
+		{
+			name:       "columns cleaned",
+			builder:    base.Returning("id, name"),
+			wantSelect: "id,name",
+		},
+		{
+			name:       "later returning replaces earlier",
+			builder:    base.Returning("id").Returning("name"),
+			wantSelect: "name",
+		},
+		{
+			name:       "empty means all columns",
+			builder:    base.Returning(""),
+			wantSelect: "*",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			server, record := captureServer(t, http.StatusNoContent, "")
+
+			if _, err := postgrest.Execute(t.Context(), newTestClient(t, server), testCase.builder); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			if got := record.request.URL.Query().Get("select"); got != testCase.wantSelect {
+				t.Errorf("select = %q, want %q", got, testCase.wantSelect)
+			}
+			if got := record.request.Header.Values("Prefer"); len(got) != 0 {
+				t.Errorf("Prefer = %q, want none under Execute", got)
+			}
+		})
+	}
 }

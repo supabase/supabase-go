@@ -230,10 +230,10 @@ func ExampleQueryBuilder_Insert() {
 	fmt.Println(response.HTTPStatus)
 }
 
-// ExampleInsertBuilder_Returning creates a row and reads it back in one call:
+// ExampleMutationBuilder_Returning creates a row and reads it back in one call:
 // passing an insert to [postgrest.Collect] returns the created rows, and
-// [postgrest.InsertBuilder.Returning] narrows which columns they carry.
-func ExampleInsertBuilder_Returning() {
+// [postgrest.MutationBuilder.Returning] narrows which columns they carry.
+func ExampleMutationBuilder_Returning() {
 	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
 	if err != nil {
 		fmt.Println(err)
@@ -254,4 +254,28 @@ func ExampleInsertBuilder_Returning() {
 		return
 	}
 	fmt.Println(created.ID)
+}
+
+func ExampleFilterBuilder_Update() {
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// A map[string]any assigns only the columns it names, leaving the rest
+	// untouched. Execute applies the update without reading anything back.
+	response, err := postgrest.Execute(
+		context.Background(),
+		client,
+		postgrest.
+			From[Instrument]("instruments").
+			Eq("id", 1).
+			Update(map[string]any{"name": "viola"}),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(response.HTTPStatus)
 }

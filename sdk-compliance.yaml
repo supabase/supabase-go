@@ -39,17 +39,25 @@ features:
     supporting_symbols:
       - postgrest.Execute
       - postgrest.Mutation
-      - postgrest.InsertBuilder
+      - postgrest.MutationBuilder
   database.mutate.select_after_mutation:
     status: partially_implemented
     note: |
-      Insert only so far: executing an insert through Collect returns the
-      created rows, with InsertBuilder.Returning narrowing the returned
-      columns. The remaining verbs' builders land with those verbs.
+      Insert and update return their affected rows when executed through
+      Collect, with MutationBuilder.Returning narrowing the returned columns.
+      Upsert completes this once it lands.
     symbols:
-      - postgrest.InsertBuilder.Returning
+      - postgrest.MutationBuilder.Returning
     supporting_symbols:
       - postgrest.Collect
+  database.mutate.update:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Update
+    supporting_symbols:
+      - postgrest.Execute
+      - postgrest.Mutation
+      - postgrest.MutationBuilder
   database.query.from_table:
     status: implemented
     symbols:
