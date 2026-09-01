@@ -30,11 +30,13 @@ A pure multi-module library has none of that - every task is a single `go`-toolc
 ## CI uses only first-party Actions (GitHub's `actions` org)
 
 **What**:  
-The only actions permitted are those owned by GitHub's first-party [`actions` org](https://github.com/actions/); no golangci/* or golang/* actions.
+The only step-level actions permitted are those owned by GitHub's first-party [`actions` org](https://github.com/actions/); no golangci/* or golang/* actions.
+The one job-level `uses:` of a reusable workflow is Supabase's own SDK compliance gate in [`validate-capabilities.yml`](.github/workflows/validate-capabilities.yml).
 
 **Why**:  
 A wrapper action is a CI-only black box a developer can't run locally.
 Keeps CI transparent and the supply-chain surface minimal.
+The compliance gate is the accepted exception because its checks are defined org-wide in [`supabase/sdk`](https://github.com/supabase/sdk), so a local re-implementation would only drift from the canonical one.
 
 ## Linting is native and unbundled (no `golangci-lint`)
 
@@ -62,7 +64,7 @@ The guiding test is whether a check helps avoid mistakes that would later force 
 The `go` directive in published modules (`1.25`) is separate from, and unaffected by, the toolchain CI and tooling run on (latest stable).
 
 **Why**:  
-They are different concerns: the published `go` directive is a compatibility contract for the consumer's unknown environment (the policy floor recorded in the consumer-floor entry), while the CI/lint toolchain is our own deterministic environment (latest, our choice).
+They are different concerns: the published `go` directive is a compatibility contract for the consumer's unknown environment, while the CI/lint toolchain is our own deterministic environment (latest, our choice).
 A latest toolchain compiles a go 1.25 module fine.
 Tool-pinning machinery must never live in the published modules, or it would drag our environment's needs into the consumer's contract and force the floor up.
 
@@ -72,12 +74,11 @@ Tool-pinning machinery must never live in the published modules, or it would dra
 The multi-module repository (`core`, `postgrest`, `supabase` and future domain modules) wires its internal cross-module dependencies through a single `go.work` file committed at the repository root, rather than through replace directives in each `go.mod` file.
 Each module's `go.mod` file declares its sibling dependencies with ordinary require lines carrying the zero pseudo-version (`v0.0.0-00010101000000-000000000000`) until real tags exist.
 The workspace's use directives supply the actual source for every in-repo build, locally and in CI.
-The published `go` directive stays at the policy consumer floor (`1.25`) independently of the toolchain version CI runs.
 
 **Why**:  
 Pre-tag, a module that imports an unpublished sibling cannot resolve it without either `replace` directives or a workspace.
 `go.work` is the purpose-built mechanism (Go 1.18+) and gives a cleaner separation of "what we publish to customers" (the `go.mod` files, free of dev-only redirects) from "how we develop locally" (one workspace file), stating the wiring once instead of repeating `replace … => ../core` in every consumer.
-Committing it is the Go-team-endorsed practice for monorepos ([golang/go#53502](https://github.com/golang/go/issues/53502) explicitly declined a "never commit" warning; the relative paths are identical for every clone, gopls configures multi-module editing from it, and Dependabot understands it), and it is provably safe for consumers: `go.work` is never included in a published module zip and is ignored by `go get`, so it cannot affect anyone importing the SDK.
+Committing it is the Go-team-endorsed practice for monorepos ([golang/go#53502](https://github.com/golang/go/issues/53502) explicitly declined a "never commit" warning; the relative paths are identical for every clone, gopls configures multi-module editing from it, and Dependabot understands it), and it is safe for consumers: `go.work` is never included in a published module zip and is ignored by `go get`, so it cannot affect anyone importing the SDK.
 The one workspace hazard is the overlay masking a missing or wrong `require`: every in-repo build resolves siblings from workspace source, so a `require` defect surfaces only for consumers once tags exist.
 [`scripts/check-module-paths.sh`](scripts/check-module-paths.sh) guards the path case: it fails when a workspace (published) module requires a first-party path that is not itself a workspace module, which a consumer could not resolve. A missing require or a wrong version still rests on review, since there is no tidy gate yet (zero external dependencies).
 The decision is cheaply reversible (delete `go.work`, add `replace` blocks).
@@ -104,7 +105,6 @@ Dynamic context is added by wrapping (`fmt.Errorf("...: %w", value, err)`) - tha
 **Why**:  
 Go has no rich exception hierarchy, so these two shapes span the spectrum: identity-style matching for kinds, programmatic field access for data, without leaking internal types onto the public surface.
 Value comparison of the const sentinels is safe because the error type is unexported and package-local, so the type itself acts as a namespace - errors from different packages can never compare equal even with identical messages, and same-package clashes are avoided by keeping messages distinct and package-prefixed (e.g. `configuration: ...`).
-Sentinel immutability is covered by the separate "sentinel errors are compile-time constants" decision.
 
 ### Error messages carry a package prefix, applied once in `Error()`
 
@@ -171,21 +171,20 @@ The methods that reach domain behavior (for example, the fluent `From`) take no 
 **Why**:  
 Reaching domains through methods keeps the handle fields unexported, so the client stays immutable and safe for concurrent use.
 Construction does no I/O - `supabase.New` parses the project URL and wraps the HTTP transport, with no network call - so there is nothing at access time for a context to bound or cancel, and nothing that can fail.
-Google's SDKs are the cautionary contrast. Firebase's `app.Auth(ctx)` and `app.Firestore(ctx)` take a context and return an error because they lazily construct clients that resolve credentials and dial connections, and the context is then kept for the client's life: the `cloud.google.com/go` docs warn "Do not set a timeout on the context passed to NewClient: dialing happens asynchronously, and the context is used to refresh credentials in the background", and `golang.org/x/oauth2` states its client "is not valid beyond the lifetime of the context".
-That shape only earns its place when the returned client owns background work bound to the context, and it carries a footgun when it does not: a request-scoped context passed to such a constructor and then cached breaks the client's background refresh once the request ends.
+The context-and-error accessor shape (Firebase's `app.Auth(ctx)`) earns its place only when the returned client owns background work bound to that context, as `golang.org/x/oauth2` documents of its client ("is not valid beyond the lifetime of the context"), and it carries a footgun when it does not: a request-scoped context passed to such a constructor and then cached breaks the client's background refresh once the request ends.
 Our handles own no background work, so a context parameter would import that footgun for no gain.
 
 ## One HTTP customization seam, and a sealed HTTPClient across modules
 
 **What**:  
-The only way a caller customizes outbound HTTP is `WithHTTPClient`: they supply an `*http.Client` whose `Transport` is any `http.RoundTripper` chain they want, and `configuration` wraps its own auth `RoundTripper` (`apikey` injection) in front of it.
+The transport customization seam is `WithHTTPClient` alone: the caller supplies an `*http.Client` whose `Transport` is any `http.RoundTripper` chain they want, and `configuration` wraps its own header-injecting `RoundTripper` in front of it.
 There is deliberately no `WithRoundTripper` or middleware option.
 Internally, `configuration` hands each domain module a one-method `HTTPClient` interface (`Do(*http.Request) (*http.Response, error)`), never the concrete `*http.Client`.
 
 **Why**:  
-The single seam matches the dominant Go convention. Google's API libraries and Stripe expose only a whole-client seam, and Google's own docs tell callers to add behavior "via RoundTripper middleware" on their own client rather than through an SDK option. AWS SDK v2 is the exception, but its extra knob is a bespoke Smithy middleware stack, not an `http.RoundTripper` shortcut, so it is no precedent for one. A `WithRoundTripper` convenience can be added additively later if demand appears, so nothing is foreclosed.
+The single seam matches the dominant Go convention. Google's API libraries and Stripe expose only a whole-client seam, and Google's own docs tell callers to add behavior "via RoundTripper middleware" on their own client rather than through an SDK option. AWS SDK v2 is the exception, but its extra knob is a bespoke Smithy middleware stack, not an `http.RoundTripper` shortcut. A `WithRoundTripper` convenience can be added additively later if demand appears.
 Handing out the interface rather than the `*http.Client` stops the configured transport being swapped out through the accessor - a caller holding the concrete client could set `Transport = nil` and silently disable auth, or race on it - and it keeps the `configuration` public surface small, which is part of the `v1` promise.
-The interface is named `HTTPClient` with a single `Do` method, following AWS SDK v2's interface of the same name and shape. `Do` is chosen because `*http.Client` already has that method, so the standard client satisfies the interface with no adapter, and the same one-method contract appears as the `HttpRequestDoer` that `oapi-codegen` generates in Supabase's own Auth code.
+The interface is named `HTTPClient` with a single `Do` method, following AWS SDK v2's interface of the same name and shape. `Do` is chosen because `*http.Client` already has that method, so the standard client satisfies the interface with no adapter.
 
 ## No module is served from the repository root
 
@@ -222,10 +221,10 @@ Go can run on both sides of the trust boundary.
 A backend may deliberately choose a publishable key to stay inside Row Level Security as a least-privilege posture rather than reach for the RLS-bypassing secret key ([Understanding API keys](https://supabase.com/docs/guides/getting-started/api-keys)), and a Go program compiled to WebAssembly is as public as any browser app, where only a publishable key is safe.
 Not inspecting the key also keeps the SDK forward-compatible as key formats evolve.
 
-## The transport injects only the `apikey` header, never `Authorization`
+## The project key travels only on the `apikey` header, never on `Authorization`
 
 **What**:  
-HTTP requests have the `apikey` header but do not set `Authorization`.
+The transport sets `apikey` on every request and never sets `Authorization`.
 
 An `Authorization: Bearer <jwt>` header is populated only by the application - per request or by an optional auth integration - when it acts for a signed-in end user.
 It is never copied or otherwise derived from the project key.
@@ -236,22 +235,17 @@ Supabase's guidance is explicit - "Send publishable and secret keys on the `apik
 Mirroring the key onto both headers, as other SDKs do by default, is therefore correct only by landing inside that narrow exception - a coincidence, not a design.
 `apikey` alone produces the intended Postgres role with no precedence logic to reconcile (publishable is `anon`, publishable plus an end-user JWT on `Authorization` is `authenticated`, secret is `service_role`), and reserving `Authorization` for the end-user token draws the "what is calling" against "who is signed in" boundary cleanly at the transport, so a later per-request user token simply takes effect.
 
-This has been proven by probing against a live project, where the model held exactly: `apikey` alone drew ordinary PostgREST responses, the key on `Authorization` alone was reported as no API key at all and a non-JWT bearer beside a valid `apikey` was forwarded and rejected by PostgREST (`PGRST301`).
-The untested legacy-JWT path is a separately recorded accepted risk (see ["Legacy keys are not verified against the `apikey`-only transport, an accepted risk"](#legacy-keys-are-not-verified-against-the-apikey-only-transport-an-accepted-risk)).
-
 ## Legacy keys are not verified against the `apikey`-only transport, an accepted risk
 
 **What**:  
 This SDK is not tested against a legacy `anon` or `service_role` key.
-The `apikey`-only transport (see ["The transport injects only the `apikey` header, never `Authorization`"](#the-transport-injects-only-the-apikey-header-never-authorization)) is validated only against the contemporary `sb_publishable_...` and `sb_secret_...` keys.
+The transport is validated only against the contemporary `sb_publishable_...` and `sb_secret_...` keys.
 Whether a legacy `anon` JWT sent on the `apikey` header alone, with no `Authorization`, resolves to the `anon` role is left unverified and not promised.
 
 **Why**:  
-The reward is focus and speed: contemporary keys are current best practice and the only keys new projects receive [since 1 November 2025](https://supabase.com/changelog/29260-upcoming-changes-to-supabase-api-keys), so building and testing solely against them concentrates effort where it matters for every new consumer.
-
-The cost is a bounded uncertainty rather than a known defect: the legacy path may well work, since a legacy key's role claim rode the `Authorization` header and PostgREST ["switches into the anonymous role"](https://docs.postgrest.org/en/stable/references/auth.html) when a request carries no JWT, but "may well work" is not the definitive clarity our tested paths carry and we state the gap openly rather than spend effort closing it.
+Contemporary keys are current best practice and the only keys new projects receive [since 1 November 2025](https://supabase.com/changelog/29260-upcoming-changes-to-supabase-api-keys), so building and testing solely against them concentrates effort where it matters for every new consumer.
+The cost is a bounded uncertainty rather than a known defect: the legacy path may well work, since a legacy key's role claim rode the `Authorization` header and PostgREST ["switches into the anonymous role"](https://docs.postgrest.org/en/stable/references/auth.html) when a request carries no JWT, but it stays unverified.
 The exposure also shrinks on its own, because the same timeline deletes legacy keys at the end of 2026.
-Nothing is foreclosed: if a consumer need surfaces first, adding a legacy-key probe and verifying the path is a small, additive task.
 
 ## `SECURITY.md` and `CONTRIBUTING.md` are org-delegated, not repo-local
 
@@ -279,12 +273,11 @@ Every PR lands with its individual commits as ancestors of `main`, under a merge
 
 **Why**:  
 A squash merge keeps the granular history only as GitHub platform metadata (the PR's Commits tab, backed by hidden `refs/pull/N/head` refs), not in the repository: a fresh clone sees one commit per PR, and `git log`, `git blame` and `git bisect` cannot reach the individual steps.
-Merge commits keep that history in Git itself, portable to any clone or mirror and addressable by every Git tool, while GitHub-side PR metadata (review threads, per-commit checks) is identical under either strategy - so nothing is given up in exchange.
-The standard objection to merge commits - that intermediate commits are WIP noise which pollutes `main` and defeats `bisect` - does not apply under the working discipline here: every commit moves the codebase from one working state to another, so per-commit `bisect` and `blame` are strictly more capable, never noisier.
-The one-entry-per-PR reading that squash exists to provide also remains available on demand, as `git log --first-parent main` collapses the history to PR boundaries; squash has no inverse operation, since discarded ancestry cannot be recovered from the repository afterwards.
-Merge commits are therefore the superset while a single disciplined committer is the only author.
+Merge commits keep that history in Git itself, portable to any clone or mirror and addressable by every Git tool, while GitHub-side PR metadata (review threads, per-commit checks) is identical under either strategy.
+The standard objection to merge commits - that intermediate commits are WIP noise which pollutes `main` and defeats `bisect` - does not apply under the working discipline here: every commit moves the codebase from one working state to another.
+The one-entry-per-PR reading that squash exists to provide remains available through `git log --first-parent main`, and squash has no inverse, since discarded ancestry cannot be recovered from the repository afterwards.
 The trade-off accepted: the full log of `main` is busier than a squash log, and the clean-history guarantee rests on solo discipline rather than enforcement.
-When the repo opens to external contributions that guarantee weakens and the balance shifts, so this is revisited then; the change is cheap, as enabling squash is a repository setting that applies only to future merges and rewrites nothing.
+When the repo opens to external contributions that guarantee weakens, so this is revisited then - a cheap change, as enabling squash is a repository setting that applies only to future merges.
 
 ### No Conventional Commits in commit messages or PR titles
 
@@ -295,8 +288,8 @@ Commit messages and PR titles are ordinary well-formed Git messages - an imperat
 Conventional Commits is a machine-facing grammar whose purpose is to let release tooling infer version bumps and generate changelogs; with nothing released, no consumers and no release automation, no machine reads the prefixes and the grammar is pure ceremony.
 Its vocabulary is also semantically empty pre-release: a `BREAKING CHANGE` marker on a library nobody has ever depended on breaks no one, and SemVer itself defines major version zero as initial development in which anything may change at any time.
 Adopting the grammar now would also quietly pre-commit the release-tooling decision, which is deliberately open: progressive changelog updates curated as part of each PR remain on the table alongside commit-parsing tools like release-please, and the curated-changelog path needs no commit grammar at all.
-Waiting forecloses nothing, because commit-parsing tools read history forward from a configurable starting point (the last release tag, or a bootstrap SHA), so the convention can be adopted at the moment it gains a consumer without the pre-adoption history ever needing to conform.
-And if the house squash style is adopted at the same time, the convention collapses to well-formed PR titles alone - cheap to start paying then, pointless to pay now.
+Commit-parsing tools read history forward from a configurable starting point, so the convention can be adopted the moment it gains a consumer without the pre-adoption history ever needing to conform.
+If the house squash style is adopted at the same time, the convention collapses to well-formed PR titles alone.
 
 ## Agent guidance lives in `.agents/skills`, and a root `.gitignore` keeps other agent surfaces out
 
@@ -308,20 +301,16 @@ A root [`.gitignore`](.gitignore) aims to keep other agent entry points out, for
 How we equip AI coding agents is a concern about how this repository is worked on, not a decision about the SDK's code, so this decision record carries only the signpost and the reason the tree excludes what it does.
 The agent surface is deliberately singular: a second entry point, branded or neutral, would only duplicate the metadata the skill mechanism already loads at session start or drift from it over time (maintainability concern).
 
-## `sdk-compliance.yaml` is sparse, and has no CI gate yet
+## `sdk-compliance.yaml` is sparse
 
 **What**:  
 [`sdk-compliance.yaml`](sdk-compliance.yaml) declares only the canonical [`supabase/sdk`](https://github.com/supabase/sdk) capability ids this SDK actually implements, omitting those that would end up being listed as `not_implemented`.
-Unlike other SDK repositories, there is no `validate-capabilities.yml` in [`.github/workflows/`](.github/workflows/) calling a reusable compliance workflow.
+[`validate-capabilities.yml`](.github/workflows/validate-capabilities.yml) gates the declarations in CI through the canonical reusable Go compliance workflow from [`supabase/sdk`](https://github.com/supabase/sdk).
 
 **Why**:  
 The canonical tooling in `supabase/sdk` treats a missing id as `not_implemented` everywhere it matters (parity scoring, site generation, the CLI's own informational-only "not declared" listing), and its README says the file is sparse by design.
 A full declaration would be over 200 lines of mostly ceremony, and would rot the way an explicit default always does: as `supabase/sdk` adds, renames or retires ids over the time it takes to build this SDK, an untouched `not_implemented` line for a since-renamed id becomes an "unknown feature id" CI failure that has nothing to do with any change we made.
 A sparse file only ever names ids we've verified against the live matrix at the moment we implement them, so it can't go stale that way.
-
-No CI gate exists yet because `supabase/sdk` only hosts reusable compliance workflows for Swift, JavaScript, Python and Dart, each paired with a language-specific public-symbol extractor (the JS side uses TypeDoc, Dart has its own small `package:analyzer` tool).
-No such workflow or extractor exists for Go, so there is nothing to call into from this repo's CI today.
-When this gets added is TBC, especially given that this SDK repository is not yet open for public visibility.
 
 ## Compliance capability ids never appear in doc comments
 
@@ -364,15 +353,13 @@ A key may appear any number of times and insertion order is preserved.
 `map[string]string` was rejected outright, while `map[string][]string` (the shape of `url.Values`) was considered and passed over.
 
 **Why**:  
-A query string is an ordered multimap, and PostgREST's dialect gives repeated keys meaning: repeated filter keys AND together (`age=gte.18&age=lte.65` is exactly how the next block's `Gte("age", 18).Lte("age", 65)` serializes) and repeated `or=` groups combine.
+A query string is an ordered multimap, and PostgREST's dialect gives repeated keys meaning: repeated filter keys AND together (`age=gte.18&age=lte.65` is exactly how `Gte("age", 18).Lte("age", 65)` serializes) and repeated `or=` groups combine.
 `map[string]string` is the one shape that cannot represent valid PostgREST queries - a second filter on a column would silently overwrite the first.
 
-Every sibling SDK stores the same multimap shape: [`postgrest-js`](https://github.com/supabase/supabase-js/tree/master/packages/core/postgrest-js) appends to `URLSearchParams`, [`supabase-swift`](https://github.com/supabase/supabase-swift) appends `URLQueryItem`s to an array of pairs, [`postgrest-dart`](https://github.com/supabase/supabase-flutter/tree/main/packages/postgrest) appends via `queryParametersAll`, and [`supabase-py`](https://github.com/supabase/supabase-py/tree/v3) wraps a persistent map of key to vector of values whose `set` appends.
+The sibling SDKs store the same multimap shape, for example [`postgrest-js`](https://github.com/supabase/supabase-js/tree/master/packages/core/postgrest-js) appending to `URLSearchParams`.
 Between the two faithful shapes, the slice of pairs was preferred over `map[string][]string` because it keeps the model free of reference-typed fields: a plain struct copy is safe (pairs are immutable values; writes append after `slices.Clone`), whereas a map field aliases on copy, `maps.Clone` is shallow over the value slices, and one forgotten deep clone in a future `With*` method is a data race - the exact hazard the model exists to remove (supabase-py needed a third-party persistent-collections library to make the map shape safe; the slice gets the same guarantee from the stdlib).
 
-Keys that must not repeat, such as `select`, are enforced structurally in the public layer: `Select` consumes the `QueryBuilder` and returns a `FilterBuilder` with no `Select` method, so a duplicate is unrepresentable before it ever reaches the model.
-
-Singleton keys take replace-semantics through `WithParameterReplacing`, which `Limit` uses so that a repeated call replaces the earlier value - the last-write-wins behavior every sibling SDK implements, and the safe choice given PostgREST documents no behavior for a repeated limit key.
+Singleton keys take replace-semantics through `WithParameterReplacing`, which `Limit` uses so that a repeated call replaces the earlier value - the last-write-wins behavior the sibling SDKs implement, and the safe choice given PostgREST documents no behavior for a repeated limit key.
 
 Comma-separated list keys take join-semantics through `WithParameterJoining`, which `Order` uses so that repeated calls grow one `order` pair instead of repeating the key: PostgREST reads only the first `order` parameter for a query level and silently ignores the rest, so a repeated key would drop every term after the first call's.
 The ordering refinements extend the newest term through `WithParameterValueAppended`, whose plain string append is sound because the term grammar forbids commas inside a term, so the flat value's tail is always the newest term.
@@ -385,24 +372,12 @@ The remaining query characters - the commas, parentheses, dots, colons and aster
 
 **Why**:  
 `url.Values.Encode` is form-encoding: it escapes every byte outside the unreserved set and sorts pairs by key, so PostgREST queries render as `select=id%2Cname` noise in logs and tests, in an order no caller wrote, and measurably longer in a comma-dense dialect (three bytes per comma across select lists, in-lists and multi-column order values).
-RFC 3986 permits the sub-delimiters literally in a query, PostgREST URL-decodes before parsing - both spellings are identical to the server, as the sibling SDKs prove by shipping both - and PostgREST's documentation writes the literal form throughout, so readability, size and order fidelity are the only stakes and the writer buys all three.
-The re-sort this replaces was never a bug: PostgREST reads each parameter out by name, so cross-key order is semantically inert, and the orders it does assign meaning to - repetition and within-key sequence - were already preserved because `Encode` sorts keys only; insertion-order rendering makes the wire read as the model's documented order, nothing more.
+RFC 3986 permits the sub-delimiters literally in a query, PostgREST URL-decodes before parsing - both spellings are identical to the server, as the sibling SDKs demonstrate by shipping both - and PostgREST's documentation writes the literal form throughout, so readability, size and order fidelity are the only stakes.
+Cross-key order is semantically inert - PostgREST reads each parameter out by name - so insertion-order rendering is for the human reading the wire, not the server.
 `+` and `;` are escaped despite being sub-delimiters because form-decoders - PostgREST's own query parsing included - read `+` as a space, and Go's `url.ParseQuery` rejects `;` outright.
+A space renders `%20` rather than form-encoding's `+` because `%20` is the uniform unsafe-octet rule's own output and the only spelling that decodes to a space under both RFC 3986 percent-decoding and form-decoding, where `+` would need a special-case branch borrowed from the form-encoding family ([supabase-swift pins the same spelling](https://github.com/supabase/supabase-swift/blob/ebef170a4a6820d064e5909dd4f54e4341f12eb5/Tests/PostgRESTTests/PostgrestTransformBuilderTests.swift#L34)).
 `RawQuery` is the documented home for pre-encoded query text and round-trips byte-for-byte through `url.Parse`, so the writer composes with `http.NewRequestWithContext` without re-encoding.
 The escaper is octet-oriented rather than rune-oriented because percent-encoding is defined on octets (RFC 3986 section 2.5's UTF-8-then-escape rule), so any string renders losslessly - arbitrary non-UTF-8 bytes included - where a rune-based walk would silently corrupt invalid sequences to U+FFFD.
-
-## A space renders %20, never form-encoding's +
-
-**What**:  
-`escapeQueryComponent` percent-encodes a space as `%20`.
-It never emits `+`, which is data on this wire and always travels as `%2B`.
-
-**Why**:  
-Spaces genuinely occur in these queries - quoted identifiers such as `"full name"` are a promised `Select` path - and both spellings decode to a space at PostgREST, which parses its query string with http-types' plus-replacing decoder ("It decodes '+' characters to ' '" - `HTTP.parseQueryReplacePlus True`, [`QueryParams.hs:157`](https://github.com/PostgREST/postgrest/blob/426e15bbb4b03ff041fb6b4bc16694b3fa094fcd/src/library/PostgREST/ApiRequest/QueryParams.hs#L157)), so the choice is about which encoding family the renderer belongs to, not correctness against this server.
-`%20` is the uniform unsafe-octet rule's own output, where `+` would need a dedicated special-case branch importing the one convention that belongs to form-encoding (the WHATWG form-urlencoded serializer: "0x20 (SP), then append U+002B (+)", [URL Standard](https://url.spec.whatwg.org/#concept-urlencoded-serializer)) into an RFC 3986 renderer.
-`%20` is also the only decoder-invariant spelling: it means a space under both RFC 3986 percent-decoding and form-decoding, while `+` means a space only under form-decoding and is a literal plus under RFC 3986 ([section 2.2](https://www.rfc-editor.org/rfc/rfc3986#section-2.2)).
-Precedent agrees where a query encoding must be unambiguous: supabase-swift pins the same quoted-identifier case as `%22first%20name%22` ([`PostgrestTransformBuilderTests.swift:34`](https://github.com/supabase/supabase-swift/blob/ebef170a4a6820d064e5909dd4f54e4341f12eb5/Tests/PostgRESTTests/PostgrestTransformBuilderTests.swift#L34)) and AWS SigV4's canonical request rules state "The space character is a reserved character and must be encoded as \"%20\" (and not as \"+\")" ([Create a signed request](https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html)).
-The `+` spelling was rejected for the extra branch it demands, the decoder-dependence it retains for one character and the divergence from the sibling norm this rendering already follows - its only return would have been one fewer flipped pin in the tests.
 
 ## Builder phases are distinct concrete types (typestate); embedding only narrows, interfaces only at the terminals
 
@@ -414,11 +389,10 @@ These wrapper structs have identical definitions on purpose: a builder type's id
 
 **Why**:  
 The types encode the phase of the chain, so illegal chains are compile errors: `Select` twice is unrepresentable, because `Select` consumes the `QueryBuilder` and `FilterBuilder` has no `Select`.
-Every sibling SDK accepts the double call and resolves it silently, last write wins (postgrest-js `searchParams.set('select', ...)`, supabase-swift `appendOrUpdate`, postgrest-dart `overrideSearchParams`, supabase-py via inheritance).
-They re-expose select after a verb because mutations need a "return these columns" variant, which this SDK spells as the terminal mutation builder's `Returning`, with replace semantics.
+The sibling SDKs accept the double call and resolve it silently, last write wins (postgrest-js `searchParams.set('select', ...)`).
 
 Interface-typed returns would hide the fluent surface from godoc and autocomplete without buying substitutability we need, so chain methods return concrete types and the read functions instead accept the sealed `Query` interface - interfaces in, concrete types out, the posture Google's Go style guidance names outright, with the interface living in the package that consumes query values.
-A type parameter no method signature mentions is inert - `Query[Instrument]` and `Query[Section]` would define identical type sets and so be the same type, letting a wrong-row `Collect[Section](instrumentsQuery)` compile while `Row` inference fails at every call site - so the row type is bound where the read path already has a genuine method, `state`'s return type, keeping the public interface free of never-called members (a dedicated phantom anchor method was drafted and rejected for exactly that deadness).
+A type parameter no method signature mentions is inert - `Query[Instrument]` and `Query[Section]` would define identical type sets and so be the same type, letting a wrong-row `Collect[Section](instrumentsQuery)` compile while `Row` inference fails at every call site - so the row type is bound where the read path already has a genuine method, `state`'s return type, keeping the public interface free of never-called members (a dedicated phantom anchor method was rejected for exactly that deadness).
 Inference through interface method signatures is defined behavior since Go 1.21, below the module floor.
 The mockability seam remains the injected HTTP client, not the builders.
 
@@ -434,9 +408,8 @@ A bare `From` sends no `select` parameter at all, while `Select` narrows the pro
 **Why**:  
 PostgREST does not require `select` on a read: its reference marks the parameter optional with "The default is `*`, meaning all columns" ([Vertical Filtering](https://docs.postgrest.org/en/latest/references/api/tables_views.html#vertical-filtering)) and its horizontal-filtering examples carry none, so a mandatory `Select("")` for the all-columns case would be SDK ceremony the wire never asks for.
 The one deep reason the reference SDK makes `select()` central does not translate to Go: postgrest-js infers the TypeScript result type from the select string (`GetResult`), where this SDK names the decode type at `From[Row]` before `Select` is ever reachable.
-What is not said is not sent - the ordering entry's principle - so the absent parameter relies on the server's documented `*` default rather than restating it, and `Select("")` keeps its documented `select=*` meaning because argument values, unlike chain steps, cannot be policed by the type system anyway (`Select("*")` proves as much).
-Sibling behavior marks the safe boundary: postgrest-dart's dispatcher can be awaited through inheritance while its HTTP method is still null, forcing a runtime `ArgumentError`, whereas supabase-swift bakes `.get` into the request at `from()` and its inherited `execute()` serves the select-less GET successfully - opening the boundary is sound exactly when the method is fixed at `From`, as this SDK's request model does.
-The write verbs sit where their inputs demand: `Insert` on `QueryBuilder`, where any promoted method closes the verb window the same way it closes the projection window, and `Update` on `FilterBuilder`, after the row-choosing filters.
+The absent parameter relies on the server's documented `*` default rather than restating it, and `Select("")` keeps its documented `select=*` meaning because argument values, unlike chain steps, cannot be policed by the type system.
+Opening the select-less boundary is sound exactly when the HTTP method is already fixed, as it is at this SDK's `From` (supabase-swift bakes `.get` in at `from()` and serves the select-less GET, where postgrest-dart leaves the method null and pays with a runtime `ArgumentError`).
 
 ## Builder state serializes immediately into the request model
 
@@ -445,7 +418,7 @@ Every builder method serializes its effect into the internal request model at ca
 Builders hold no structured intermediate state (no columns, filters or limit fields), and the read functions' shared `execute` path performs no assembly beyond handing the model a base URL.
 
 **Why**:  
-The wire format is the canonical state in every sibling SDK - postgrest-js mutates `URLSearchParams` inside each method, supabase-swift appends `URLQueryItem`s, postgrest-dart rewrites the `Uri`, supabase-py updates its `URLQuery` - so behavior parity with the reference implementation is auditable call by call: our `Select` does what theirs does, at the same moment.
+The wire format is the canonical state in the sibling SDKs (postgrest-js mutates `URLSearchParams` inside each method), so behavior parity with the reference implementation is auditable call by call: our `Select` does what theirs does, at the same moment.
 A structured representation assembled at execution time would be a second source of truth whose serializer must track the reference forever, for no validation gain: ordering rules ("X not before/after Y") are enforced earlier and stronger by the typestate split, and value-level conflict rules, when a concrete one arrives, can read the model through a narrow predicate (a `HasParameter`-style query added then) - normalization loses no state a known rule needs.
 The only information call-time serialization erases is which method wrote a pair; no PostgREST rule branches on that provenance, and the siblings validate almost nothing themselves, delegating conflicts to PostgREST's own errors, which this SDK surfaces as `*Error`.
 
@@ -455,7 +428,7 @@ The only information call-time serialization erases is which method wrote a pair
 `FilterBuilder.Order(column)` writes the bare column as a new order term and returns `OrderedFilterBuilder`, which embeds `FilterBuilder` and adds `Descending` and `NullsFirst`. `Descending` returns `OrderedDescendingFilterBuilder`, which adds only `NullsLast`, and the null-placement methods return the plain `FilterBuilder`. Each state offers only departures from what the term already implies, direction strictly before nulls, and every refinement appends its token to the newest order term. A refinement restating a server default (`NullsLast` while ascending, `NullsFirst` once descending) has no method, so each direction and null-placement combination has exactly one incantation. `Order` itself takes no direction or null-placement parameter.
 
 **Why**:  
-An order term's programmable space is two independent binary axes - direction and null placement - and encoding the remaining choices in the returned type makes every meaningless sequence a compile error instead of a runtime ruling: a duplicated `Descending`, contradictory null placements and nulls-before-direction do not build, and a default-restating spelling does not exist, so no combination has two spellings - the same discipline the phase types already apply to a second `Select`. Direction-before-nulls is what keeps every refinement a plain string append onto already-serialized state; a commutative surface would need the request model to parse and reorder the term it wrote, against the serialize-immediately decision. The alternatives each answered the two axes worse: a four-value enum (`Order("name", Descending)`) was the runner-up with zero new types and untouched terminals, but it spells the ordering as an argument rather than chain steps and its un-suffixed names silently carry SQL's coupled null defaults where the postfix methods surface them as explicit, documented steps; bare boolean pairs are unreadable at call sites; a two-boolean struct's nulls zero value silently diverges from SQL's descending default; variadic tokens re-admit the contradictions the typestate forbids. What is not said is not sent: an unrefined axis relies on the server's documented defaults, and each refinement method documents the placement it produces.
+An order term's programmable space is two independent binary axes - direction and null placement - and encoding the remaining choices in the returned type makes every meaningless sequence a compile error instead of a runtime ruling: a duplicated `Descending`, contradictory null placements and nulls-before-direction do not build, and a default-restating spelling does not exist, so no combination has two spellings. Direction-before-nulls keeps every refinement a plain string append onto already-serialized state, where a commutative surface would need the request model to parse and reorder the term it wrote. The alternatives each answered the two axes worse: a four-value enum (`Order("name", Descending)`) was the runner-up with zero new types and untouched terminals, but it spells the ordering as an argument rather than chain steps and its un-suffixed names silently carry SQL's coupled null defaults where the postfix methods surface them as explicit, documented steps; bare boolean pairs are unreadable at call sites; a two-boolean struct's nulls zero value silently diverges from SQL's descending default; variadic tokens re-admit the contradictions the typestate forbids. An unrefined axis relies on the server's documented defaults.
 
 ## The `Range` modifier is inclusive at both ends and compiles onto PostgREST's `limit` and `offset`
 
@@ -463,7 +436,7 @@ An order term's programmable space is two independent binary axes - direction an
 `FilterBuilder.Range(from, to)` narrows the result to the rows at zero-based positions `from` through `to` inclusive, serialized immediately as `offset=from` and `limit=to-from+1` through the request model's replace semantics on both keys. A later Range replaces both pairs, Range and Limit replace each other's row cap in either order and a start offset outlives a later Limit. Bounds are computed verbatim with no validation: `Range(2, 1)` sends `limit=0` and requests zero rows, anything smaller sends a negative cap for the server to reject, and a negative `from` is forwarded untouched. There is no half-open spelling, no standalone Offset method and no referenced-table parameter.
 
 **Why**:  
-The zero-based inclusive contract is family-wide - every sibling SDK computes `offset=from` and `limit=to-from+1` with set-semantics on both keys, and the Supabase documentation teaches `range(0, 9)` returns ten rows - so a half-open Go spelling in the slice tradition would silently return one fewer row to anyone porting a documented example, an invisible off-by-one this SDK refuses to create; the doc comment carries the inclusivity and the arithmetic instead. PostgREST's Range-header mechanism carries the same information but no sibling uses it, it cannot address embedded resources and it would open a second serialization surface beside the query-string model. The Limit interplay is not bespoke code: both methods write the singleton `limit` key through `WithParameterReplacing`, so last-cap-wins falls out of the multimap decision, exactly the observable contract the sibling SDKs pin in their tests. A typestate exclusion of a second cap writer was considered and passed over: caps have no grammar to enforce (unlike direction-before-nulls), and a capped state would have to re-expose the whole filter surface for one unrepresentable-repeat guarantee the family universally spells as last-write-wins. A standalone Offset method exists only in supabase-py, has no capability id in the canonical matrix and adds nothing Range does not express. The referenced-table variant is deferred to the block that introduces relationship embedding, where Order, Limit and Range need one uniformly spelled referenced-table story rather than three ad-hoc ones.
+The zero-based inclusive contract is family-wide (the sibling SDKs compute `offset=from` and `limit=to-from+1` with set-semantics on both keys, and the Supabase documentation teaches `range(0, 9)` returns ten rows), so a half-open Go spelling in the slice tradition would silently return one fewer row to anyone porting a documented example - an invisible off-by-one this SDK refuses to create. PostgREST's Range-header mechanism carries the same information but no sibling uses it, it cannot address embedded resources and it would open a second serialization surface beside the query-string model. The Limit interplay is not bespoke code: both methods write the singleton `limit` key through `WithParameterReplacing`, so last-cap-wins follows from replace semantics - exactly the observable contract the sibling SDKs pin in their tests. A typestate exclusion of a second cap writer was considered and passed over: caps have no grammar to enforce (unlike direction-before-nulls), and a capped state would have to re-expose the whole filter surface for one unrepresentable-repeat guarantee the sibling family spells as last-write-wins. A standalone Offset method exists only in supabase-py, has no capability id in the canonical matrix and adds nothing Range does not express. The referenced-table variant is deferred to arrive with relationship embedding, so Order, Limit and Range get one uniformly spelled referenced-table story rather than three ad hoc ones.
 
 ## No `Or`/`And` methods - `RawLiteralCondition` is the escape hatch for logical operators
 
@@ -483,15 +456,15 @@ Execution happens only in package-level generic functions - `Collect(ctx, client
 **Why**:  
 Naming the row type at `From[Row]` lets every read function infer it like [`slices.Collect`](https://pkg.go.dev/slices#Collect), keeps package-level query variables typed so reuse sites cannot diverge and gives future write verbs compile-checked payloads (`Insert(rows ...Row)`), whereas explicit instantiation (pgx's [`CollectRows[T]`](https://pkg.go.dev/github.com/jackc/pgx/v5#CollectRows), sqlc's per-query structs) repeats an unchecked bracket at every read site.
 Typing is per-query, never per-table: `select` is a projection language, so the row shape belongs to the query (a second shape is another `From[U]`), and a per-table registry would centralize a binding Go can never check against the selected columns.
-The accepted costs - `Row` is a phantom threading through builders whose state never depends on it, and a finished query cannot fork into differently-typed decodes - stay shallow: an in-package `Retype[U](query)` is purely additive ([partial type argument lists](https://go.dev/ref/spec#Instantiations)) and `From[json.RawMessage]` covers raw rows, which is also why no `any`-typed `Execute` front door exists.
-Execution is a package-level function - methods cannot declare type parameters below go1.27, the module floor - context-first per the standard's context mandate, following `slices.Collect` and [`iter.Pull`](https://pkg.go.dev/iter#Pull) as free generic functions over values (stripe-go's range-over-`Seq2` lists and openai-go's auto-paging extend the shape to paging), and array-ness as the return contract makes destination-pointer questions (nil-ness, preallocation) unrepresentable.
+The accepted costs - `Row` is a phantom threading through builders whose state never depends on it, and a finished query cannot fork into differently-typed decodes - stay shallow: an in-package `Retype[U](query)` is purely additive ([partial type argument lists](https://go.dev/ref/spec#Instantiations)) and `From[json.RawMessage]` covers raw rows.
+Execution is a package-level function - generic methods need go1.27, above the module floor - context-first per the standard's context mandate, following `slices.Collect` and [`iter.Pull`](https://pkg.go.dev/iter#Pull) as free generic functions over values, and array-ness as the return contract makes destination-pointer questions (nil-ness, preallocation) unrepresentable.
 `Response` stays a plain exported-field record because it is returned by value and holds only scalars, so consumers hold independent copies and no aliasing exists to defend against, while unexported fields would stop consumers fabricating a `Response` in their own test doubles.
 This argument is scalar-dependent: a reference-typed field (headers, raw body) must not be added to `Response` without revisiting it.
 
 ## `postgrest.Error` carries the parsed PostgREST body plus HTTP status
 
 **What**:  
-Non-2xx PostgREST responses become `*postgrest.Error` with exported `HTTPStatus`, `Code`, `Message`, `Details`, `Hint` fields, matched via `errors.As`, plus an `Unwrap` returning an (currently usually nil) underlying cause.
+Non-2xx PostgREST responses become `*postgrest.Error` with exported `HTTPStatus`, `Code`, `Message`, `Details`, `Hint` fields, matched via `errors.As`, plus an `Unwrap` returning a usually-nil underlying cause.
 Unparsable error bodies are preserved raw in `Message`.
 Transport, request-building and decode failures are wrapped `fmt.Errorf("postgrest: ...: %w", err)` values, not `*Error`.
 
@@ -513,15 +486,15 @@ The CI job runs the same `["1.25", "stable"]` matrix as build-and-test; `go vet 
 The CLI cannot be installed with `go install` at v2 for two independent reasons: its module (`github.com/supabase/cli`) now lives in `apps/cli-go/` while the repo root carries no `go.mod`, so the module proxy resolves that path only to the stale v1 root-module history rather than the v2 code, and its `go.mod` carries local `replace` directives, which `go install pkg@version` refuses outright.
 It is fetched instead as the pinned release binary, verified against a committed SHA-256 and installed into Go's own bin directory (GOBIN, else GOPATH/bin) - a writable, on-PATH location outside the checkout, so a read-only working tree is fine - the same first-party curl-and-checksum pattern as the local Go toolchain install.
 npm was rejected as the channel even though it pins equally well, because bundling the CLI into `tools/node` conflated it with the unrelated cspell tool - every `npm ci` pulling both - and forced a node_modules write into the checkout, whereas cspell stays on npm as a genuine JS tool whose deep dependency tree is what a lockfile exists for.
-The auth service stays enabled despite no test calling it, because `supabase status -o env` emits the stack's API keys (PUBLISHABLE_KEY included) only while auth is enabled - the harness reads its credentials from that output, consuming PUBLISHABLE_KEY exactly as the CLI repository's own e2e harness and the Swift SDK's integration tests do (ANON_KEY is deprecated upstream).
-Schema lives in `migrations/` and only data in `seed.sql` because the CLI applies the seed as a single batch whose statements are prepared before earlier ones execute, so DDL cannot ride with inserts that depend on it (SQLSTATE 42P01 on a fresh stack) - the same layout as the CLI repository's own e2e project and the Swift SDK's.
-The script runs the CLI against a disposable `mktemp -d` copy of `integration/` because the CLI writes scratch state (`supabase/.branches`, `supabase/.temp`) into whatever project directory it runs: the copy keeps committed trees pristine by construction (no scratch to gitignore, unlike upstream projects that gitignore it inside a writable tree) and lets the harness run from a read-only checkout, while `stop` still finds the stack because the CLI identifies it by `config.toml`'s `project_id`, not by path.
-Disabling every other unused service attacks the block's stated risk head-on: this harness's startup time and flakiness set the floor for all future CI.
+The auth service stays enabled despite no test calling it, because `supabase status -o env` emits the stack's API keys (PUBLISHABLE_KEY included) only while auth is enabled - the harness reads its credentials from that output, consuming PUBLISHABLE_KEY exactly as the CLI repository's own e2e harness does (ANON_KEY is deprecated upstream).
+Schema lives in `migrations/` and only data in `seed.sql` because the CLI applies the seed as a single batch whose statements are prepared before earlier ones execute, so DDL cannot ride with inserts that depend on it (SQLSTATE 42P01 on a fresh stack) - the same layout as the CLI repository's own e2e project.
+The script runs the CLI against a disposable `mktemp -d` copy of `integration/` because the CLI writes scratch state (`supabase/.branches`, `supabase/.temp`) into whatever project directory it runs: the copy keeps committed trees pristine by construction and lets the harness run from a read-only checkout, while `stop` still finds the stack because the CLI identifies it by `config.toml`'s `project_id`, not by path.
+Every other unused service is disabled because this harness's startup time and flakiness set the floor for all future CI.
 A name-anchored `-run` filter (`^TestIntegration`) would spare the unit re-run, but its failure mode is silence: a tagged test named outside the anchor compiles cleanly, never runs and lets the suite pass vacuously, whereas the re-run it prevents is hermetic and costs seconds.
 The dedicated test-only package makes the consumer stance structural - every test package is external, so unexported access never exists to lose - and keeps the integration namespace decoupled from the unit test files, so suite selection never depends on function names and names never collide across suites.
-The floor leg exists because the published `go 1.25` directive is a compatibility promise to consumers, and only a live-stack run proves that promise end to end on the floor toolchain; the legs run in parallel so wall-clock cost is unchanged.
+The floor leg exists because only a live-stack run exercises the consumer floor end to end on the floor toolchain, and the legs run in parallel so wall-clock cost is unchanged.
 
-## `X-Client-Info` resolution is proven by an out-of-tree consumer program
+## `X-Client-Info` resolution is verified by an out-of-tree consumer program
 
 **What**:  
 The `telemetrytest/` module is a stand-in consumer: it requires the SDK modules at fabricated, self-labeled versions (`v0.999.1-fabricated` supabase, `v0.999.2-fabricated` postgrest), `replace`s them to the local working tree and its main program asserts the exact `X-Client-Info` value each entry point sends to a local HTTP server.
@@ -538,7 +511,7 @@ It must be a plain program because `go build` and `go run` stamp dependency reco
 Workspace membership would defeat the vantage from the other side - a workspace build supplies the SDK modules as local source with no resolvable versions - so the module stays out of `go.work` and the script forces `GOWORK=off`.
 The fabricated versions are distinct from every sentinel the header can otherwise carry (`(devel)` in-tree, `0.0.0` without build information), so a pass is unambiguous provenance, and their `-fabricated` prerelease label keeps the header values in check output from reading as release claims.
 Each must outrank every other require of the same module path in this build so minimal version selection keeps it as the selected, recorded version: `0.999.x` outranks the entire real `v0` series and deliberately loses to the first real `v1` require, so the fixture fails loudly at GA instead of surviving it silently.
-The floor leg exists because the header is consumer-facing behavior and `go 1.25` is the consumer contract.
+The floor leg exists because the header is consumer-facing behavior, so it must hold at the consumer floor.
 The GOPATH leg exists because module-record-free binaries are otherwise not exercised at all - every matrix toolchain is now 1.24 or later, so even test binaries carry module records - while GOPATH mode produces them deterministically on every toolchain.
 The expected versions come from the environment rather than from the binary's own build information, which would assert whatever branch actually ran and pass even when a leg lands in the wrong branch.
 
