@@ -582,33 +582,29 @@ JS and Flutter needed explicit options only because `fetch` and Dart's `http` la
 ## Mutations are verb methods with compile-checked payloads, sharing one terminal `MutationBuilder` and its `Returning` projection
 
 **What**:  
-`Insert(rows ...T)` is a method on `QueryBuilder[T]`, the root `From[T]` returns, taking rows of the query's own row type `T`, marshalled with `encoding/json` and always sent as one JSON array - a single row, many rows or, for no arguments, the empty array `[]`, never `null`.
+`Insert(rows ...T)` is a method on `QueryBuilder[T]`, always sent as one JSON array - a single row, many rows or, for no arguments, the empty array `[]`, never `null`.
 No client-side column union is computed for a bulk insert: each row sends exactly the keys its own marshalling produces.
-Every write verb returns the same terminal `MutationBuilder[T]`, whose one shaping method, `Returning(columns)`, writes the `select` parameter with replace semantics where an empty string means every column, shaping only what a representation-returning execution reports.
+Every write verb returns the same terminal `MutationBuilder[T]`, whose one shaping method, `Returning(columns)`, writes the `select` parameter with replace semantics where an empty string means every column.
 
 **Why**:  
-`From[Row]("table")` is the one place the table and row type are named, so writes belong on the builders it produces, and typing insert's payload as `T` makes the row shape compile-checked against the query's declared type - the payoff the read path set up by naming `Row` at `From`.
+`From[Row]("table")` is the one place the table and row type are named, so writes belong on the builders it produces.
 Sending a variadic as one array gives the single-row and bulk cases one wire shape, where an empty array is the server's to rule on rather than a no-op the SDK invents.
-A client-side column union is refused because it would send keys a row never named, silently overriding the table's column defaults - what is not said is not sent, so a ragged batch is the server's PGRST102 to raise.
-One terminal type serves every verb because every write's end state is identical - a fully-specified mutation whose only remaining choice is what a representation-returning execution reports - and a builder type's identity is its method set (per the typestate entry), which is the same for all of them.
-`Returning` is named for PostgreSQL's own `RETURNING`, which is what PostgREST applies here, and is deliberately not a `Select`: on a write "select" would misname the act, and whether any representation returns at all is an execution-layer choice, not builder state.
+A client-side column union is refused because it would send keys a row never named, silently overriding the table's column defaults - what is not said is not sent, so a ragged batch is the server's `PGRST102` to raise.
+One terminal type serves every verb because every write's end state is identical - a fully-specified mutation whose only remaining choice is what a representation-returning execution reports.
+`Returning` is named to align with PostgreSQL's own `RETURNING`, deliberately not a `Select`: on a write "select" would misname the act, and whether any representation returns at all is an execution-layer choice, not builder state.
 
-## Whether a mutation returns its rows is chosen at execution: `Execute` for none, a read function for the affected rows
+## Whether a mutation returns its rows is chosen at execution
 
 **What**:  
-A mutation builder carries no return-preference state.
+A `MutationBuilder` carries no return-preference state.
 `Execute(ctx, client, mutation)` applies the write and decodes nothing, so the request takes PostgREST's default minimal return and no rows travel back.
-Passing the same builder to a read function - `Collect`, `CollectSingle` or `CollectSingleMaybe` - instead adds `Prefer: return=representation` at execution and decodes the affected rows, exactly as it decodes a read.
-The injection is gated on the HTTP method, so a GET or HEAD never receives the preference and reads stay byte-identical on the wire.
+Passing the same builder to a read function - `Collect`, `CollectSingle` or `CollectSingleMaybe` - instead adds `Prefer: return=representation` at execution and decodes the affected rows.
 `Execute` accepts a sealed `Mutation[Row]` interface embedding `Query[Row]` behind a second unexported marker, so only write builders reach it and a read passed to `Execute` is a compile error.
 
 **Why**:  
-A write request is identical whether or not its rows come back - only the `Prefer` header differs - so the choice belongs beside the choice of decoding, which already distinguishes the executing functions, not in the builder's state.
-This makes a body-less mutation reaching a decode unrepresentable: the function that decodes is the function that asked for the body.
-Minimal by default matches the PostgREST server default and the JS, Flutter and Swift-typed SDKs, and never transfers rows a caller does not read - the representation is opt-in through choosing `Collect` over `Execute`.
-Injecting the preference at execution, the layer that already sets `Accept` and `X-Retry-Count`, keeps the request model carrying only what the builder said and keeps every read's wire unchanged.
-`Mutation` extends `Query` rather than the reverse because the read-function injection already made every builder decodable, so the only nonsense left to forbid is executing a read without body, which the sealed marker turns into a compile error.
-This is also why the row-level-security interaction is a pure function of the executing function: an insert whose role may not SELECT succeeds through `Execute` yet fails through `Collect` with PostgreSQL's 42501, because only the representation path emits the RETURNING that needs the SELECT right.
+A write request is identical whether or not its rows come back - only the `Prefer` header differs - so the choice belongs beside the choice of decoding (executing functions), not in the builder's state.
+Minimal by default matches the PostgREST server default, and never transfers rows a caller does not read - the representation is opt-in through choosing `Collect` over `Execute`.
+This is also why the row-level-security interaction is a pure function of the executing function: an insert whose role may not `SELECT` succeeds through `Execute` yet fails through `Collect` with PostgreSQL's `42501`, because only that representation path emits the `RETURNING` that needs the `SELECT` right.
 
 ## Update changes are an opaque `any` payload marshaled to one JSON object
 

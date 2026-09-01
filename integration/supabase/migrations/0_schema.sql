@@ -196,13 +196,10 @@ alter table public."🦁 emotion" enable row level security;
 create policy "anonymous can read 🦁 emotion" on public."🦁 emotion" for select to anon using (true);
 grant select on table public."🦁 emotion" to anon;
 
--- A deliberately slow relation for proving client-side timeouts: each read
--- sleeps server-side for two seconds before yielding the instruments rows
+-- A deliberately slow relation for proving client-side timeouts
 -- (pg_sleep sits in the from list as a function scan, so it runs once per
 -- statement, not once per row). Views cannot enable row level security of
--- their own, so security_invoker makes reads run with the caller's rights
--- and the anon path still traverses the instruments policy like every table
--- here.
+-- their own, so security_invoker makes reads run with the caller's rights.
 create view public.slow_instruments with (security_invoker = true) as
     select instruments.* from public.instruments, pg_sleep(2);
 grant select on table public.slow_instruments to anon;
@@ -223,10 +220,10 @@ create policy "anonymous full access to repertoire" on public.repertoire
 grant select, insert, update, delete on table public.repertoire to anon;
 grant usage on sequence public.repertoire_id_seq to anon;
 
--- Insert-only for anon: proves the documented RLS interaction where a mutation
--- succeeds with a minimal return yet fails with 42501 when a representation is
--- requested, because the RETURNING a representation needs requires SELECT
--- rights the anon role does not hold.
+-- Insert-only for anon: allows us to test the documented RLS interaction where
+-- a mutation succeeds with a minimal return yet fails with 42501 when a
+-- representation is requested, because the RETURNING a representation needs
+-- requires SELECT rights the anon role does not hold.
 create table public.suggestion_box (
     id integer not null primary key,
     suggestion text not null
