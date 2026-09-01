@@ -4,6 +4,8 @@ package request_test
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -20,13 +22,18 @@ func mustParseURL(t *testing.T, raw string) *url.URL {
 	return parsed
 }
 
-func requestURL(t *testing.T, r request.Request) string {
+func assemble(t *testing.T, r request.Request) *http.Request {
 	t.Helper()
 	httpRequest, err := r.HTTPRequest(t.Context(), mustParseURL(t, "https://example.test/rest/v1"))
 	if err != nil {
 		t.Fatalf("HTTPRequest: %v", err)
 	}
-	return httpRequest.URL.String()
+	return httpRequest
+}
+
+func requestURL(t *testing.T, r request.Request) string {
+	t.Helper()
+	return assemble(t, r).URL.String()
 }
 
 // TestWithParameterDoesNotMutateReceiver pins the model's immutability
@@ -541,5 +548,149 @@ func TestTableNameEscaping(t *testing.T) {
 				t.Errorf("URL = %q, want %q", got, want)
 			}
 		})
+	}
+}
+
+// TestWithMethodReplacesMethodWithoutMutatingReceiver pins that WithMethod
+// sets the method the assembled request sends and leaves the receiver
+// unchanged, so the GET that New opens forks into a write independently.
+func TestWithMethodReplacesMethodWithoutMutatingReceiver(t *testing.T) {
+	base := request.New(http.MethodGet, "instruments")
+	post := base.WithMethod(http.MethodPost)
+
+	if got, want := assemble(t, base).Method, http.MethodGet; got != want {
+		t.Errorf("base method = %q, want %q (receiver was mutated by a fork)", got, want)
+	}
+	if got, want := assemble(t, post).Method, http.MethodPost; got != want {
+		t.Errorf("forked method = %q, want %q", got, want)
+	}
+}
+
+// TestWithBody pins the body contract: a Request with a body carries the exact
+// bytes under the JSON media type PostgREST requires on a write, and a Request
+// with no body carries neither. A nil body is no body.
+func TestWithBody(t *testing.T) {
+	testCases := []struct {
+		name            string
+		perform         func(request.Request) request.Request
+		wantBodyPresent bool
+		wantBody        string
+		wantContentType string
+	}{
+		{
+			name:            "no body",
+			perform:         func(r request.Request) request.Request { return r },
+			wantBodyPresent: false,
+			wantContentType: "",
+		},
+		{
+			name:            "object array",
+			perform:         func(r request.Request) request.Request { return r.WithBody([]byte(`[{"id":1}]`)) },
+			wantBodyPresent: true,
+			wantBody:        `[{"id":1}]`,
+			wantContentType: "application/json",
+		},
+		{
+			name:            "empty array from zero rows",
+			perform:         func(r request.Request) request.Request { return r.WithBody([]byte("[]")) },
+			wantBodyPresent: true,
+			wantBody:        "[]",
+			wantContentType: "application/json",
+		},
+		{
+			name:            "nil body is no body",
+			perform:         func(r request.Request) request.Request { return r.WithBody(nil) },
+			wantBodyPresent: false,
+			wantContentType: "",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			assembled := assemble(t, testCase.perform(request.New(http.MethodPost, "instruments")))
+			switch {
+			case testCase.wantBodyPresent && assembled.Body == nil:
+				t.Fatal("request carries no body, want one")
+			case !testCase.wantBodyPresent && assembled.Body != nil:
+				t.Error("request carries a body, want none")
+			case testCase.wantBodyPresent:
+				body, err := io.ReadAll(assembled.Body)
+				if err != nil {
+					t.Fatalf("read body: %v", err)
+				}
+				if got := string(body); got != testCase.wantBody {
+					t.Errorf("body = %q, want %q", got, testCase.wantBody)
+				}
+			}
+			if got := assembled.Header.Get("Content-Type"); got != testCase.wantContentType {
+				t.Errorf("Content-Type = %q, want %q", got, testCase.wantContentType)
+			}
+		})
+	}
+}
+
+// TestWithBodyCopiesInput pins that WithBody snapshots the caller's slice, so a
+// later change to that slice cannot alter what the Request sends.
+func TestWithBodyCopiesInput(t *testing.T) {
+	payload := []byte("[1]")
+	req := request.New(http.MethodPost, "instruments").WithBody(payload)
+	payload[1] = '9' // the caller changes its slice after handing it over
+
+	body, err := io.ReadAll(assemble(t, req).Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if got, want := string(body), "[1]"; got != want {
+		t.Errorf("body = %q, want %q (WithBody did not copy its input)", got, want)
+	}
+}
+
+// TestWithErrorShortCircuitsHTTPRequest pins that a deferred build failure is
+// returned by HTTPRequest before any assembly and in place of any request, and
+// that it takes precedence over an error assembly would itself raise.
+func TestWithErrorShortCircuitsHTTPRequest(t *testing.T) {
+	sentinel := errors.New("deferred build failure")
+
+	httpRequest, err := request.New(http.MethodPost, "instruments").
+		WithError(sentinel).
+		HTTPRequest(t.Context(), mustParseURL(t, "https://example.test/rest/v1"))
+	if !errors.Is(err, sentinel) {
+		t.Errorf("err = %v, want %v", err, sentinel)
+	}
+	if httpRequest != nil {
+		t.Error("HTTPRequest returned a request alongside a deferred error, want nil")
+	}
+
+	// An invalid method makes assembly itself fail, yet the deferred error must
+	// still be the one returned: it is checked first.
+	_, err = request.New("bad method", "instruments").
+		WithError(sentinel).
+		HTTPRequest(t.Context(), mustParseURL(t, "https://example.test/rest/v1"))
+	if !errors.Is(err, sentinel) {
+		t.Errorf("err = %v, want %v (deferred error must precede assembly)", err, sentinel)
+	}
+}
+
+// TestWriteModelMethodsDoNotMutateReceiver pins the copy-on-write contract for
+// the method, body and error fields together: forking a base Request leaves the
+// base assembling exactly as it did before the fork.
+func TestWriteModelMethodsDoNotMutateReceiver(t *testing.T) {
+	base := request.New(http.MethodGet, "instruments")
+
+	_ = base.WithMethod(http.MethodPost)
+	_ = base.WithBody([]byte("[]"))
+	_ = base.WithError(errors.New("deferred"))
+
+	assembled, err := base.HTTPRequest(t.Context(), mustParseURL(t, "https://example.test/rest/v1"))
+	if err != nil {
+		t.Fatalf("base HTTPRequest: %v (a fork mutated the receiver)", err)
+	}
+	if got, want := assembled.Method, http.MethodGet; got != want {
+		t.Errorf("base method = %q, want %q", got, want)
+	}
+	if assembled.Body != nil {
+		t.Error("base carries a body after a fork added one")
+	}
+	if got := assembled.Header.Get("Content-Type"); got != "" {
+		t.Errorf("base Content-Type = %q, want none", got)
 	}
 }
