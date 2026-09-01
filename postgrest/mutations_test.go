@@ -393,3 +393,137 @@ func TestDeleteSendsDeleteWithoutBody(t *testing.T) {
 		t.Errorf("Prefer = %q, want none on an Execute", got)
 	}
 }
+
+// TestUpsertSendsMergeDuplicatesByDefault pins the upsert wire shape through
+// Execute: a POST carrying the rows as one JSON array, Prefer:
+// resolution=merge-duplicates marking it an upsert, no on_conflict parameter
+// and - since Execute reads nothing back - no return preference.
+func TestUpsertSendsMergeDuplicatesByDefault(t *testing.T) {
+	server, record := captureServer(t, http.StatusCreated, "")
+
+	if _, err := postgrest.Execute(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.From[instrument]("instruments").Upsert(instrument{ID: 1, Name: "violin"}),
+	); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if got, want := record.request.Method, http.MethodPost; got != want {
+		t.Errorf("method = %q, want %q", got, want)
+	}
+	if got, want := string(record.body), `[{"id":1,"name":"violin"}]`; got != want {
+		t.Errorf("body = %s, want %s", got, want)
+	}
+	if got, want := record.request.Header.Values("Prefer"), []string{"resolution=merge-duplicates"}; !slices.Equal(got, want) {
+		t.Errorf("Prefer = %q, want %q", got, want)
+	}
+	if got := record.request.URL.Query().Get("on_conflict"); got != "" {
+		t.Errorf("on_conflict = %q, want none by default", got)
+	}
+}
+
+// TestUpsertIgnoreDuplicatesReplacesResolution pins that IgnoreDuplicates swaps
+// the resolution rather than adding a second: the request carries exactly one
+// Prefer preference, resolution=ignore-duplicates.
+func TestUpsertIgnoreDuplicatesReplacesResolution(t *testing.T) {
+	server, record := captureServer(t, http.StatusCreated, "")
+
+	if _, err := postgrest.Execute(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.From[instrument]("instruments").
+			Upsert(instrument{ID: 1, Name: "violin"}).
+			IgnoreDuplicates(),
+	); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if got, want := record.request.Header.Values("Prefer"), []string{"resolution=ignore-duplicates"}; !slices.Equal(got, want) {
+		t.Errorf("Prefer = %q, want %q", got, want)
+	}
+}
+
+// TestUpsertOnConflictSetsParameter pins OnConflict: it writes the on_conflict
+// parameter, comma-joins its columns and a later call replaces an earlier one.
+func TestUpsertOnConflictSetsParameter(t *testing.T) {
+	base := postgrest.From[instrument]("instruments").Upsert(instrument{ID: 1, Name: "violin"})
+	testCases := []struct {
+		name           string
+		builder        postgrest.UpsertBuilder[instrument]
+		wantOnConflict string
+	}{
+		{name: "single column", builder: base.OnConflict("sku"), wantOnConflict: "sku"},
+		{name: "multiple columns comma-joined", builder: base.OnConflict("sku", "barcode"), wantOnConflict: "sku,barcode"},
+		{name: "later call replaces earlier", builder: base.OnConflict("sku").OnConflict("barcode"), wantOnConflict: "barcode"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			server, record := captureServer(t, http.StatusCreated, "")
+
+			if _, err := postgrest.Execute(t.Context(), newTestClient(t, server), testCase.builder); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			if got := record.request.URL.Query().Get("on_conflict"); got != testCase.wantOnConflict {
+				t.Errorf("on_conflict = %q, want %q", got, testCase.wantOnConflict)
+			}
+		})
+	}
+}
+
+// TestUpsertReturningProjectsColumns pins Returning on an upsert exactly as the
+// other verbs pin it: the cleaned select parameter with replace semantics, an
+// empty string meaning every column, and - under Execute - only the resolution
+// the upsert always carries, never a return preference.
+func TestUpsertReturningProjectsColumns(t *testing.T) {
+	base := postgrest.From[instrument]("instruments").Upsert(instrument{ID: 1, Name: "violin"})
+	testCases := []struct {
+		name       string
+		builder    postgrest.UpsertBuilder[instrument]
+		wantSelect string
+	}{
+		{name: "columns cleaned", builder: base.Returning("id, name"), wantSelect: "id,name"},
+		{name: "later returning replaces earlier", builder: base.Returning("id").Returning("name"), wantSelect: "name"},
+		{name: "empty means all columns", builder: base.Returning(""), wantSelect: "*"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			server, record := captureServer(t, http.StatusCreated, "")
+
+			if _, err := postgrest.Execute(t.Context(), newTestClient(t, server), testCase.builder); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			if got := record.request.URL.Query().Get("select"); got != testCase.wantSelect {
+				t.Errorf("select = %q, want %q", got, testCase.wantSelect)
+			}
+			if got, want := record.request.Header.Values("Prefer"), []string{"resolution=merge-duplicates"}; !slices.Equal(got, want) {
+				t.Errorf("Prefer = %q, want only the resolution under Execute", got)
+			}
+		})
+	}
+}
+
+// TestCollectUpsertCarriesResolutionAndRepresentation pins the two-header
+// composition: the model's resolution preference and the execution-injected
+// return=representation travel as two Prefer headers, legal per RFC 7240 and
+// merged by the server, so neither drops the other.
+func TestCollectUpsertCarriesResolutionAndRepresentation(t *testing.T) {
+	server, record := captureServer(t, http.StatusOK, `[{"id":1,"name":"violin"}]`)
+
+	rows, _, err := postgrest.Collect(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.From[instrument]("instruments").Upsert(instrument{ID: 1, Name: "violin"}),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if len(rows) != 1 || rows[0] != (instrument{ID: 1, Name: "violin"}) {
+		t.Errorf("rows = %+v, want the decoded row", rows)
+	}
+	prefer := record.request.Header.Values("Prefer")
+	if !slices.Contains(prefer, "resolution=merge-duplicates") {
+		t.Errorf("Prefer = %q, want it to carry resolution=merge-duplicates from the model", prefer)
+	}
+	if !slices.Contains(prefer, "return=representation") {
+		t.Errorf("Prefer = %q, want it to carry return=representation from execution", prefer)
+	}
+}

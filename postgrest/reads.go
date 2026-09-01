@@ -171,6 +171,14 @@ func execute[T any](ctx context.Context, client *Client, query Query[T], options
 			httpRequest.Header.Set("Accept", settings.acceptHeaderValue)
 		}
 
+		// The Prefer header is composed here, the single place it is set: the
+		// builder's own preference (an upsert's resolution) followed by the
+		// representation this execution asks for. Appending keeps both as
+		// separate field-lines the server reads as one comma-separated list per
+		// RFC 7240.
+		if preference := requestState.Preference(); preference != "" {
+			httpRequest.Header.Add("Prefer", preference)
+		}
 		if settings.requestRepresentation &&
 			httpRequest.Method != http.MethodGet && httpRequest.Method != http.MethodHead {
 			httpRequest.Header.Add("Prefer", "return=representation")

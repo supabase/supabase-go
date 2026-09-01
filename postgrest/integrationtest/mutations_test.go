@@ -27,6 +27,16 @@ type suggestion struct {
 	Suggestion string `json:"suggestion"`
 }
 
+// product maps the row type of the public.products table: a natural primary
+// key (sku) plus a secondary unique column (barcode), which omitzero leaves
+// out when a test does not set it.
+type product struct {
+	SKU     string `json:"sku"`
+	Barcode string `json:"barcode,omitzero"`
+	Name    string `json:"name"`
+	Price   int    `json:"price"`
+}
+
 // TestInsertMinimalReturnsNoRepresentation proves an Execute insert against
 // real PostgREST: the write applies with a 201 and no body, and a follow-up
 // read finds the row with its server-assigned id and the defaulted difficulty.
@@ -486,5 +496,192 @@ func TestDeleteReturningDeletedRows(t *testing.T) {
 	}
 	if deleted[0].Title != title || deleted[0].Composer != "Bridge" {
 		t.Errorf("row = %+v, want title %q composer Bridge", deleted[0], title)
+	}
+}
+
+// TestUpsertInsertsThenMergesOnPrimaryKey proves an upsert against real
+// PostgREST: the first call creates a row and the second, colliding on the
+// primary key, merges the new price over it rather than failing or appending.
+func TestUpsertInsertsThenMergesOnPrimaryKey(t *testing.T) {
+	client := newIntegrationClient(t)
+	sku := "UPSERT-MERGE-PK"
+
+	created, _, err := postgrest.CollectSingle(
+		t.Context(),
+		client,
+		postgrest.From[product]("products").Upsert(product{SKU: sku, Name: "Metronome", Price: 40}),
+	)
+	if err != nil {
+		t.Fatalf("first upsert CollectSingle: %v", err)
+	}
+	if created.Price != 40 {
+		t.Errorf("price = %d, want 40 on first insert", created.Price)
+	}
+
+	merged, _, err := postgrest.CollectSingle(
+		t.Context(),
+		client,
+		postgrest.From[product]("products").Upsert(product{SKU: sku, Name: "Metronome", Price: 55}),
+	)
+	if err != nil {
+		t.Fatalf("second upsert CollectSingle: %v", err)
+	}
+	if merged.Price != 55 {
+		t.Errorf("price = %d, want 55 after merge", merged.Price)
+	}
+
+	rows, _, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.From[product]("products").Eq("sku", sku),
+	)
+	if err != nil {
+		t.Fatalf("read-back Collect: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Errorf("rows for sku = %d, want 1 (a merge must not append)", len(rows))
+	}
+}
+
+// TestUpsertIgnoreDuplicatesKeepsExistingRow proves ignore-duplicates leaves a
+// colliding row exactly as it was: the second upsert's new price never lands.
+func TestUpsertIgnoreDuplicatesKeepsExistingRow(t *testing.T) {
+	client := newIntegrationClient(t)
+	sku := "UPSERT-IGNORE-PK"
+
+	if _, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.From[product]("products").Upsert(product{SKU: sku, Name: "Tuner", Price: 30}),
+	); err != nil {
+		t.Fatalf("seed upsert: %v", err)
+	}
+
+	if _, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.From[product]("products").
+			Upsert(product{SKU: sku, Name: "Tuner", Price: 99}).
+			IgnoreDuplicates(),
+	); err != nil {
+		t.Fatalf("ignore-duplicates upsert: %v", err)
+	}
+
+	row, _, err := postgrest.CollectSingle(
+		t.Context(),
+		client,
+		postgrest.From[product]("products").Eq("sku", sku),
+	)
+	if err != nil {
+		t.Fatalf("read-back CollectSingle: %v", err)
+	}
+	if row.Price != 30 {
+		t.Errorf("price = %d, want 30 (ignore-duplicates must not overwrite)", row.Price)
+	}
+}
+
+// TestUpsertOnConflictUniqueColumn proves OnConflict judges collisions on the
+// named unique column rather than the primary key: a differing sku but a
+// matching barcode merges the existing row instead of appending a new one.
+func TestUpsertOnConflictUniqueColumn(t *testing.T) {
+	client := newIntegrationClient(t)
+	barcode := "BARCODE-UPSERT-001"
+
+	if _, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.From[product]("products").Upsert(product{SKU: "OC-SKU-A", Barcode: barcode, Name: "Music stand", Price: 20}),
+	); err != nil {
+		t.Fatalf("seed upsert: %v", err)
+	}
+
+	merged, _, err := postgrest.CollectSingle(
+		t.Context(),
+		client,
+		postgrest.From[product]("products").
+			Upsert(product{SKU: "OC-SKU-B", Barcode: barcode, Name: "Music stand", Price: 25}).
+			OnConflict("barcode"),
+	)
+	if err != nil {
+		t.Fatalf("on-conflict upsert CollectSingle: %v", err)
+	}
+	if merged.Price != 25 {
+		t.Errorf("price = %d, want 25 after merge on barcode", merged.Price)
+	}
+
+	rows, _, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.From[product]("products").Eq("barcode", barcode),
+	)
+	if err != nil {
+		t.Fatalf("read-back Collect: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Errorf("rows for barcode = %d, want 1 (the collision is judged on barcode)", len(rows))
+	}
+}
+
+// TestUpsertWithoutSelectPermission proves the documented privilege trap: a
+// merge upsert issues ON CONFLICT DO UPDATE, which needs select rights to read
+// the colliding row, so it fails 42501 against the insert-only suggestion_box
+// even though Execute requests no representation.
+func TestUpsertWithoutSelectPermission(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	_, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.From[suggestion]("suggestion_box").Upsert(suggestion{ID: 1, Suggestion: "Add a metronome"}),
+	)
+	var typedError *postgrest.Error
+	if !errors.As(err, &typedError) {
+		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+	}
+	if typedError.Code != "42501" {
+		t.Errorf("Code = %q, want 42501 (a merge upsert needs select rights)", typedError.Code)
+	}
+}
+
+// TestUpsertOnConflictNonUniqueTarget proves a mistargeted on_conflict is the
+// server's to reject: products.name carries no unique constraint, so there is
+// nothing to arbitrate on and the request fails 42P10.
+func TestUpsertOnConflictNonUniqueTarget(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	_, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.From[product]("products").
+			Upsert(product{SKU: "OC-NON-UNIQUE", Name: "Kazoo", Price: 5}).
+			OnConflict("name"),
+	)
+	var typedError *postgrest.Error
+	if !errors.As(err, &typedError) {
+		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+	}
+	if typedError.Code != "42P10" {
+		t.Errorf("Code = %q, want 42P10 (name has no unique constraint)", typedError.Code)
+	}
+}
+
+// TestUpsertRowMissingPrimaryKeyFails proves the default conflict target is the
+// primary key and every row must carry it: a row omitting sku, a NOT NULL
+// primary key with no default, fails 23502 at insertion before any conflict is
+// considered.
+func TestUpsertRowMissingPrimaryKeyFails(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	_, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.From[map[string]any]("products").Upsert(map[string]any{"name": "Triangle", "price": 8}),
+	)
+	var typedError *postgrest.Error
+	if !errors.As(err, &typedError) {
+		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+	}
+	if typedError.Code != "23502" {
+		t.Errorf("Code = %q, want 23502 (a row omitting the primary key target)", typedError.Code)
 	}
 }

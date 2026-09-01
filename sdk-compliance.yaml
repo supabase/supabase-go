@@ -49,13 +49,14 @@ features:
       - postgrest.Mutation
       - postgrest.MutationBuilder
   database.mutate.select_after_mutation:
-    status: partially_implemented
+    status: implemented
     note: |
-      Insert, update and delete return their affected rows when executed
-      through Collect, with MutationBuilder.Returning narrowing the returned
-      columns. Upsert completes this once it lands.
+      Executing a mutation through Collect returns its affected rows.
+      MutationBuilder.Returning narrows them for insert, update and delete,
+      and UpsertBuilder.Returning for upsert.
     symbols:
       - postgrest.MutationBuilder.Returning
+      - postgrest.UpsertBuilder.Returning
     supporting_symbols:
       - postgrest.Collect
   database.mutate.update:
@@ -66,6 +67,16 @@ features:
       - postgrest.Execute
       - postgrest.Mutation
       - postgrest.MutationBuilder
+  database.mutate.upsert:
+    status: implemented
+    symbols:
+      - postgrest.QueryBuilder.Upsert
+    supporting_symbols:
+      - postgrest.Execute
+      - postgrest.Mutation
+      - postgrest.UpsertBuilder
+      - postgrest.UpsertBuilder.OnConflict
+      - postgrest.UpsertBuilder.IgnoreDuplicates
   database.query.from_table:
     status: implemented
     symbols:
