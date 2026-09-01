@@ -81,6 +81,20 @@ func (f FilterBuilder[T]) Update(changes any) MutationBuilder[T] {
 	return MutationBuilder[T]{request: patch.WithBody(body)}
 }
 
+// Delete removes every row the preceding filters chose, sent as a DELETE
+// request with no body: the row-choosing filters chain first, exactly as they
+// do on a read, and the verb ends the chain. Called with no filters, directly
+// on [From]'s builder, it removes every row of the table.
+//
+// The executing function chooses what the database returns, exactly as it does
+// for an update: [Execute] applies the delete and reads nothing back, while
+// [Collect] and its kin return the removed rows, with
+// [MutationBuilder.Returning] narrowing their columns. A delete is never
+// retried automatically.
+func (f FilterBuilder[T]) Delete() MutationBuilder[T] {
+	return MutationBuilder[T]{request: f.request.WithMethod(http.MethodDelete)}
+}
+
 // MutationBuilder represents a write awaiting execution.
 // Pass it to [Execute] to apply the write and read nothing back, or to a read
 // function such as [Collect] to have the affected rows returned.

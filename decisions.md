@@ -591,15 +591,15 @@ An insert names whole rows, so its payload is the query's row type `T`, but an u
 Taking `any` and marshaling it straight to JSON matches how other Supabase SDKs update values and lets the caller pick the shape that fits: a `map[string]any` to send exactly the named columns with explicit nulls, or a tagged struct when a fixed shape is more convenient.
 The map's null-versus-absent distinction is the one PostgREST acts on, so the SDK carries it faithfully rather than inventing a sentinel for "clear this column", and the struct caution is documented rather than hidden because Go's zero values are indistinguishable from unset without field tags.
 
-## `Update` is a terminal verb on `FilterBuilder`, so writes reuse the read filter surface
+## `Update` and `Delete` are terminal verbs on `FilterBuilder`, so writes reuse the read filter surface
 
 **What**:  
-`Update(changes)` is a method on `FilterBuilder[T]`: the row-choosing filters chain first, exactly as they do on a read, and the verb ends the chain by returning the terminal `MutationBuilder`, which offers no filter methods.
-Reachable through promotion, the verb called directly on `From`'s builder - no filters - addresses every row of the table.
+`Update(changes)` and `Delete()` are methods on `FilterBuilder[T]`: the row-choosing filters chain first, exactly as they do on a read, and the verb ends the chain by returning the terminal `MutationBuilder`, which offers no filter methods.
+Reachable through promotion, a verb called directly on `From`'s builder - no filters - addresses every row of the table.
 `Insert` stays on `QueryBuilder` alone, so a filtered chain reaching `Insert` is impossible to formulate (it does not compile).
-`Order`, `Limit`, `Range` and `Select` remain reachable before `Update`, traveling for the server to rule on.
+`Order`, `Limit`, `Range` and `Select` remain reachable before the verb, traveling for the server to rule on.
 
 **Why**:  
-An update scopes its rows with the same filters a read scopes its result, and placing the verb after the filters lets the one `FilterBuilder` surface serve both sides - one representation of every operator, with every future filter extending reads and writes at once, and a stored filtered scope reusable as a read through `Collect` and as a write through the verb.
+A row-choosing write scopes its rows with the same filters a read scopes its result, and placing the verb after the filters lets the one `FilterBuilder` surface serve both sides - one representation of every operator, with every future filter extending reads and writes at once, and a stored filtered scope reusable as a read through `Collect` and as a write through the verb.
 Matching sibling SDKs' verb-first ordering (`update(...).eq(...)`) would require a mutation-typed duplicate of the entire filter surface, because the sealed `Mutation` typestate must survive the filter chain and a chained Go method cannot return its receiver's concrete type generically: a mirror of every filter method plus a compliance registration per method, a cost out of all proportion to the ordering familiarity it buys.
-The read-shaped modifiers are deliberately not fenced off the write path: PostgREST 13 dropped limited update/delete ("The feature was complicated and largely unused", [PostgREST changelog](https://github.com/PostgREST/postgrest/blob/main/CHANGELOG.md)), so `order` or `limit` riding a mutation is the server's to rule on - the same posture this SDK takes for a negative limit or an empty list - and a `Select` written before `Update` genuinely projects the returned representation, exactly as `Returning` does, with `Returning` replacing any projection `Select` wrote.
+The read-shaped modifiers are deliberately not fenced off the write path: PostgREST 13 dropped limited update/delete ("The feature was complicated and largely unused", [PostgREST changelog](https://github.com/PostgREST/postgrest/blob/main/CHANGELOG.md)), so `order` or `limit` riding a mutation is the server's to rule on - the same posture this SDK takes for a negative limit or an empty list - and a `Select` written before the verb genuinely projects the returned representation, exactly as `Returning` does, with `Returning` replacing any projection `Select` wrote.

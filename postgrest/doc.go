@@ -20,10 +20,10 @@
 // and [FilterBuilder.Range] shape the result.
 //
 // Writes mirror reads. [QueryBuilder.Insert] creates rows, while
-// [FilterBuilder.Update] ends a filtered chain by changing the rows the
-// preceding filters chose - the same filters that scope a read. Every write
-// verb returns a [MutationBuilder], which [Execute] applies without reading
-// anything back:
+// [FilterBuilder.Update] and [FilterBuilder.Delete] end a filtered chain by
+// changing or removing the rows the preceding filters chose - the same filters
+// that scope a read. Every write verb returns a [MutationBuilder], which
+// [Execute] applies without reading anything back:
 //
 //	response, err := postgrest.Execute(
 //	    ctx,

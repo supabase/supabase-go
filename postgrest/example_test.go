@@ -279,3 +279,28 @@ func ExampleFilterBuilder_Update() {
 	}
 	fmt.Println(response.HTTPStatus)
 }
+
+// ExampleFilterBuilder_Delete removes the rows a filter chooses: the filters
+// chain first, exactly as on a read, and Delete ends the chain. Execute
+// applies the delete without reading anything back.
+func ExampleFilterBuilder_Delete() {
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	response, err := postgrest.Execute(
+		context.Background(),
+		client,
+		postgrest.
+			From[Instrument]("instruments").
+			Eq("id", 1).
+			Delete(),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(response.HTTPStatus)
+}
