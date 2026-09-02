@@ -24,9 +24,7 @@ jobs:
       # No `go mod tidy` gate yet: with zero external dependencies the go.mod
       # files only carry the sibling `require` lines (set via `go mod edit`), and
       # `go mod tidy` does not use the workspace, so it would try to resolve the
-      # unpublished siblings from the module proxy and fail. The tidy + diff gate
-      # is added in the block that introduces the first external dependency, once
-      # its interaction with the workspace is validated.
+      # unpublished siblings from the module proxy and fail.
       - run: ./scripts/build-and-test.sh
       - run: ./scripts/telemetry-test.sh
 
