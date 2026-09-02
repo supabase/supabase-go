@@ -644,6 +644,40 @@ func TestWithBodyCopiesInput(t *testing.T) {
 	}
 }
 
+// TestWithPreferenceStoresAndReplaces pins the preference contract on the
+// request model: WithPreference records the value Preference reports, a later
+// call replaces an earlier one and an empty value clears it, all without
+// mutating the receiver. HTTPRequest never renders a Prefer header - that is
+// the execution layer's to compose - so an assembled request carries none.
+func TestWithPreferenceStoresAndReplaces(t *testing.T) {
+	base := request.New(http.MethodPost, "products")
+	if got := base.Preference(); got != "" {
+		t.Errorf("Preference() = %q, want empty when unset", got)
+	}
+
+	merge := base.WithPreference("resolution=merge-duplicates")
+	if got, want := merge.Preference(), "resolution=merge-duplicates"; got != want {
+		t.Errorf("Preference() = %q, want %q", got, want)
+	}
+
+	ignore := merge.WithPreference("resolution=ignore-duplicates")
+	if got, want := ignore.Preference(), "resolution=ignore-duplicates"; got != want {
+		t.Errorf("Preference() = %q, want %q (a later preference replaces an earlier one)", got, want)
+	}
+
+	if got := merge.WithPreference("").Preference(); got != "" {
+		t.Errorf("Preference() = %q, want empty after clearing", got)
+	}
+
+	if got, want := merge.Preference(), "resolution=merge-duplicates"; got != want {
+		t.Errorf("Preference() = %q, want %q (a fork mutated the receiver)", got, want)
+	}
+
+	if got := assemble(t, merge).Header.Values("Prefer"); len(got) != 0 {
+		t.Errorf("Prefer header = %q, want none (HTTPRequest must not render it)", got)
+	}
+}
+
 // TestWithErrorShortCircuitsHTTPRequest pins that a deferred build failure is
 // returned by HTTPRequest before any assembly and in place of any request, and
 // that it takes precedence over an error assembly would itself raise.

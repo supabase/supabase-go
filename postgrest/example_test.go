@@ -304,3 +304,54 @@ func ExampleFilterBuilder_Delete() {
 	}
 	fmt.Println(response.HTTPStatus)
 }
+
+// ExampleQueryBuilder_Upsert creates rows, merging any that collide with an
+// existing row instead of failing: [postgrest.Execute] applies the upsert and
+// returns only the response metadata, taking PostgREST's default minimal
+// return.
+func ExampleQueryBuilder_Upsert() {
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	response, err := postgrest.Execute(
+		context.Background(),
+		client,
+		postgrest.From[Instrument]("instruments").Upsert(
+			Instrument{ID: 1, Name: "viola"},
+			Instrument{ID: 2, Name: "cello"},
+		),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(response.HTTPStatus)
+}
+
+// ExampleUpsertBuilder_OnConflict judges collisions on a named unique column
+// rather than the primary key, and reads the affected rows back by passing the
+// upsert to [postgrest.Collect].
+func ExampleUpsertBuilder_OnConflict() {
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	rows, _, err := postgrest.Collect(
+		context.Background(),
+		client,
+		postgrest.
+			From[Instrument]("instruments").
+			Upsert(Instrument{Name: "viola"}).
+			OnConflict("name"),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(len(rows))
+}

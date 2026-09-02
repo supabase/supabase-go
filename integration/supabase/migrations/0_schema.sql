@@ -232,3 +232,20 @@ alter table public.suggestion_box enable row level security;
 create policy "anonymous can insert suggestions" on public.suggestion_box
     for insert to anon with check (true);
 grant insert on table public.suggestion_box to anon;
+
+-- A second writable table for the upsert integration tests: a natural primary
+-- key (sku) plus a secondary unique column (barcode) let the tests target both
+-- the default conflict target and an explicit on_conflict, while name carries
+-- no unique constraint so a mistargeted on_conflict proves the 42P10 path.
+-- anon holds every verb, exercising the same publishable-key path a consumer
+-- uses.
+create table public.products (
+    sku text not null primary key,
+    barcode text unique,
+    name text not null,
+    price integer not null
+);
+alter table public.products enable row level security;
+create policy "anonymous full access to products" on public.products
+    for all to anon using (true) with check (true);
+grant select, insert, update, delete on table public.products to anon;

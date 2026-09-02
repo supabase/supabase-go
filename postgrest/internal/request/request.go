@@ -28,6 +28,7 @@ type Request struct {
 	path       []string
 	parameters []parameter
 	body       []byte
+	preference string
 	err        error
 }
 
@@ -49,6 +50,13 @@ func (r Request) Path() []string {
 // Method returns the HTTP method the Request sends.
 func (r Request) Method() string {
 	return r.method
+}
+
+// Preference returns the value set by [Request.WithPreference], or the empty
+// string when none was set. [Request.HTTPRequest] does not render it, so the
+// caller assembling the request sets the Prefer header from it.
+func (r Request) Preference() string {
+	return r.preference
 }
 
 // WithMethod returns a new Request carrying the given HTTP method in place of
@@ -130,6 +138,18 @@ func (r Request) WithBody(body []byte) Request {
 	return clone
 }
 
+// WithPreference returns a new Request carrying preference in place of any the
+// receiver held. An empty preference means none. The value is reported by
+// [Request.Preference] and is not rendered into a header by
+// [Request.HTTPRequest]; the caller assembling the request sets the Prefer
+// header from it. The upsert builder uses it for the resolution PostgREST
+// reads from Prefer.
+func (r Request) WithPreference(preference string) Request {
+	clone := r
+	clone.preference = preference
+	return clone
+}
+
 // WithError returns a new Request carrying err as a deferred build failure.
 // HTTPRequest returns it before assembling anything, so a failure raised while
 // a builder prepares a request - a payload that will not marshal, say - reaches
@@ -147,8 +167,8 @@ func (r Request) WithError(err error) Request {
 // Each path segment is percent-escaped and appended below base's path, so
 // segment text never alters which resource the path names. A body set by
 // [Request.WithBody] rides the request under Content-Type: application/json.
-// With no body, neither is set. Authentication headers are not injected here,
-// nor is the Accept header.
+// With no body, neither is set. The preference and authentication headers are
+// not injected here, nor is the Accept header.
 func (r Request) HTTPRequest(ctx context.Context, base *url.URL) (*http.Request, error) {
 	if r.err != nil {
 		return nil, r.err
