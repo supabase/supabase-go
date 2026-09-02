@@ -81,11 +81,10 @@ func (f FilterBuilder[T]) Update(changes any) MutationBuilder[T] {
 	return MutationBuilder[T]{request: patch.WithBody(body)}
 }
 
-// MutationBuilder represents a write awaiting execution, the terminal state
-// every write verb returns. Pass it to [Execute] to apply the write and read
-// nothing back, or to a read function such as [Collect] to have the affected
-// rows returned and decoded into T. A MutationBuilder is an immutable value,
-// like every builder in this package.
+// MutationBuilder represents a write awaiting execution.
+// Pass it to [Execute] to apply the write and read nothing back, or to a read
+// function such as [Collect] to have the affected rows returned.
+// A MutationBuilder is an immutable value.
 type MutationBuilder[T any] struct {
 	request request.Request
 }

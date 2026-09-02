@@ -10,9 +10,9 @@ import (
 	"github.com/supabase/supabase-go/postgrest"
 )
 
-// repertoirePiece is the repertoire row type. The id and difficulty tags carry
-// omitzero so an insert that names neither lets the server assign the identity
-// and apply the difficulty default, which the returned representation proves.
+// repertoirePiece maps the row type of the public.repertoire table.
+// The id and difficulty tags carry omitzero so an insert that names neither
+// lets the server assign the identity and apply the difficulty default.
 type repertoirePiece struct {
 	ID         int    `json:"id,omitzero"`
 	Title      string `json:"title"`
@@ -20,8 +20,8 @@ type repertoirePiece struct {
 	Difficulty int    `json:"difficulty,omitzero"`
 }
 
-// suggestion is the suggestion_box row type, whose id is an ordinary primary
-// key the caller supplies.
+// suggestion maps the row type of the public.suggestion_box table, whose id
+// is an ordinary primary key the caller supplies.
 type suggestion struct {
 	ID         int    `json:"id"`
 	Suggestion string `json:"suggestion"`
