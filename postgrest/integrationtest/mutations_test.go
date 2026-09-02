@@ -414,3 +414,77 @@ func TestUpdateMatchingNoRows(t *testing.T) {
 		t.Errorf("updated %d rows, want 0 (filter matched nothing)", len(updated))
 	}
 }
+
+// TestDeleteFilteredRowMinimal proves an Execute delete against real PostgREST:
+// after seeding a row, a delete behind an Eq filter applies with a 204 and no
+// body, and a follow-up read no longer finds the row.
+func TestDeleteFilteredRowMinimal(t *testing.T) {
+	client := newIntegrationClient(t)
+	title := "Delete filtered row minimal"
+
+	if _, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.From[repertoirePiece]("repertoire").Insert(repertoirePiece{Title: title, Composer: "Glass"}),
+	); err != nil {
+		t.Fatalf("seed Execute: %v", err)
+	}
+
+	response, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.From[repertoirePiece]("repertoire").Eq("title", title).Delete(),
+	)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if response.HTTPStatus != http.StatusNoContent {
+		t.Errorf("HTTPStatus = %d, want 204", response.HTTPStatus)
+	}
+
+	_, found, _, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		client,
+		postgrest.From[repertoirePiece]("repertoire").Eq("title", title),
+	)
+	if err != nil {
+		t.Fatalf("CollectSingleMaybe: %v", err)
+	}
+	if found {
+		t.Error("row still present after delete, want it gone")
+	}
+}
+
+// TestDeleteReturningDeletedRows proves a filtered delete through Collect against
+// real PostgREST: after seeding a row, a delete behind an Eq filter returns
+// exactly the removed row carrying its columns, at 200.
+func TestDeleteReturningDeletedRows(t *testing.T) {
+	client := newIntegrationClient(t)
+	title := "Delete returning deleted rows"
+
+	if _, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.From[repertoirePiece]("repertoire").Insert(repertoirePiece{Title: title, Composer: "Bridge"}),
+	); err != nil {
+		t.Fatalf("seed Execute: %v", err)
+	}
+
+	deleted, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.From[repertoirePiece]("repertoire").Eq("title", title).Delete(),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if response.HTTPStatus != http.StatusOK {
+		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
+	}
+	if len(deleted) != 1 {
+		t.Fatalf("deleted %d rows, want 1", len(deleted))
+	}
+	if deleted[0].Title != title || deleted[0].Composer != "Bridge" {
+		t.Errorf("row = %+v, want title %q composer Bridge", deleted[0], title)
+	}
+}

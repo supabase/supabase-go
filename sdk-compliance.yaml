@@ -32,6 +32,14 @@ features:
       response-body reads included.
     symbols:
       - configuration.WithHTTPClient
+  database.mutate.delete:
+    status: implemented
+    symbols:
+      - postgrest.FilterBuilder.Delete
+    supporting_symbols:
+      - postgrest.Execute
+      - postgrest.Mutation
+      - postgrest.MutationBuilder
   database.mutate.insert:
     status: implemented
     symbols:
@@ -43,9 +51,9 @@ features:
   database.mutate.select_after_mutation:
     status: partially_implemented
     note: |
-      Insert and update return their affected rows when executed through
-      Collect, with MutationBuilder.Returning narrowing the returned columns.
-      Upsert completes this once it lands.
+      Insert, update and delete return their affected rows when executed
+      through Collect, with MutationBuilder.Returning narrowing the returned
+      columns. Upsert completes this once it lands.
     symbols:
       - postgrest.MutationBuilder.Returning
     supporting_symbols:

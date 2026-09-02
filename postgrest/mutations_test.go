@@ -126,6 +126,11 @@ func TestCollectAddsRepresentationPreferenceToWrites(t *testing.T) {
 			wantPrefer: true,
 		},
 		{
+			name:       "delete is a write",
+			query:      postgrest.From[instrument]("instruments").Eq("id", 1).Delete(),
+			wantPrefer: true,
+		},
+		{
 			name:       "read is unchanged",
 			query:      postgrest.From[instrument]("instruments").Select("id, name"),
 			wantPrefer: false,
@@ -349,5 +354,42 @@ func TestUpdateReturningProjectsColumns(t *testing.T) {
 				t.Errorf("Prefer = %q, want none under Execute", got)
 			}
 		})
+	}
+}
+
+// TestDeleteSendsDeleteWithoutBody pins the delete wire shape through Execute: a
+// DELETE to the table path carrying no body and no JSON media type, the
+// row-choosing filter in the query string, and - since Execute reads nothing
+// back - no Prefer header at all.
+func TestDeleteSendsDeleteWithoutBody(t *testing.T) {
+	server, record := captureServer(t, http.StatusNoContent, "")
+
+	response, err := postgrest.Execute(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.From[instrument]("instruments").
+			Eq("id", 1).
+			Delete(),
+	)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if response.HTTPStatus != http.StatusNoContent {
+		t.Errorf("HTTPStatus = %d, want 204", response.HTTPStatus)
+	}
+	if got, want := record.request.Method, http.MethodDelete; got != want {
+		t.Errorf("method = %q, want %q", got, want)
+	}
+	if len(record.body) != 0 {
+		t.Errorf("body = %q, want empty (a delete sends no body)", record.body)
+	}
+	if got, want := record.request.URL.RawQuery, "id=eq.1"; got != want {
+		t.Errorf("query = %q, want %q", got, want)
+	}
+	if got := record.request.Header.Get("Content-Type"); got != "" {
+		t.Errorf("Content-Type = %q, want none (a delete sends no body)", got)
+	}
+	if got := record.request.Header.Values("Prefer"); len(got) != 0 {
+		t.Errorf("Prefer = %q, want none on an Execute", got)
 	}
 }
