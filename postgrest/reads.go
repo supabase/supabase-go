@@ -22,6 +22,15 @@ type queryState[Row any] struct {
 	request request.Request
 }
 
+// RawQuery is a fully-specified request whose entire response body decodes
+// into Row through [CollectRaw], without the per-row array unwrapping the
+// [Collect] family performs. Every [Query] is a RawQuery, and so is the
+// scalar-returning Value shape of a function call declared through [RPC].
+type RawQuery[Row any] interface {
+	// rawState returns the accumulated request, bound to its decode type.
+	rawState() queryState[Row]
+}
+
 // Query is a fully-specified request awaiting execution by a read function
 // such as [Collect], which decodes the rows it returns into Row. Every read
 // builder satisfies it, and so does every mutation builder, since executing a
@@ -29,6 +38,7 @@ type queryState[Row any] struct {
 // include [QueryBuilder], [FilterBuilder], [OrderedFilterBuilder],
 // [OrderedDescendingFilterBuilder] and [MutationBuilder].
 type Query[Row any] interface {
+	RawQuery[Row]
 	// state returns the accumulated request, bound to its row type.
 	state() queryState[Row]
 }
@@ -102,11 +112,33 @@ func CollectSingleMaybe[Row any](ctx context.Context, client *Client, query Quer
 	}
 }
 
-func collect[Row any, T any](ctx context.Context, client *Client, query Query[Row], options ...Option) (T, Response, error) {
-	options = append(slices.Clip(options), withRepresentation())
-	responseBody, response, err := execute(ctx, client, query, options...)
-	var decoded T
+// CollectRaw executes the query through client and decodes the entire response
+// body into Row, skipping the per-row array unwrapping the [Collect] family
+// performs. It is the decode path for the scalar-returning Value shape of a
+// function called through [RPC], whose body is one bare JSON value:
+// CollectRaw[int] over such a function returning 3 yields 3. It equally reads
+// any other whole-body shape - an object, or an array into a slice. Client,
+// context, Options and failure modes behave as documented on [Collect], except
+// the body is decoded whole rather than as a row array. On failure the returned
+// Row and Response are their zero values.
+func CollectRaw[Row any](ctx context.Context, client *Client, query RawQuery[Row], options ...Option) (Row, Response, error) {
+	return decodeWhole[Row](ctx, client, query.rawState().request, options...)
+}
 
+// collect runs the query through the [Collect] family and decodes the whole
+// response body into T: Collect asks for []Row, CollectSingle for Row under the
+// singular Accept header.
+func collect[Row any, T any](ctx context.Context, client *Client, query Query[Row], options ...Option) (T, Response, error) {
+	return decodeWhole[T](ctx, client, query.state().request, options...)
+}
+
+// decodeWhole executes requestState and decodes the entire response body into
+// T. It is the shared core of the [Collect] family and [CollectRaw], which
+// differ only in the sealed accessor that supplied the request.
+func decodeWhole[T any](ctx context.Context, client *Client, requestState request.Request, options ...Option) (T, Response, error) {
+	options = append(slices.Clip(options), withRepresentation())
+	responseBody, response, err := execute(ctx, client, requestState, options...)
+	var decoded T
 	if err != nil {
 		return decoded, Response{}, err
 	}
@@ -121,6 +153,11 @@ func (f FilterBuilder[T]) state() queryState[T] {
 	return queryState[T](f)
 }
 
+// rawState implements [RawQuery].
+func (f FilterBuilder[T]) rawState() queryState[T] {
+	return queryState[T](f)
+}
+
 // Compile-time proof that every builder state in this package satisfies
 // [Query]. If the interface or a builder's embedding drifts so that one of
 // these no longer holds, the build fails here rather than at a distant
@@ -132,16 +169,18 @@ var (
 	_ Query[any] = OrderedDescendingFilterBuilder[any]{}
 )
 
-// execute sends the query and returns the raw response body alongside its
-// [Response] metadata. It is the single I/O path shared by the generic read
+// execute sends requestState and returns the raw response body alongside its
+// [Response] metadata. It is the single I/O path shared by the executing
 // functions, re-sending retryable failures per the automatic-retry contract
 // documented on [Client].
-func execute[T any](ctx context.Context, client *Client, query Query[T], options ...Option) ([]byte, Response, error) {
+func execute(ctx context.Context, client *Client, requestState request.Request, options ...Option) ([]byte, Response, error) {
 	if client == nil {
 		return nil, Response{}, ErrMissingClient
 	}
-	requestState := query.state().request
 	if path := requestState.Path(); len(path) == 0 || slices.Contains(path, "") {
+		if len(path) == 2 && path[0] == rpcPathSegment {
+			return nil, Response{}, ErrMissingFunction
+		}
 		return nil, Response{}, ErrMissingTable
 	}
 

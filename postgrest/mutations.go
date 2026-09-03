@@ -9,14 +9,18 @@ import (
 	"github.com/supabase/supabase-go/postgrest/internal/request"
 )
 
-// Mutation is a fully-specified write awaiting execution by [Execute], which
-// applies it and reads nothing back. Because every Mutation is also a [Query],
-// the same write may instead be passed to a read function such as [Collect] to
-// return the rows it affects, decoded into Row. A read query is not a Mutation,
-// so [Execute] accepts writes alone. [MutationBuilder] is the satisfying type.
+// Mutation is a fully-specified request awaiting execution by [Execute], which
+// applies it and reads nothing back. The table write builders [MutationBuilder]
+// and [UpsertBuilder] satisfy both this and [Query], so the same write may
+// instead be passed to a read function such as [Collect] to return the rows it
+// affects, decoded into Row. A function call declared through [RPCVoid]
+// satisfies this alone: it returns nothing, so there is nothing to decode. A
+// read query satisfies [Query] but not this, so [Execute] accepts writes and
+// function calls alone.
 type Mutation[Row any] interface {
-	Query[Row]
-	// mutation seals this interface to the package's own write builders and
+	// executeState returns the accumulated request, bound to its row type.
+	executeState() queryState[Row]
+	// mutation seals this interface to the package's own executable builders and
 	// marks a request that [Execute] may send.
 	mutation()
 }
@@ -28,7 +32,7 @@ type Mutation[Row any] interface {
 // as [Collect]. The client, context, options and failure modes behave as
 // documented on [Collect], except that no rows are decoded.
 func Execute[Row any](ctx context.Context, client *Client, mutation Mutation[Row], options ...Option) (Response, error) {
-	_, response, err := execute[Row](ctx, client, mutation, options...)
+	_, response, err := execute(ctx, client, mutation.executeState().request, options...)
 	if err != nil {
 		return Response{}, err
 	}
@@ -148,6 +152,16 @@ func (m MutationBuilder[T]) state() queryState[T] {
 	return queryState[T](m)
 }
 
+// rawState implements [RawQuery].
+func (m MutationBuilder[T]) rawState() queryState[T] {
+	return queryState[T](m)
+}
+
+// executeState implements [Mutation].
+func (m MutationBuilder[T]) executeState() queryState[T] {
+	return queryState[T](m)
+}
+
 // mutation implements [Mutation].
 func (m MutationBuilder[T]) mutation() {}
 
@@ -200,6 +214,16 @@ func (u UpsertBuilder[T]) Returning(columns string) UpsertBuilder[T] {
 
 // state implements [Query].
 func (u UpsertBuilder[T]) state() queryState[T] {
+	return queryState[T](u)
+}
+
+// rawState implements [RawQuery].
+func (u UpsertBuilder[T]) rawState() queryState[T] {
+	return queryState[T](u)
+}
+
+// executeState implements [Mutation].
+func (u UpsertBuilder[T]) executeState() queryState[T] {
 	return queryState[T](u)
 }
 

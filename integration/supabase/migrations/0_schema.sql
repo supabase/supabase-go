@@ -249,3 +249,45 @@ alter table public.products enable row level security;
 create policy "anonymous full access to products" on public.products
     for all to anon using (true) with check (true);
 grant select, insert, update, delete on table public.products to anon;
+
+-- Functions for the RPC integration tests, one per result shape and transport.
+-- All default to SECURITY INVOKER and public EXECUTE, so a call runs with the
+-- caller's rights and the anon table policies above keep applying. The
+-- volatility markers matter: immutable and stable functions also run under GET
+-- (read-only), while the volatile one may only be called through a POST.
+
+-- Scalar result: add_them answers a bare integer, decoded through CollectRaw.
+create function public.add_them(a integer, b integer)
+returns integer language sql immutable as 'select a + b;';
+
+-- Scalar result with a defaulted parameter: greet answers text and, called with
+-- no arguments, takes its default so the empty-object body reaches the default.
+create function public.greet(name text default 'world')
+returns text language sql immutable as $$ select 'hello ' || name; $$;
+
+-- Single unnamed json parameter: sum_json receives the whole request body as
+-- its one unnamed argument and sums the value field of each element. PostgREST
+-- accepts an array body only when every element carries one shared key set, so
+-- callers send [{"value":3},{"value":4}]-shaped arrays.
+create function public.sum_json(json)
+returns integer language sql immutable
+as $$ select sum((element->>'value')::integer)::integer from json_array_elements($1) as t(element); $$;
+
+-- Table-valued result: repertoire_easier_than returns a set of repertoire rows,
+-- decoded like a table read. Stable, so it also runs read-only under GET.
+create function public.repertoire_easier_than(max_difficulty integer)
+returns setof public.repertoire language sql stable
+as $$ select * from public.repertoire where difficulty < max_difficulty; $$;
+
+-- Void result: void_function returns nothing, applied through Execute.
+create function public.void_function()
+returns void language plpgsql as $$ begin end; $$;
+
+-- Volatile table-valued result: raise_difficulty writes and returns the changed
+-- rows. Volatile, so PostgREST rejects it under a read-only GET.
+create function public.raise_difficulty(piece_title text)
+returns setof public.repertoire language sql volatile
+as $$
+    update public.repertoire set difficulty = difficulty + 1
+    where title = piece_title returning *;
+$$;

@@ -34,6 +34,19 @@
 // [Collect] instead of [Execute]: the server returns the rows, and the write
 // builder's Returning method narrows which columns they carry.
 //
+// Beyond tables and views, [RPC] calls a Postgres function. You declare what
+// the function returns - [RPCBuilder.Rows] for a set of rows, decoded like a
+// table read, or [RPCBuilder.Value] for one JSON value, decoded whole by
+// [CollectRaw] - and [RPCBuilder.Arguments] passes its inputs. A function that
+// only reads may be declared [RPCRowsCall.ReadOnly], sending it as a GET that
+// qualifies for automatic retries and Supabase read replicas. A function that
+// returns nothing is called through [RPCVoid] and [Execute]:
+//
+//	response, err := postgrest.Execute(
+//	    ctx,
+//	    client,
+//	    postgrest.RPCVoid("refresh_reporting_view"))
+//
 // Builders are pure immutable values carrying no client reference: every step
 // returns a new independent builder, so queries may be declared at package
 // level before any client exists, stored, forked, and shared across
