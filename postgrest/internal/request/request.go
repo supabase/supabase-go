@@ -103,7 +103,8 @@ func (r Request) WithParameterJoining(key, value string) Request {
 	var joined strings.Builder
 	for _, pair := range r.parameters {
 		if pair.key == key {
-			joined.WriteString(pair.value + ",")
+			joined.WriteString(pair.value)
+			joined.WriteString(",")
 			continue
 		}
 		retained = append(retained, pair)

@@ -334,7 +334,7 @@ func TestRPCEmptyFunctionName(t *testing.T) {
 	})
 
 	t.Run("value call through CollectRaw", func(t *testing.T) {
-		_, _, err := postgrest.CollectRaw[int](t.Context(), newTestClient(t, server), postgrest.RPC[int]("").Value())
+		_, _, err := postgrest.CollectRaw(t.Context(), newTestClient(t, server), postgrest.RPC[int]("").Value())
 		if !errors.Is(err, postgrest.ErrMissingFunction) {
 			t.Errorf("want ErrMissingFunction, got %v", err)
 		}

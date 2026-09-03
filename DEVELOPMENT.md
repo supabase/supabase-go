@@ -36,7 +36,7 @@ Or, for all:
 Lint and vulnerability scanning run via two scripts that are *exactly* what CI runs - same commands, same checksum-pinned tool versions (from `tools/go/go.mod` + `tools/go/go.sum`):
 
 ```bash
-./scripts/lint.sh       # gofumpt, go vet, staticcheck, errcheck, revive - all modules
+./scripts/lint.sh       # gofumpt, go vet, staticcheck, errcheck, revive - all modules; then gopls check workspace-wide
 ./scripts/vulncheck.sh  # govulncheck - all modules
 ```
 

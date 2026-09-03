@@ -19,7 +19,8 @@ trap 'rm -rf "${toolbin}"' EXIT
     mvdan.cc/gofumpt \
     honnef.co/go/tools/cmd/staticcheck \
     github.com/kisielk/errcheck \
-    github.com/mgechev/revive
+    github.com/mgechev/revive \
+    golang.org/x/tools/gopls
 )
 
 for module in ${workspace_modules}; do
@@ -44,5 +45,25 @@ for module in ${workspace_modules}; do
     "${toolbin}/revive" -exclude ./tools/node/... -set_exit_status ./...
   )
 done
+
+# gopls is the diagnostic engine behind VS Code and every other LSP editor, and
+# its default analyzers cover ground none of the standalone linters above do
+# (infertypeargs, for example). Failing the gate on its findings keeps CI and a
+# contributor's editor in agreement. One invocation from the repository root
+# covers every module: gopls loads the committed go.work workspace, the same
+# view an IDE opened at the root sees. The file list is every tracked or new
+# unignored .go file, so work in progress is checked before it is committed.
+# Like gofumpt above, gopls check reports findings without failing - it always
+# exits zero - so fail on any output. The simplifier and unused-symbol
+# analyzers (infertypeargs among them) report at information severity, below
+# check's default warning-severity cutoff, so -severity=info is required to
+# fail on everything an editor's problems panel shows.
+echo "==> workspace-wide gopls check"
+diagnostics="$(git ls-files -zco --exclude-standard -- '*.go' | xargs -0 "${toolbin}/gopls" check -severity=info)"
+if [ -n "${diagnostics}" ]; then
+  echo "gopls check found:"
+  echo "${diagnostics}"
+  exit 1
+fi
 
 echo "✅ Lint Passed."

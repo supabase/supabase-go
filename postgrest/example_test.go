@@ -96,7 +96,7 @@ func ExampleFrom_packageLevel() {
 		return
 	}
 
-	instruments, response, err := postgrest.Collect[Instrument](context.Background(), client, instrumentsByName)
+	instruments, response, err := postgrest.Collect(context.Background(), client, instrumentsByName)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -429,7 +429,7 @@ func ExampleRPCBuilder_Value() {
 		return
 	}
 
-	count, _, err := postgrest.CollectRaw[int](
+	count, _, err := postgrest.CollectRaw(
 		context.Background(),
 		client,
 		postgrest.RPC[int]("count_pieces").Value(),
