@@ -94,6 +94,19 @@ features:
     supporting_symbols:
       - postgrest.CollectRaw
       - postgrest.ErrMissingFunction
+      - postgrest.RPCBuilder
+      - postgrest.RPCBuilder.Arguments
+      - postgrest.RPCBuilder.Rows
+      - postgrest.RPCBuilder.Value
+      - postgrest.RPCReadOnlyRowsCall
+      - postgrest.RPCReadOnlyValueCall
+      - postgrest.RPCRowsCall
+      - postgrest.RPCRowsCall.ReadOnly
+      - postgrest.RPCValueCall
+      - postgrest.RPCValueCall.ReadOnly
+      - postgrest.RPCVoidCall
+      - postgrest.RPCVoidCall.Arguments
+      - postgrest.RawQuery
   database.query.select:
     status: implemented
     symbols:
