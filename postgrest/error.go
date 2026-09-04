@@ -25,6 +25,13 @@ const ErrMissingClient = postgrestError("client is required")
 // function name.
 const ErrMissingFunction = postgrestError("function name is required")
 
+// ErrMissingAccessToken is reported by an executing function, such as
+// [Collect] or [Execute], when the provider attached by
+// [Client.WithAccessTokenProvider] or the [WithAccessTokenProvider] option
+// is nil or resolves to an empty token, at the call's first resolution or
+// on a renewal re-ask after the server rejected the sent token.
+const ErrMissingAccessToken = postgrestError("access token is required")
+
 // ErrTooManyRows is reported by [CollectSingleMaybe] when the query matched
 // more than one row.
 const ErrTooManyRows = postgrestError("query matched more than one row")

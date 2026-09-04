@@ -15,6 +15,14 @@ features:
     status: implemented
     symbols:
       - configuration.WithHeader
+  database.configuration.access_token:
+    status: implemented
+    symbols:
+      - postgrest.Client.WithAccessTokenProvider
+      - postgrest.WithAccessTokenProvider
+    supporting_symbols:
+      - configuration.AccessTokenProvider
+      - postgrest.ErrMissingAccessToken
   database.configuration.auto_retry:
     status: implemented
     symbols:
