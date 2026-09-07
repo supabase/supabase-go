@@ -20,6 +20,11 @@ const ErrMissingTable = postgrestError("table name is required")
 // [Collect], when the supplied client is nil.
 const ErrMissingClient = postgrestError("client is required")
 
+// ErrMissingFunction is reported by an executing function, such as [Execute] or
+// [CollectRaw], when an [RPC] or [RPCVoid] call was created with an empty
+// function name.
+const ErrMissingFunction = postgrestError("function name is required")
+
 // ErrTooManyRows is reported by [CollectSingleMaybe] when the query matched
 // more than one row.
 const ErrTooManyRows = postgrestError("query matched more than one row")

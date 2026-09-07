@@ -355,3 +355,110 @@ func ExampleUpsertBuilder_OnConflict() {
 	}
 	fmt.Println(len(rows))
 }
+
+// ExampleRPCBuilder_Rows calls a table-valued Postgres function and decodes its
+// rows like a table read: Arguments passes the function's inputs, Rows declares
+// the result shape and Collect decodes each returned row into the named type.
+func ExampleRPCBuilder_Rows() {
+	type Piece struct {
+		ID    int    `json:"id"`
+		Title string `json:"title"`
+	}
+
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	pieces, _, err := postgrest.Collect(
+		context.Background(),
+		client,
+		postgrest.
+			RPC[Piece]("search_pieces").
+			Arguments(map[string]any{"query": "cello"}).
+			Rows(),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(len(pieces))
+}
+
+// ExampleRPCRowsCall_ReadOnly declares a rows-returning function read-only,
+// sending it as a GET. PostgREST runs a read-only call in a READ ONLY
+// transaction, and the call becomes eligible for automatic retries, HTTP
+// caching and Supabase read replicas - so declare ReadOnly only for a function
+// that never writes, or the server refuses it.
+func ExampleRPCRowsCall_ReadOnly() {
+	type Piece struct {
+		ID    int    `json:"id"`
+		Title string `json:"title"`
+	}
+
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	pieces, _, err := postgrest.Collect(
+		context.Background(),
+		client,
+		postgrest.
+			RPC[Piece]("search_pieces").
+			Arguments(map[string]any{"query": "cello"}).
+			Rows().
+			ReadOnly(),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(len(pieces))
+}
+
+// ExampleRPCBuilder_Value calls a function returning one JSON value and decodes
+// the whole body with CollectRaw. This function takes no arguments, so Arguments
+// is omitted and the call runs on the function's own parameter defaults.
+func ExampleRPCBuilder_Value() {
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	count, _, err := postgrest.CollectRaw[int](
+		context.Background(),
+		client,
+		postgrest.RPC[int]("count_pieces").Value(),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(count)
+}
+
+// ExampleRPCVoid calls a function that returns nothing. RPCVoid needs no result
+// type and no result shape: the call is ready for Execute, which runs it and
+// reads nothing back.
+func ExampleRPCVoid() {
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	response, err := postgrest.Execute(
+		context.Background(),
+		client,
+		postgrest.RPCVoid("refresh_reporting_view"),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(response.HTTPStatus)
+}

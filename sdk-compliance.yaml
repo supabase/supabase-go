@@ -81,6 +81,32 @@ features:
     status: implemented
     symbols:
       - postgrest.From
+  database.query.rpc:
+    status: implemented
+    note: |
+      POST and GET invocation, mode-declared by the caller per function
+      through RPC (the Rows and Value shapes) and RPCVoid. Counts with HEAD,
+      result shaping, resource embedding, raw-body parameters and custom media
+      are deferred.
+    symbols:
+      - postgrest.RPC
+      - postgrest.RPCVoid
+    supporting_symbols:
+      - postgrest.CollectRaw
+      - postgrest.ErrMissingFunction
+      - postgrest.RPCBuilder
+      - postgrest.RPCBuilder.Arguments
+      - postgrest.RPCBuilder.Rows
+      - postgrest.RPCBuilder.Value
+      - postgrest.RPCReadOnlyRowsCall
+      - postgrest.RPCReadOnlyValueCall
+      - postgrest.RPCRowsCall
+      - postgrest.RPCRowsCall.ReadOnly
+      - postgrest.RPCValueCall
+      - postgrest.RPCValueCall.ReadOnly
+      - postgrest.RPCVoidCall
+      - postgrest.RPCVoidCall.Arguments
+      - postgrest.RawQuery
   database.query.select:
     status: implemented
     symbols:

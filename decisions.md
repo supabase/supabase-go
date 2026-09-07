@@ -384,7 +384,7 @@ The escaper is octet-oriented rather than rune-oriented because percent-encoding
 **What**:  
 `From` returns a concrete `QueryBuilder`; `Select` returns a concrete `FilterBuilder`; every builder method returns a concrete type, never an interface.
 `QueryBuilder` and the ordering refinement wrappers (`OrderedFilterBuilder`, `OrderedDescendingFilterBuilder`) embed `FilterBuilder` to extend its method set, satisfying `Query` through promotion.
-The read functions accept the sealed `Query` interface, whose one unexported method returns a `queryState` token binding the row type; builder states satisfy it and nothing outside the package can.
+The read functions accept the sealed `Query` interface, whose sealed accessors return a `queryState` token binding the row type; builder states satisfy it and nothing outside the package can.
 These wrapper structs have identical definitions on purpose: a builder type's identity is its method set - which chain steps are legal from here - not its field set.
 
 **Why**:  
@@ -572,7 +572,7 @@ One terminal type serves every verb because every write's end state is identical
 A `MutationBuilder` carries no return-preference state.
 `Execute(ctx, client, mutation)` applies the write and decodes nothing, so the request takes PostgREST's default minimal return and no rows travel back.
 Passing the same builder to a read function - `Collect`, `CollectSingle` or `CollectSingleMaybe` - instead adds `Prefer: return=representation` at execution and decodes the affected rows.
-`Execute` accepts a sealed `Mutation[Row]` interface embedding `Query[Row]` behind a second unexported marker, so only write builders reach it and a read passed to `Execute` is a compile error.
+`Execute` accepts the sealed `Mutation[Row]` interface, which a read query does not satisfy, so passing a read to `Execute` is a compile error.
 
 **Why**:  
 A write request is identical whether or not its rows come back - only the `Prefer` header differs - so the choice belongs beside the choice of decoding (executing functions), not in the builder's state.
@@ -615,3 +615,30 @@ The resolution is carried on the request model as a single replace-on-write toke
 `Prefer: resolution` is what turns a `POST` into an upsert - PostgREST has no server-side default resolution - so a resolution always travels, defaulting to merge because that is what "upsert" means to a caller, matching the JS SDK's `onConflict`/`ignoreDuplicates` default.
 Variadic rows leave no room for a trailing options argument, so the refinements are postfix chain methods (the shape this package already uses for ordering), and the first-plus-rest `OnConflict` signature makes an empty conflict target unrepresentable rather than a runtime error.
 Resolution is the only preference any builder writes, so the model carries one replace-on-write token rather than a header multimap, and `IgnoreDuplicates` replaces the merge. The execution layer is the single place `Prefer` is set - it appends the carried resolution and, for a representation-returning execution, `return=representation`, as separate field-lines the server reads as one list per RFC 7240.
+
+## RPC is mode-first: the caller declares the result shape, and read-only is an opt-in transport
+
+**What**:  
+`RPC[T](function)` is inert until a result shape is chosen - `Rows` for a set decoded per row, `Value` for one JSON value decoded whole - while `RPCVoid(function)` is the shapeless entry for a function returning nothing.
+`Arguments` chains the inputs, and omitting it runs the function on its defaults.
+Every call is a POST by default, and `ReadOnly` refines a `Rows` or `Value` call into a GET.
+No RPC type carries filters, ordering or write verbs.
+
+**Why**:  
+The sibling SDKs return one undifferentiated builder from `rpc` and leave the caller to decode whatever comes back. Declaring the shape up front makes the returned type offer only the operations that shape supports, so decoding a scalar as rows or reading a void call back is unrepresentable rather than a runtime error.
+POST is the bare default because it calls every function, so such a call makes no read-only claim to get wrong, where a read-only default would fail against every volatile function. `ReadOnly` is thus the opt-in claim, matching PostgREST's rule that GET is the conditional privilege earned by not writing.
+`RPCVoid` is separate and non-generic because a function returning nothing has no result type or shape to name, so a forced type argument and mode call would carry no information.
+No type embeds the filter builder because the rpc endpoint has no filter or write surface, so embedding it would compile calls the server always rejects.
+
+## Whole-body decoding, row decoding and execution are three separate sealed interfaces
+
+**What**:  
+Three sealed interfaces gate the executing functions: `RawQuery` for `CollectRaw`'s whole-body decode, `Query` (embedding `RawQuery`) for the `Collect` family's per-row decode and `Mutation` for `Execute`.
+`Mutation` embeds neither, carrying its own executable marker.
+The table write builders satisfy all three, a read builder satisfies `Query` and a void function call satisfies `Mutation` alone.
+
+**Why**:  
+In an early API design for this SDK `Mutation` embedded `Query`, encoding the claim that anything executable also decodes as rows, which every table write honored by returning its affected rows.
+A void function call is executable with nothing to decode, so the embed is dropped and the two promises become independent - `Collect` over a void call is now a compile error rather than a runtime decode of an empty body.
+Go's structural typing forces the three accessors to carry distinct names, since one shared name would let a type satisfy an interface it should not.
+`CollectRaw` takes the weakest interface so one path reads a scalar function, a whole table array or any other whole body.
