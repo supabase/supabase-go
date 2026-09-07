@@ -43,6 +43,7 @@ type Client struct {
 	baseURL             *url.URL
 	retry               bool
 	accessTokenProvider configuration.AccessTokenProvider
+	schema              string
 }
 
 // New constructs a standalone PostgREST [Client] for the given project URL
@@ -108,4 +109,21 @@ func normalizeAccessTokenProvider(provider configuration.AccessTokenProvider) co
 		return func(context.Context) (string, error) { return "", nil }
 	}
 	return provider
+}
+
+// WithSchema returns a copy of this client that targets the named database
+// schema in place of the server's default, naming it on the profile header
+// PostgREST reads for each request's method: Accept-Profile on GET and HEAD,
+// Content-Profile otherwise, so table reads, writes and function calls alike
+// run against schema. The receiver is unchanged and the copy shares its HTTP
+// connection pool, so one base client serves several schemas through
+// independent derived copies, each safe for concurrent use by multiple
+// goroutines. The schema is sent verbatim and never validated client-side:
+// the server accepts only a schema exposed to the API, failing the call with
+// an [*Error] carrying code "PGRST106" otherwise. An empty schema restores the
+// default, sending no profile header.
+func (c *Client) WithSchema(schema string) *Client {
+	clone := *c
+	clone.schema = schema
+	return &clone
 }

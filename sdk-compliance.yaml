@@ -115,6 +115,10 @@ features:
       - postgrest.RPCVoidCall
       - postgrest.RPCVoidCall.Arguments
       - postgrest.RawQuery
+  database.query.schema_selection:
+    status: implemented
+    symbols:
+      - postgrest.Client.WithSchema
   database.query.select:
     status: implemented
     symbols:

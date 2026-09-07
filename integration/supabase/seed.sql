@@ -13,6 +13,11 @@ values
     (5, 3, 50, null, 20),
     (6, 3, 60, 20, null);
 
+-- A distinct row set in the second schema, so a schema-selection test can tell
+-- personal.instruments apart from the identically-named public.instruments.
+insert into personal.instruments (name, acquired_year)
+values ('lute', 1998), ('harpsichord', 2003);
+
 insert into public.sequences (id, "decimal number", character, phonetic)
 values
     ( 1, '01', 'A', 'Alpha'),

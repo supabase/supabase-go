@@ -11,8 +11,8 @@ project_id = "supabase-go-integration"
 # Pinned explicitly (rather than trusting CLI defaults) so DEVELOPMENT.md's
 # port prerequisites stay true even if upstream defaults drift.
 port = 54321
-# Only the schema the tests query; the CLI default also exposes graphql_public.
-schemas = ["public"]
+# Only the schemas the tests query; the CLI default also exposes graphql_public.
+schemas = ["public", "personal"]
 
 [db]
 port = 54322
