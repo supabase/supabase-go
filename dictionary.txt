@@ -30,6 +30,7 @@ goroutines
 govulncheck
 GOWORK
 inclusivity
+infertypeargs
 integrationtest
 isdistinct
 jsonv

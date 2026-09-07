@@ -26,7 +26,7 @@ func TestRPCPostModesAreNeverRetried(t *testing.T) {
 		{
 			name: "Value through CollectRaw",
 			invoke: func(t *testing.T, client *Client) error {
-				_, _, err := CollectRaw[int](t.Context(), client, RPC[int]("f").Value(), WithRetry(true))
+				_, _, err := CollectRaw(t.Context(), client, RPC[int]("f").Value(), WithRetry(true))
 				return err
 			},
 		},
@@ -72,7 +72,7 @@ func TestRPCReadOnlyModesAreRetried(t *testing.T) {
 		{
 			name: "Value ReadOnly through CollectRaw",
 			invoke: func(t *testing.T, client *Client) error {
-				_, _, err := CollectRaw[int](t.Context(), client, RPC[int]("f").Value().ReadOnly(), WithRetry(true))
+				_, _, err := CollectRaw(t.Context(), client, RPC[int]("f").Value().ReadOnly(), WithRetry(true))
 				return err
 			},
 		},
