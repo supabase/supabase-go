@@ -496,3 +496,39 @@ func ExampleClient_WithAccessTokenProvider() {
 	}
 	fmt.Println(len(logs))
 }
+
+// ExampleClient_WithSchema reads from a non-default database schema exposed to
+// the Data API. A store might keep its products in a dedicated catalog schema
+// separate from public: WithSchema derives a client bound to that schema, so
+// every read, write and function call made through it resolves there. The
+// schema must be listed under the project's exposed schemas for PostgREST to
+// serve it.
+func ExampleClient_WithSchema() {
+	type Product struct {
+		ID         string `json:"id"`
+		Name       string `json:"name"`
+		PriceCents int64  `json:"price_cents"`
+	}
+
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// Derive a client bound to the catalog schema. The base client is untouched
+	// and keeps reading the default schema.
+	catalog := client.WithSchema("catalog")
+	products, _, err := postgrest.Collect(
+		context.Background(),
+		catalog,
+		postgrest.
+			From[Product]("products").
+			Select("id, name, price_cents"),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(len(products))
+}

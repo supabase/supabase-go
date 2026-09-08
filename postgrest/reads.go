@@ -237,6 +237,16 @@ func execute(ctx context.Context, client *Client, requestState request.Request, 
 			httpRequest.Header.Set("Accept", settings.acceptHeaderValue)
 		}
 
+		// The schema-selection profile header: PostgREST reads Accept-Profile on
+		// GET and HEAD and Content-Profile on every other method.
+		if client.schema != "" {
+			if httpRequest.Method == http.MethodGet || httpRequest.Method == http.MethodHead {
+				httpRequest.Header.Set("Accept-Profile", client.schema)
+			} else {
+				httpRequest.Header.Set("Content-Profile", client.schema)
+			}
+		}
+
 		// The Prefer header is composed here, the single place it is set: the
 		// builder's own preference (an upsert's resolution) followed by the
 		// representation this execution asks for. Appending keeps both as
