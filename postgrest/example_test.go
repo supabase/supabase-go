@@ -462,3 +462,37 @@ func ExampleRPCVoid() {
 	}
 	fmt.Println(response.HTTPStatus)
 }
+
+// ExampleClient_WithAccessTokenProvider demonstrates acting for a signed-in end
+// user: the derived client resolves and sends the user's access token so the
+// database applies that user's Row Level Security policies, while the base
+// client keeps authenticating with the project API key alone. A token already
+// in hand rides a constant provider, as here; a rotating token would be read
+// from wherever the application keeps it current.
+func ExampleClient_WithAccessTokenProvider() {
+	type PracticeLog struct {
+		Piece   string `json:"piece"`
+		Minutes int    `json:"minutes"`
+	}
+
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	accessToken := "USER_ACCESS_TOKEN"
+	userClient := client.WithAccessTokenProvider(
+		func(context.Context) (string, error) { return accessToken, nil },
+	)
+	logs, _, err := postgrest.Collect(
+		context.Background(),
+		userClient,
+		postgrest.From[PracticeLog]("practice_logs"),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(len(logs))
+}

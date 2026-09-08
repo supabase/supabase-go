@@ -642,3 +642,12 @@ In an early API design for this SDK `Mutation` embedded `Query`, encoding the cl
 A void function call is executable with nothing to decode, so the embed is dropped and the two promises become independent - `Collect` over a void call is now a compile error rather than a runtime decode of an empty body.
 Go's structural typing forces the three accessors to carry distinct names, since one shared name would let a type satisfy an interface it should not.
 `CollectRaw` takes the weakest interface so one path reads a scalar function, a whole table array or any other whole body.
+
+## Row Level Security integration fixtures sign up real users through the local auth service
+
+**What**:  
+The tests obtain user tokens from `POST /auth/v1/signup` on the already-enabled local auth service, which auto-confirms and returns a session under the pinned CLI's defaults, rather than minting JWTs from the stack's `JWT_SECRET`.
+
+**Why**:  
+`JWT_SECRET` is deprecated in the CLI's status output and the platform is moving to asymmetric signing keys, so tokens minted locally from it would exercise a shrinking path.
+Issued tokens travel the same path a production consumer's do.

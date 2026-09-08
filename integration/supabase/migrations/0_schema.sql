@@ -291,3 +291,39 @@ as $$
     update public.repertoire set difficulty = difficulty + 1
     where title = piece_title returning *;
 $$;
+
+-- Per-user table for the Row Level Security integration tests, applied after
+-- 0_schema.sql in lexicographic order. Policies are granted to the
+-- authenticated role only and keyed on the JWT's subject, so each signed-in
+-- user reads and writes their own rows alone and the anonymous role sees
+-- nothing.
+create table public.practice_logs (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users (id),
+    piece text not null,
+    minutes integer not null
+);
+alter table public.practice_logs enable row level security;
+grant select, insert, update, delete on table public.practice_logs to authenticated;
+-- The anonymous role holds the table grant but gets no policy, so a
+-- publishable-key request is permitted to run yet Row Level Security filters
+-- it to zero rows - an empty 200, not a permission error. This is what lets a
+-- base client's read of practice_logs "see nothing" rather than fail.
+grant select on table public.practice_logs to anon;
+
+create policy "users can read own practice logs" on public.practice_logs
+    for select to authenticated using ((select auth.uid()) = user_id);
+create policy "users can create own practice logs" on public.practice_logs
+    for insert to authenticated with check ((select auth.uid()) = user_id);
+create policy "users can update own practice logs" on public.practice_logs
+    for update to authenticated
+    using ((select auth.uid()) = user_id)
+    with check ((select auth.uid()) = user_id);
+create policy "users can delete own practice logs" on public.practice_logs
+    for delete to authenticated using ((select auth.uid()) = user_id);
+
+-- Echoes the caller's resolved user id, proving the attached token's claims
+-- reach the database on the RPC path.
+create function public.current_user_id() returns uuid
+    language sql stable
+    as $$ select auth.uid() $$;

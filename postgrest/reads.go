@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest/internal/request"
 )
 
@@ -64,6 +65,12 @@ type Query[Row any] interface {
 //     case.
 //   - [ErrMissingTable], when the builder was created with an empty table
 //     name. No I/O is performed in this case.
+//   - [ErrMissingAccessToken], when an attached access-token provider is nil
+//     or resolves to an empty token - before any I/O at the call's first
+//     resolution, or on a renewal re-ask after the server rejected the sent
+//     token.
+//   - an attached [configuration.AccessTokenProvider]'s own error, wrapped -
+//     likewise at first resolution or on a renewal re-ask.
 //   - a wrapped transport or decoding failure.
 func Collect[Row any](ctx context.Context, client *Client, query Query[Row], options ...Option) ([]Row, Response, error) {
 	return collect[Row, []Row](ctx, client, query, options...)
@@ -189,6 +196,22 @@ func execute(ctx context.Context, client *Client, requestState request.Request, 
 		option(&settings)
 	}
 
+	provider := client.accessTokenProvider
+	if settings.accessTokenProvider != nil {
+		provider = settings.accessTokenProvider
+	}
+	var accessToken string
+	if provider != nil {
+		resolved, err := provider(ctx)
+		if err != nil {
+			return nil, Response{}, fmt.Errorf("postgrest: resolving access token: %w", err)
+		}
+		if resolved == "" {
+			return nil, Response{}, ErrMissingAccessToken
+		}
+		accessToken = resolved
+	}
+
 	retry := client.retry
 	switch settings.retry {
 	case retryEnabled:
@@ -202,6 +225,10 @@ func execute(ctx context.Context, client *Client, requestState request.Request, 
 		httpRequest, err := requestState.HTTPRequest(ctx, client.baseURL)
 		if err != nil {
 			return nil, Response{}, fmt.Errorf("postgrest: building request: %w", err)
+		}
+
+		if accessToken != "" {
+			httpRequest.Header.Set("Authorization", "Bearer "+accessToken)
 		}
 
 		if settings.acceptHeaderValue == "" {
@@ -252,6 +279,26 @@ func execute(ctx context.Context, client *Client, requestState request.Request, 
 			return nil, Response{}, fmt.Errorf("postgrest: reading response: %w", err)
 		}
 
+		// A server rejection of the sent token (HTTP 401) re-asks the provider
+		// and re-sends immediately with whatever it returns: no backoff, no
+		// token comparison, any HTTP method, spending from the same per-call
+		// budget as a transient retry. The accessToken != "" gate is true only
+		// when a provider-resolved token went out on this attempt, so a base
+		// client's 401 surfaces untouched below.
+		if httpResponse.StatusCode == http.StatusUnauthorized &&
+			accessToken != "" && attempt < maximumRetries {
+			var renewed string
+			renewed, err = provider(ctx)
+			if err != nil {
+				return nil, Response{}, fmt.Errorf("postgrest: resolving access token: %w", err)
+			}
+			if renewed == "" {
+				return nil, Response{}, ErrMissingAccessToken
+			}
+			accessToken = renewed
+			continue
+		}
+
 		if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 300 {
 			return nil, Response{}, newError(httpResponse.StatusCode, responseBody)
 		}
@@ -273,6 +320,7 @@ type readSettings struct {
 	retry                 retryPolicy
 	acceptHeaderValue     string
 	requestRepresentation bool
+	accessTokenProvider   configuration.AccessTokenProvider
 }
 
 // retryPolicy is a read call's automatic-retry override. The zero value
@@ -297,6 +345,22 @@ func WithRetry(enabled bool) Option {
 		} else {
 			settings.retry = retryDisabled
 		}
+	}
+}
+
+// WithAccessTokenProvider executes one call as a signed-in end user, resolving
+// the user's access token through provider and sending it as the
+// credentials of the Bearer authentication scheme on the Authorization
+// header, so the database applies that user's Row Level Security policies.
+// For this call alone it replaces a provider attached by
+// [Client.WithAccessTokenProvider], which is then not invoked, and a later
+// WithAccessTokenProvider replaces an earlier one. The project API key
+// continues to travel on the apikey header. A resolved token the server
+// rejects is renewed and re-sent as documented on [Client]. A nil provider
+// fails the call with [ErrMissingAccessToken].
+func WithAccessTokenProvider(provider configuration.AccessTokenProvider) Option {
+	return func(settings *readSettings) {
+		settings.accessTokenProvider = normalizeAccessTokenProvider(provider)
 	}
 }
 

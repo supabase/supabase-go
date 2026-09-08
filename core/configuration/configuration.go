@@ -3,6 +3,7 @@
 package configuration
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -139,6 +140,21 @@ func New(entryModulePath core.ModulePath, rawURL, apiKey string, options ...Opti
 type HTTPClient interface {
 	Do(request *http.Request) (*http.Response, error)
 }
+
+// AccessTokenProvider returns the end-user access token (a JWT) a request
+// sends as the credentials of the Bearer authentication scheme on the
+// Authorization header. It receives the executing call's context. A call
+// resolves its token before the first request is sent, reuses it across
+// transient retries and asks again only after the server rejects the sent
+// token, so return the best token currently available - blocking on an
+// in-flight refresh rather than returning one known to be stale. It must
+// be safe for concurrent use by multiple goroutines. Return the token
+// without the "Bearer " prefix: it is sent verbatim, never validated,
+// inspected or compared, and the server verifies it. A returned error
+// fails the call, wrapped, and a returned empty token likewise fails the
+// call: a resolution failure never lowers a call to the project key's own
+// role.
+type AccessTokenProvider func(ctx context.Context) (string, error)
 
 // Retry reports whether automatic retries are enabled for this project's
 // clients.

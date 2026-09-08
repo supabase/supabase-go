@@ -47,6 +47,21 @@
 //	    client,
 //	    postgrest.RPCVoid("refresh_reporting_view"))
 //
+// Every request authenticates with the project API key. To act for a
+// signed-in end user instead - so the database applies that user's Row
+// Level Security policies - attach an access-token provider:
+// [Client.WithAccessTokenProvider] derives a per-user client and the
+// [WithAccessTokenProvider] option scopes one call. A token already in hand
+// rides a constant provider:
+//
+//	userClient := client.WithAccessTokenProvider(
+//	    func(context.Context) (string, error) { return accessToken, nil })
+//	logs, _, err := postgrest.Collect(ctx, userClient,
+//	    postgrest.From[PracticeLog]("practice_logs"))
+//
+// A token the server rejects is resolved again and the request re-sent
+// automatically, within the re-send budget documented on [Client].
+//
 // Builders are pure immutable values carrying no client reference: every step
 // returns a new independent builder, so queries may be declared at package
 // level before any client exists, stored, forked, and shared across
