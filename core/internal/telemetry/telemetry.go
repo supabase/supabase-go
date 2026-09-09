@@ -141,7 +141,7 @@ func buildClientInformationHeaderValues() map[core.ModulePath]string {
 func builtWithinSDK(buildInformation *debug.BuildInfo) bool {
 	// All SDK modules share the repository's base import path, established
 	// here as the parent of this module(core)'s path.
-	sdkModuleTreeBase := path.Dir(string(core.ModulePathCore))
+	sdkModuleTreeBase := path.Dir(string(core.ModulePathPostgrest))
 	return strings.HasPrefix(buildInformation.Main.Path, sdkModuleTreeBase+"/")
 }
 
