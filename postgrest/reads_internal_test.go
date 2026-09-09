@@ -12,21 +12,22 @@ import (
 	"time"
 
 	"github.com/supabase/supabase-go/core/configuration"
+	internalHttp "github.com/supabase/supabase-go/postgrest/internal/http"
 )
 
-// The tests in this file substitute the package-level retrySleep seam, so
-// they must not call t.Parallel: parallel tests would race on the variable.
+// The tests in this file substitute internal/http's RetrySleep seam, so they
+// must not call t.Parallel: parallel tests would race on the variable.
 
-// stubRetrySleep replaces retrySleep for the duration of the test with an
-// instantaneous recorder of the delays execute asked for. Like the real
+// stubRetrySleep replaces RetrySleep for the duration of the test with an
+// instantaneous recorder of the delays the exchange asked for. Like the real
 // sleep, the stub reports the context's error, instead of recording, once
 // the context has ended.
 func stubRetrySleep(t *testing.T) *[]time.Duration {
 	t.Helper()
-	original := retrySleep
-	t.Cleanup(func() { retrySleep = original })
+	original := internalHttp.RetrySleep
+	t.Cleanup(func() { internalHttp.RetrySleep = original })
 	recorded := &[]time.Duration{}
-	retrySleep = func(ctx context.Context, duration time.Duration) error {
+	internalHttp.RetrySleep = func(ctx context.Context, duration time.Duration) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -139,7 +140,7 @@ func TestCollectRetriesOn503HonoringRetryAfter(t *testing.T) {
 }
 
 // TestCollectStopsAfterMaximumRetries proves the loop gives up: a server
-// that never recovers sees the initial attempt plus maximumRetries re-sends,
+// that never recovers sees the initial attempt plus MaximumRetries re-sends,
 // and the final failure surfaces as the typed PostgREST error.
 func TestCollectStopsAfterMaximumRetries(t *testing.T) {
 	sleeps := stubRetrySleep(t)
@@ -154,8 +155,8 @@ func TestCollectStopsAfterMaximumRetries(t *testing.T) {
 	if postgrestError.HTTPStatus != 520 {
 		t.Errorf("HTTPStatus = %d, want 520", postgrestError.HTTPStatus)
 	}
-	if got := len(*retryCounts); got != 1+maximumRetries {
-		t.Errorf("requests = %d, want %d", got, 1+maximumRetries)
+	if got := len(*retryCounts); got != 1+internalHttp.MaximumRetries {
+		t.Errorf("requests = %d, want %d", got, 1+internalHttp.MaximumRetries)
 	}
 	if want := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}; !slices.Equal(*sleeps, want) {
 		t.Errorf("delays = %v, want %v", *sleeps, want)
@@ -269,8 +270,8 @@ func TestCollectPerReadRetryOverridesClient(t *testing.T) {
 		if _, _, err := Collect(t.Context(), client, query); err == nil {
 			t.Fatal("Collect succeeded, want an error")
 		}
-		if got := len(*retryCounts) - 1; got != 1+maximumRetries {
-			t.Errorf("requests without the option = %d, want %d", got, 1+maximumRetries)
+		if got := len(*retryCounts) - 1; got != 1+internalHttp.MaximumRetries {
+			t.Errorf("requests without the option = %d, want %d", got, 1+internalHttp.MaximumRetries)
 		}
 	})
 
@@ -283,8 +284,8 @@ func TestCollectPerReadRetryOverridesClient(t *testing.T) {
 		if _, _, err := Collect(t.Context(), client, query, WithRetry(true)); err == nil {
 			t.Fatal("Collect succeeded, want an error")
 		}
-		if got := len(*retryCounts); got != 1+maximumRetries {
-			t.Errorf("requests with WithRetry(true) = %d, want %d", got, 1+maximumRetries)
+		if got := len(*retryCounts); got != 1+internalHttp.MaximumRetries {
+			t.Errorf("requests with WithRetry(true) = %d, want %d", got, 1+internalHttp.MaximumRetries)
 		}
 
 		// The override was scoped to that call: the same read without the
@@ -292,7 +293,7 @@ func TestCollectPerReadRetryOverridesClient(t *testing.T) {
 		if _, _, err := Collect(t.Context(), client, query); err == nil {
 			t.Fatal("Collect succeeded, want an error")
 		}
-		if got := len(*retryCounts) - (1 + maximumRetries); got != 1 {
+		if got := len(*retryCounts) - (1 + internalHttp.MaximumRetries); got != 1 {
 			t.Errorf("requests without the option = %d, want 1", got)
 		}
 	})
@@ -330,33 +331,6 @@ func TestCollectAbandonsRetryWhenContextEnds(t *testing.T) {
 	defer mutex.Unlock()
 	if requests != 1 {
 		t.Errorf("requests = %d, want 1", requests)
-	}
-}
-
-// TestRetryDelay pins the delay computation: exponential doubling from one
-// second, displaced by a parseable non-negative whole-seconds Retry-After.
-func TestRetryDelay(t *testing.T) {
-	testCases := []struct {
-		name       string
-		attempt    int
-		retryAfter string
-		want       time.Duration
-	}{
-		{"first backoff", 0, "", time.Second},
-		{"second backoff", 1, "", 2 * time.Second},
-		{"third backoff", 2, "", 4 * time.Second},
-		{"retry-after replaces backoff", 0, "7", 7 * time.Second},
-		{"retry-after zero", 2, "0", 0},
-		{"retry-after with edge whitespace", 0, " 7 ", 7 * time.Second},
-		{"negative retry-after ignored", 1, "-1", 2 * time.Second},
-		{"malformed retry-after ignored", 0, "soon", time.Second},
-	}
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			if got := retryDelay(testCase.attempt, testCase.retryAfter); got != testCase.want {
-				t.Errorf("retryDelay(%d, %q) = %v, want %v", testCase.attempt, testCase.retryAfter, got, testCase.want)
-			}
-		})
 	}
 }
 
@@ -448,7 +422,7 @@ func TestUpsertIsNeverRetried(t *testing.T) {
 	}
 }
 
-// The access-token resolution and renewal tests share the retrySleep stub, so
+// The access-token resolution and renewal tests share the RetrySleep stub, so
 // like the rest of this file they must not call t.Parallel.
 
 // recordingScriptedServer starts a test server answering each request with the
@@ -659,7 +633,7 @@ func TestExecuteRenewalIgnoresRetryToggle(t *testing.T) {
 }
 
 // TestExecuteRenewalBudgetExhausted proves renewal shares the per-call cap: a
-// server that always answers 401 sees the initial send plus maximumRetries
+// server that always answers 401 sees the initial send plus MaximumRetries
 // renewals, each bearing a distinct token, then the 401 surfaces with no
 // backoff along the way.
 func TestExecuteRenewalBudgetExhausted(t *testing.T) {
@@ -676,12 +650,12 @@ func TestExecuteRenewalBudgetExhausted(t *testing.T) {
 	if postgrestError.HTTPStatus != http.StatusUnauthorized {
 		t.Errorf("HTTPStatus = %d, want 401", postgrestError.HTTPStatus)
 	}
-	if *calls != 1+maximumRetries {
-		t.Errorf("provider calls = %d, want %d (initial plus %d renewals)", *calls, 1+maximumRetries, maximumRetries)
+	if *calls != 1+internalHttp.MaximumRetries {
+		t.Errorf("provider calls = %d, want %d (initial plus %d renewals)", *calls, 1+internalHttp.MaximumRetries, internalHttp.MaximumRetries)
 	}
 	recorded := *headers
-	if len(recorded) != 1+maximumRetries {
-		t.Fatalf("requests = %d, want %d", len(recorded), 1+maximumRetries)
+	if len(recorded) != 1+internalHttp.MaximumRetries {
+		t.Fatalf("requests = %d, want %d", len(recorded), 1+internalHttp.MaximumRetries)
 	}
 	for index, want := range []string{"Bearer token-1", "Bearer token-2", "Bearer token-3", "Bearer token-4"} {
 		if got := recorded[index].Get("Authorization"); got != want {

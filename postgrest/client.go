@@ -2,10 +2,11 @@ package postgrest
 
 import (
 	"context"
-	"net/url"
+	"fmt"
 
 	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
+	"github.com/supabase/supabase-go/postgrest/internal/http"
 )
 
 // Client executes Database queries against PostgREST, owning the pooled HTTP
@@ -39,11 +40,7 @@ import (
 // re-sends and transient retries spend from the same cap above, so one
 // call sends at most four requests.
 type Client struct {
-	httpClient          configuration.HTTPClient
-	baseURL             *url.URL
-	retry               bool
-	accessTokenProvider configuration.AccessTokenProvider
-	schema              string
+	httpClient http.Client
 }
 
 // New constructs a standalone PostgREST [Client] for the given project URL
@@ -67,11 +64,11 @@ func New(projectURL, apiKey string, options ...configuration.Option) (*Client, e
 // carry the authentication and global headers configured on
 // [configuration.Configuration.HTTPClient].
 func NewFromConfiguration(projectConfiguration *configuration.Configuration) *Client {
-	return &Client{
-		httpClient: projectConfiguration.HTTPClient(),
-		baseURL:    projectConfiguration.BaseURL().JoinPath("rest", "v1"),
-		retry:      projectConfiguration.Retry(),
-	}
+	return &Client{httpClient: http.New(
+		projectConfiguration.HTTPClient(),
+		*projectConfiguration.BaseURL().JoinPath("rest", "v1"),
+		projectConfiguration.Retry(),
+	)}
 }
 
 // WithAccessTokenProvider returns a copy of this client that executes every
@@ -95,20 +92,28 @@ func NewFromConfiguration(projectConfiguration *configuration.Configuration) *Cl
 // single call. A nil provider is attached as one that fails the call with
 // [ErrMissingAccessToken].
 func (c *Client) WithAccessTokenProvider(provider configuration.AccessTokenProvider) *Client {
-	clone := *c
-	clone.accessTokenProvider = normalizeAccessTokenProvider(provider)
-	return &clone
+	return &Client{httpClient: c.httpClient.WithTokenResolver(tokenResolver(provider))}
 }
 
-// normalizeAccessTokenProvider returns provider, or, when provider is nil, one
-// resolving to the empty token so execution fails with [ErrMissingAccessToken]
-// rather than proceeding without the header. Attachment sites use it so a nil
-// provider behaves as an empty resolution everywhere after.
-func normalizeAccessTokenProvider(provider configuration.AccessTokenProvider) configuration.AccessTokenProvider {
-	if provider == nil {
-		return func(context.Context) (string, error) { return "", nil }
+// tokenResolver adapts provider into the resolver an exchange calls: a
+// resolved token returns verbatim, a provider error is wrapped as a
+// token-resolution failure and a nil provider or empty token fails with
+// [ErrMissingAccessToken]. Both attachment sites use it, so every attached
+// provider carries the same failure semantics.
+func tokenResolver(provider configuration.AccessTokenProvider) http.TokenResolver {
+	return func(ctx context.Context) (string, error) {
+		if provider == nil {
+			return "", ErrMissingAccessToken
+		}
+		token, err := provider(ctx)
+		if err != nil {
+			return "", fmt.Errorf("postgrest: resolving access token: %w", err)
+		}
+		if token == "" {
+			return "", ErrMissingAccessToken
+		}
+		return token, nil
 	}
-	return provider
 }
 
 // WithSchema returns a copy of this client that targets the named database
@@ -123,7 +128,5 @@ func normalizeAccessTokenProvider(provider configuration.AccessTokenProvider) co
 // an [*Error] carrying code "PGRST106" otherwise. An empty schema restores the
 // default, sending no profile header.
 func (c *Client) WithSchema(schema string) *Client {
-	clone := *c
-	clone.schema = schema
-	return &clone
+	return &Client{httpClient: c.httpClient.WithSchema(schema)}
 }

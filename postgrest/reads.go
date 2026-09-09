@@ -4,14 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"slices"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/supabase/supabase-go/core/configuration"
+	"github.com/supabase/supabase-go/postgrest/internal/http"
 	"github.com/supabase/supabase-go/postgrest/internal/request"
 )
 
@@ -176,10 +172,13 @@ var (
 	_ Query[any] = OrderedDescendingFilterBuilder[any]{}
 )
 
-// execute sends requestState and returns the raw response body alongside its
-// [Response] metadata. It is the single I/O path shared by the executing
-// functions, re-sending retryable failures per the automatic-retry contract
-// documented on [Client].
+// execute sends requestState through a per-call copy of the client's HTTP
+// client, derived by the options, and returns the raw response body
+// alongside its [Response] metadata. It is the single boundary the executing
+// functions share: the client and the request's path are validated here
+// before any I/O, and a completed exchange's non-2xx status is shaped into
+// an [*Error] here. The exchange itself - header assembly, automatic retries
+// and access-token renewal - follows the contract documented on [Client].
 func execute(ctx context.Context, client *Client, requestState request.Request, options ...Option) ([]byte, Response, error) {
 	if client == nil {
 		return nil, Response{}, ErrMissingClient
@@ -191,158 +190,34 @@ func execute(ctx context.Context, client *Client, requestState request.Request, 
 		return nil, Response{}, ErrMissingTable
 	}
 
-	var settings readSettings
+	settings := readSettings{httpClient: client.httpClient}
 	for _, option := range options {
 		option(&settings)
 	}
 
-	provider := client.accessTokenProvider
-	if settings.accessTokenProvider != nil {
-		provider = settings.accessTokenProvider
+	result, err := settings.httpClient.Do(ctx, requestState)
+	if err != nil {
+		return nil, Response{}, err
 	}
-	var accessToken string
-	if provider != nil {
-		resolved, err := provider(ctx)
-		if err != nil {
-			return nil, Response{}, fmt.Errorf("postgrest: resolving access token: %w", err)
-		}
-		if resolved == "" {
-			return nil, Response{}, ErrMissingAccessToken
-		}
-		accessToken = resolved
+	if result.StatusCode < 200 || result.StatusCode >= 300 {
+		return nil, Response{}, newError(result.StatusCode, result.Body)
 	}
-
-	retry := client.retry
-	switch settings.retry {
-	case retryEnabled:
-		retry = true
-	case retryDisabled:
-		retry = false
-	}
-	retryable := retry && retryableMethods[requestState.Method()]
-
-	for attempt := 0; ; attempt++ {
-		httpRequest, err := requestState.HTTPRequest(ctx, client.baseURL)
-		if err != nil {
-			return nil, Response{}, fmt.Errorf("postgrest: building request: %w", err)
-		}
-
-		if accessToken != "" {
-			httpRequest.Header.Set("Authorization", "Bearer "+accessToken)
-		}
-
-		if settings.acceptHeaderValue == "" {
-			httpRequest.Header.Set("Accept", "application/json")
-		} else {
-			httpRequest.Header.Set("Accept", settings.acceptHeaderValue)
-		}
-
-		// The schema-selection profile header: PostgREST reads Accept-Profile on
-		// GET and HEAD and Content-Profile on every other method.
-		if client.schema != "" {
-			if httpRequest.Method == http.MethodGet || httpRequest.Method == http.MethodHead {
-				httpRequest.Header.Set("Accept-Profile", client.schema)
-			} else {
-				httpRequest.Header.Set("Content-Profile", client.schema)
-			}
-		}
-
-		// The Prefer header is composed here, the single place it is set: the
-		// builder's own preference (an upsert's resolution) followed by the
-		// representation this execution asks for. Appending keeps both as
-		// separate field-lines the server reads as one comma-separated list per
-		// RFC 7240.
-		if preference := requestState.Preference(); preference != "" {
-			httpRequest.Header.Add("Prefer", preference)
-		}
-		if settings.requestRepresentation &&
-			httpRequest.Method != http.MethodGet && httpRequest.Method != http.MethodHead {
-			httpRequest.Header.Add("Prefer", "return=representation")
-		}
-
-		if attempt > 0 {
-			httpRequest.Header.Set("X-Retry-Count", strconv.Itoa(attempt))
-		}
-
-		httpResponse, err := client.httpClient.Do(httpRequest)
-		if err != nil {
-			if retryable && attempt < maximumRetries && ctx.Err() == nil &&
-				retrySleep(ctx, retryDelay(attempt, "")) == nil {
-				continue
-			}
-			return nil, Response{}, fmt.Errorf("postgrest: executing request: %w", err)
-		}
-
-		if retryable && attempt < maximumRetries && retryableStatusCodes[httpResponse.StatusCode] {
-			delay := retryDelay(attempt, httpResponse.Header.Get("Retry-After"))
-			_, _ = io.Copy(io.Discard, httpResponse.Body)
-			_ = httpResponse.Body.Close()
-			if retrySleep(ctx, delay) == nil {
-				continue
-			}
-			return nil, Response{}, fmt.Errorf("postgrest: executing request: %w", ctx.Err())
-		}
-
-		responseBody, err := io.ReadAll(httpResponse.Body)
-		_ = httpResponse.Body.Close()
-		if err != nil {
-			return nil, Response{}, fmt.Errorf("postgrest: reading response: %w", err)
-		}
-
-		// A server rejection of the sent token (HTTP 401) re-asks the provider
-		// and re-sends immediately with whatever it returns: no backoff, no
-		// token comparison, any HTTP method, spending from the same per-call
-		// budget as a transient retry. The accessToken != "" gate is true only
-		// when a provider-resolved token went out on this attempt, so a base
-		// client's 401 surfaces untouched below.
-		if httpResponse.StatusCode == http.StatusUnauthorized &&
-			accessToken != "" && attempt < maximumRetries {
-			var renewed string
-			renewed, err = provider(ctx)
-			if err != nil {
-				return nil, Response{}, fmt.Errorf("postgrest: resolving access token: %w", err)
-			}
-			if renewed == "" {
-				return nil, Response{}, ErrMissingAccessToken
-			}
-			accessToken = renewed
-			continue
-		}
-
-		if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 300 {
-			return nil, Response{}, newError(httpResponse.StatusCode, responseBody)
-		}
-
-		return responseBody, Response{
-			HTTPStatus: httpResponse.StatusCode,
-			Count:      parseContentRangeTotal(httpResponse.Header.Get("Content-Range")),
-		}, nil
-	}
+	return result.Body, Response{
+		HTTPStatus: result.StatusCode,
+		Count:      parseContentRangeTotal(result.ContentRange),
+	}, nil
 }
 
 // Option adjusts how a single read executes. The read functions apply
 // options in the order they are supplied.
 type Option func(*readSettings)
 
-// readSettings collects the execution adjustments carried by a read call's
-// Options.
+// readSettings carries the per-call copy of the executing client's HTTP
+// client. Each Option derives a further copy of that value, so an applied
+// option can never reach the client the copy was taken from.
 type readSettings struct {
-	retry                 retryPolicy
-	acceptHeaderValue     string
-	requestRepresentation bool
-	accessTokenProvider   configuration.AccessTokenProvider
+	httpClient http.Client
 }
-
-// retryPolicy is a read call's automatic-retry override. The zero value
-// leaves the executing client's own default in force.
-type retryPolicy int
-
-const (
-	// retryEnabled requires automatic retries for this read.
-	retryEnabled retryPolicy = iota + 1
-	// retryDisabled forbids automatic retries for this read.
-	retryDisabled
-)
 
 // WithRetry overrides the executing client's automatic-retry default for one
 // read, in either direction. A later WithRetry replaces an earlier one. The
@@ -350,11 +225,7 @@ const (
 // backoff - is documented on [Client].
 func WithRetry(enabled bool) Option {
 	return func(settings *readSettings) {
-		if enabled {
-			settings.retry = retryEnabled
-		} else {
-			settings.retry = retryDisabled
-		}
+		settings.httpClient = settings.httpClient.WithRetry(enabled)
 	}
 }
 
@@ -370,68 +241,24 @@ func WithRetry(enabled bool) Option {
 // fails the call with [ErrMissingAccessToken].
 func WithAccessTokenProvider(provider configuration.AccessTokenProvider) Option {
 	return func(settings *readSettings) {
-		settings.accessTokenProvider = normalizeAccessTokenProvider(provider)
+		settings.httpClient = settings.httpClient.WithTokenResolver(tokenResolver(provider))
 	}
 }
 
 // withAccept overrides the executing read request's default Accept header.
 func withAccept(value string) Option {
 	return func(settings *readSettings) {
-		settings.acceptHeaderValue = value
+		settings.httpClient = settings.httpClient.WithAccept(value)
 	}
 }
 
-// withRepresentation makes execute ask for the affected rows of a write back,
-// adding Prefer: return=representation when the request is not a GET or HEAD.
-// The read functions set it, so a write passed to one returns its rows, while
-// a read is unaffected: its GET never carries the preference and stays
+// withRepresentation makes the exchange ask for the affected rows of a write
+// back, adding Prefer: return=representation when the request is not a GET or
+// HEAD. The read functions set it, so a write passed to one returns its rows,
+// while a read is unaffected: its GET never carries the preference and stays
 // byte-identical on the wire.
 func withRepresentation() Option {
 	return func(settings *readSettings) {
-		settings.requestRepresentation = true
-	}
-}
-
-// maximumRetries is how many times one query is re-sent after its first
-// attempt fails in a retryable way.
-const maximumRetries = 3
-
-// retryableMethods holds the HTTP methods whose requests are safe to repeat
-// and so may be retried automatically.
-var retryableMethods = map[string]bool{
-	http.MethodGet:  true,
-	http.MethodHead: true,
-}
-
-// retryableStatusCodes holds the response statuses treated as transient:
-// 503, sent while the service cannot reach or is rebuilding its view of the
-// database, and 520, sent by fronting infrastructure for a transient origin
-// failure.
-var retryableStatusCodes = map[int]bool{
-	http.StatusServiceUnavailable: true,
-	520:                           true,
-}
-
-// retryDelay returns the wait before the retry that follows the zero-based
-// attempt: one second doubled per attempt, or the whole seconds requested by
-// a parseable non-negative retryAfterHeader.
-func retryDelay(attempt int, retryAfterHeader string) time.Duration {
-	if seconds, err := strconv.Atoi(strings.TrimSpace(retryAfterHeader)); err == nil && seconds >= 0 {
-		return time.Duration(seconds) * time.Second
-	}
-	return time.Second << attempt
-}
-
-// retrySleep pauses for the given duration, returning early with ctx's error
-// when ctx ends first and nil after a full pause. It is a variable so tests
-// substitute an instantaneous recorder.
-var retrySleep = func(ctx context.Context, duration time.Duration) error {
-	timer := time.NewTimer(duration)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
+		settings.httpClient = settings.httpClient.WithRepresentation()
 	}
 }
