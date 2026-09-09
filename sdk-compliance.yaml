@@ -6,7 +6,74 @@
 
 sdk: go
 
+# Module-wide auth surface that supports several features without implementing
+# any single one.
+supporting_symbols:
+  - auth.Client
+  - auth.ErrMissingJWT
+  - auth.Error
+  - auth.Error.Code
+  - auth.Error.Error
+  - auth.Error.HTTPStatus
+  - auth.Error.Message
+  - auth.New
+  - auth.NewFromConfiguration
+  - core.ModulePathAuth
+
 features:
+  auth.session.get_claims:
+    status: implemented
+    symbols:
+      - auth.Client.GetClaims
+    supporting_symbols:
+      - auth.Claims
+      - auth.Claims.Audience
+      - auth.Claims.AuthenticatorAssuranceLevel
+      - auth.Claims.CustomClaim
+      - auth.Claims.Email
+      - auth.Claims.ExpiresAt
+      - auth.Claims.IsAnonymous
+      - auth.Claims.IssuedAt
+      - auth.Claims.Issuer
+      - auth.Claims.Phone
+      - auth.Claims.Role
+      - auth.Claims.SessionID
+      - auth.Claims.Subject
+      - auth.ErrExpiredJWT
+      - auth.ErrInvalidSignature
+      - auth.ErrMalformedJWT
+  auth.session.get_user:
+    status: implemented
+    symbols:
+      - auth.Client.GetUser
+    supporting_symbols:
+      - auth.Identity
+      - auth.Identity.CreatedAt
+      - auth.Identity.ID
+      - auth.Identity.IdentityData
+      - auth.Identity.IdentityID
+      - auth.Identity.LastSignInAt
+      - auth.Identity.Provider
+      - auth.Identity.UpdatedAt
+      - auth.Identity.UserID
+      - auth.User
+      - auth.User.AppMetadata
+      - auth.User.Audience
+      - auth.User.BannedUntil
+      - auth.User.ConfirmedAt
+      - auth.User.CreatedAt
+      - auth.User.DeletedAt
+      - auth.User.Email
+      - auth.User.EmailConfirmedAt
+      - auth.User.ID
+      - auth.User.Identities
+      - auth.User.IsAnonymous
+      - auth.User.LastSignInAt
+      - auth.User.Phone
+      - auth.User.PhoneConfirmedAt
+      - auth.User.Role
+      - auth.User.UpdatedAt
+      - auth.User.UserMetadata
   client.request_configuration.custom_http_client:
     status: implemented
     symbols:

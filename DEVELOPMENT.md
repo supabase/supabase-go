@@ -100,11 +100,9 @@ The fast tier above needs only the repository's own toolchains (Go, plus Node fo
 ./scripts/integration-test.sh
 ```
 
-The script starts the stack against a disposable copy of `integration/`, seeds it, runs the `integration`-tagged tests under `-race` and always stops the stack on exit, including on failure. A plain `go test ./...` never runs these tests - they are build-tagged and environment-gated - so the fast tier stays Docker-free by construction.
+The script starts the stack against a disposable copy of `integration/`, seeds it, runs each `integrationtest` module's tests under `-race` and always stops the stack on exit, including on failure. A plain `go test ./...` in a published module never runs these tests - each `integrationtest` directory is its own non-published module outside its parent's package pattern, and the tests are environment-gated besides - so the fast tier stays Docker-free by construction.
 
-Integration tests live in test-only `integrationtest` packages and are selected by the build tag alone - the script passes no `-run` name filter - so every test compiled under the tag runs, the unit tests included.
-
-We set `go.buildTags: integration` in [`.vscode/settings.json`](.vscode/settings.json) so the language server (provided by [the Go extension](https://marketplace.visualstudio.com/items?itemName=golang.go)) evaluates the tag and gives the tagged files full IDE support - otherwise `go list` attributes them to no package and completion and navigation go dark in the `integrationtest` directories. The setting scopes the tag to the editor, leaving command-line builds and the fast tier untouched - avoid a shell-wide `GOFLAGS=-tags=integration` for the same purpose, since that would pull the env-gated integration tests into every plain `go test ./...`. Running an integration test from the editor's test lens fails fast with the env guidance unless the stack is up and its variables are exported in the editor's environment.
+Integration tests live in adjacent `integrationtest` modules - one beside each module with integration coverage, sharing fixtures (stack credentials, end-user signup) through the non-published `integrationsupport/` module - and are selected by the module boundary alone: the script runs `./...` in each with no `-run` name filter, so a test there can never be silently skipped by its name. These modules sit outside the [`go.work`](go.work) workspace, which lists exactly the published set, so the script enters them with `GOWORK=off` and their `replace` directives resolve the SDK modules from the local tree; `./scripts/build-and-test.sh` gives the same modules a compile-only `go vet` pass, so integration code gets fast signal without Docker. Their sources are ordinary untagged Go, so editors need no build-tag configuration; running an integration test from the editor's test lens fails fast with the env guidance unless the stack is up and its variables are exported in the editor's environment.
 
 ### Telemetry header test
 
@@ -116,7 +114,7 @@ Suites in the workspace always see the `(devel)` sentinel in the `X-Client-Info`
 
 ### Previewing the rendered docs
 
-`pkg.go.dev` is where consumers read our doc comments and runnable examples. To preview that rendering for your local working tree, run [`pkgsite`](https://pkg.go.dev/golang.org/x/pkgsite/cmd/pkgsite). It reads the [`go.work` workspace file](go.work), so one run from the repository root serves all three modules on a local HTTP server (it prints the address, by default http://localhost:8080).
+`pkg.go.dev` is where consumers read our doc comments and runnable examples. To preview that rendering for your local working tree, run [`pkgsite`](https://pkg.go.dev/golang.org/x/pkgsite/cmd/pkgsite). It reads the [`go.work` workspace file](go.work), so one run from the repository root serves every workspace module on a local HTTP server (it prints the address, by default http://localhost:8080).
 
 First you'll need to install it for your user-local environment if you've not done that before:
 

@@ -1,4 +1,4 @@
-module github.com/supabase/supabase-go/supabase
+module github.com/supabase/supabase-go/auth
 
 // This module's consumer compatibility floor - the minimum Go version required
 // to use it. It is a minimum, not the toolchain we build with, and it tracks
@@ -6,8 +6,4 @@ module github.com/supabase/supabase-go/supabase
 // "Supported Go versions" in the repository README).
 go 1.25
 
-require (
-	github.com/supabase/supabase-go/auth v0.0.0-00010101000000-000000000000
-	github.com/supabase/supabase-go/core v0.0.0-00010101000000-000000000000
-	github.com/supabase/supabase-go/postgrest v0.0.0-00010101000000-000000000000
-)
+require github.com/supabase/supabase-go/core v0.0.0-00010101000000-000000000000

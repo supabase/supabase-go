@@ -21,4 +21,5 @@ replace (
 	github.com/supabase/supabase-go/supabase => ../supabase
 	github.com/supabase/supabase-go/core => ../core
 	github.com/supabase/supabase-go/postgrest => ../postgrest
+	github.com/supabase/supabase-go/auth => ../auth
 )

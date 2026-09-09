@@ -105,21 +105,24 @@ echo "==> starting local stack (pinned CLI $("${SUPABASE_CLI}" --version))"
 # CLI repository's own e2e tests consume.
 eval "$("${SUPABASE_CLI}" --workdir "${project_directory}" status -o env)"
 
-# The modules with integration-tagged tests - deliberately a curated subset of
-# the workspace (core has none), so this is NOT derived from go.work like the
-# build/lint/vuln lists are. Selection is by the integration build tag alone -
-# no -run name filter - so a tagged test can never be silently skipped by its
-# name. The hermetic unit tests compiled under the tag simply run again here.
-modules=(supabase postgrest)
+# The modules with an adjacent integrationtest module - deliberately a curated
+# subset of the workspace (core has none), so this is NOT derived from go.work
+# like the build/lint/vuln lists are. Each integrationtest directory is its own
+# non-published module outside the workspace, hence GOWORK=off with its replace
+# directives resolving the SDK modules from the local tree. Selection is the
+# module boundary alone - ./... with no -run name filter - so a test there can
+# never be silently skipped by its name.
+modules=(supabase postgrest auth)
 
-echo "==> running integration tests (-race, tag: integration)"
+echo "==> running integration tests (-race)"
 for module in "${modules[@]}"; do
   echo "==> ${module}"
   (
-    cd "${module}"
+    cd "${module}/integrationtest"
+    GOWORK=off \
     SUPABASE_URL="${API_URL}" \
     SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
-      go test -v -race -shuffle=on -tags integration ./...
+      go test -v -race -shuffle=on ./...
   )
 done
 

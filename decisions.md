@@ -83,6 +83,18 @@ The one workspace hazard is the overlay masking a missing or wrong `require`: ev
 [`scripts/check-module-paths.sh`](scripts/check-module-paths.sh) guards the path case: it fails when a workspace (published) module requires a first-party path that is not itself a workspace module, which a consumer could not resolve. A missing require or a wrong version still rests on review, since there is no tidy gate yet (zero external dependencies).
 The decision is cheaply reversible (delete `go.work`, add `replace` blocks).
 
+## Integration tests and their shared fixtures are adjacent non-published modules
+
+**What**:  
+Each module's `integrationtest` directory is its own module - never published, absent from `go.work`, entered with `GOWORK=off` and resolving its requirements through `replace` directives to the local tree - and the fixtures the suites share (stack credentials, end-user signup) live once in the sibling `integrationsupport` module.
+Test-module import paths stay under the parent module's path (`…/postgrest/integrationtest`), and the files carry no build tag.
+
+**Why**:  
+A shared fixtures package can live nowhere inside the published set: a published module must not require a never-published path (`scripts/check-module-paths.sh` fails exactly that, because a consumer could not resolve it), and a copy per module drifts.
+Adjacent modules keep every published `go.mod` consumer-resolvable while the test tier composes freely.
+The nested import path preserves `internal` package access, which is prefix-based and indifferent to module boundaries.
+The module boundary already isolates integration code from every `./...` a published module runs, so a build tag would gate nothing extra and editors need no build-tag configuration; the symbol extractor likewise skips directories carrying their own `go.mod`, so the `integrationtest` package name recurring across the repository cannot trip its package-name uniqueness guard.
+
 ## Error model
 
 ### Sentinel errors are compile-time constants, not package variables
@@ -478,9 +490,9 @@ Distinguishing "the server answered with an error" (`*Error`) from "we never got
 **What**:  
 CI's integration job and `scripts/integration-test.sh` run the same script, which starts a local stack using the Supabase CLI, a committed minimal `config.toml` (only db, api and auth enabled), a committed schema migration and a committed data-only `seed.sql`.
 The CLI is the pinned release binary, verified against a committed SHA-256 and installed into Go's own bin directory (GOBIN, else GOPATH/bin), never taken from npm.
-Integration tests are build-tagged `integration`, env-gated and run under `-race`.
-They live in test-only `integrationtest` packages beside the code they exercise, consuming only the public API, and selection is by the tag alone: the script passes no `-run` name filter, so the hermetic unit tests compiled under the tag simply run again in the integration job.
-The CI job runs the same `["1.25", "stable"]` matrix as build-and-test; `go vet -tags integration` in the unit script additionally keeps the tagged file compiling for fast local signal.
+Integration tests are env-gated and run under `-race`.
+They live in `integrationtest` modules beside the code they exercise, consuming only the public API, and selection is by the module boundary alone: the script runs `./...` in each with no `-run` name filter.
+The CI job runs the same `["1.25", "stable"]` matrix as build-and-test; a `GOWORK=off go vet` pass over the same modules in the unit script additionally keeps them compiling for fast local signal.
 
 **Why**:  
 The CLI cannot be installed with `go install` at v2 for two independent reasons: its module (`github.com/supabase/cli`) now lives in `apps/cli-go/` while the repo root carries no `go.mod`, so the module proxy resolves that path only to the stale v1 root-module history rather than the v2 code, and its `go.mod` carries local `replace` directives, which `go install pkg@version` refuses outright.

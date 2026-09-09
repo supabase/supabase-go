@@ -31,9 +31,11 @@ govulncheck
 GOWORK
 inclusivity
 infertypeargs
+integrationsupport
 integrationtest
 isdistinct
 jsonv
+jwks
 ldflags
 mistargeted
 mockability
