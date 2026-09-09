@@ -21,6 +21,12 @@ The source code is the canonical record of what the implementation does and what
 Never restate signatures, mechanics or behavior that is readable at source.
 Decision entries record the choice and why it beat the alternative, nothing more.
 
+**Your default should be No Entry**:
+Most changes, including large refactors, warrant no entry.
+Before writing a decision entry, name the precise question a future maintainer would ask that reading the finished code - identifiers, types, package boundaries and comments included - cannot answer.
+Applying an established convention of this codebase again is not such a question as the repeat use of a house pattern is self-evident, not a decision.
+An entry earns its place only by capturing what the source cannot show - for example, the alternative that lost and the reason it lost.
+
 Record, don't perform. No trailing clauses that admire the design, no coined aphorisms, no imagined reader journeys.
 If a sentence still informs after its 'which proves / enables / pays off' clause is deleted, then delete that clause!
 

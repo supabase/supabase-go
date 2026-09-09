@@ -3,9 +3,11 @@ package postgrest
 import (
 	"net/http"
 	"testing"
+
+	internalHttp "github.com/supabase/supabase-go/postgrest/internal/http"
 )
 
-// The tests in this file substitute the package-level retrySleep seam through
+// The tests in this file substitute internal/http's RetrySleep seam through
 // stubRetrySleep, so they must not call t.Parallel.
 
 // TestRPCPostModesAreNeverRetried proves every POST-verb function call is sent
@@ -86,8 +88,8 @@ func TestRPCReadOnlyModesAreRetried(t *testing.T) {
 			if err := testCase.invoke(t, client); err == nil {
 				t.Fatal("call succeeded, want an error")
 			}
-			if got := len(*retryCounts); got != 1+maximumRetries {
-				t.Errorf("requests = %d, want %d (a read-only GET call retries)", got, 1+maximumRetries)
+			if got := len(*retryCounts); got != 1+internalHttp.MaximumRetries {
+				t.Errorf("requests = %d, want %d (a read-only GET call retries)", got, 1+internalHttp.MaximumRetries)
 			}
 		})
 	}
