@@ -8,6 +8,10 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/supabase/supabase-go/auth/internal/cache"
+	"github.com/supabase/supabase-go/auth/internal/key"
+	"github.com/supabase/supabase-go/auth/internal/profile"
+	"github.com/supabase/supabase-go/auth/internal/token"
 	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
 )
@@ -25,7 +29,7 @@ import (
 type Client struct {
 	httpClient configuration.HTTPClient
 	baseURL    *url.URL
-	keyCache   *jwkSetCache
+	keys       *cache.Cache
 	now        func() time.Time
 }
 
@@ -49,15 +53,46 @@ func New(projectURL, apiKey string, options ...configuration.Option) (*Client, e
 // requests carry the authentication and global headers configured on
 // [configuration.Configuration.HTTPClient].
 func NewFromConfiguration(projectConfiguration *configuration.Configuration) *Client {
+	httpClient := projectConfiguration.HTTPClient()
 	baseURL := projectConfiguration.BaseURL().JoinPath("auth", "v1")
 	return &Client{
-		httpClient: projectConfiguration.HTTPClient(),
+		httpClient: httpClient,
 		baseURL:    baseURL,
-		keyCache: &jwkSetCache{
-			httpClient: projectConfiguration.HTTPClient(),
-			endpoint:   baseURL.JoinPath(".well-known", "jwks.json"),
-		},
-		now: time.Now,
+		keys:       cache.NewCache(jwkSetFetch(httpClient, baseURL.JoinPath(".well-known", "jwks.json"))),
+		now:        time.Now,
+	}
+}
+
+// jwkSetFetch builds the [cache.FetchFunc] the key cache pulls the project's
+// JWK Set through: one GET of the discovery endpoint, with every failure
+// shaped by this package's error model so the cache propagates consumer-ready
+// errors verbatim.
+func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.FetchFunc {
+	return func(ctx context.Context) ([]key.Key, error) {
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+		if err != nil {
+			return nil, fmt.Errorf("auth: building JWK Set request: %w", err)
+		}
+
+		response, err := httpClient.Do(request)
+		if err != nil {
+			return nil, fmt.Errorf("auth: fetching JWK Set: %w", err)
+		}
+		defer func() { _ = response.Body.Close() }()
+
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			return nil, fmt.Errorf("auth: reading JWK Set: %w", err)
+		}
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return nil, newError(response.StatusCode, body)
+		}
+
+		keys, err := key.ParseSet(body)
+		if err != nil {
+			return nil, fmt.Errorf("auth: parsing JWK Set: %w", err)
+		}
+		return keys, nil
 	}
 }
 
@@ -84,29 +119,29 @@ func (c *Client) GetClaims(ctx context.Context, jwt string) (*Claims, error) {
 		return nil, ErrMissingJWT
 	}
 
-	token, err := decodeToken(jwt)
+	decoded, err := token.Decode(jwt)
 	if err != nil {
-		return nil, err
+		return nil, ErrMalformedJWT
 	}
-	claims, err := parseClaims(token.claimsBytes)
+	claims, err := decoded.Claims()
 	if err != nil {
-		return nil, err
+		return nil, ErrMalformedJWT
 	}
-	if claims.expiresAt.IsZero() || !claims.expiresAt.After(c.now()) {
+	if claims.ExpiresAt().IsZero() || !claims.ExpiresAt().After(c.now()) {
 		return nil, ErrExpiredJWT
 	}
 
 	// A token the local key set cannot verify - the legacy shared secret (an HS*
 	// or absent alg) or one without a key id - is verified by the Auth server,
 	// which trusts the returned claims only when it answers 200.
-	if !asymmetricAlgorithms[token.header.Algorithm] || token.header.KeyID == "" {
+	if !key.Supported(decoded.Algorithm()) || decoded.KeyID() == "" {
 		if _, err := c.GetUser(ctx, jwt); err != nil {
 			return nil, err
 		}
-		return claims, nil
+		return &Claims{inner: claims}, nil
 	}
 
-	key, found, err := c.keyCache.key(ctx, token.header.KeyID, c.now())
+	signingKey, found, err := c.keys.Key(ctx, decoded.KeyID(), c.now())
 	if err != nil {
 		return nil, err
 	}
@@ -117,13 +152,13 @@ func (c *Client) GetClaims(ctx context.Context, jwt string) (*Claims, error) {
 		if _, err := c.GetUser(ctx, jwt); err != nil {
 			return nil, err
 		}
-		return claims, nil
+		return &Claims{inner: claims}, nil
 	}
 
-	if err := verifySignature(token, key); err != nil {
-		return nil, err
+	if err := signingKey.Verify(decoded.SigningInput(), decoded.Signature()); err != nil {
+		return nil, ErrInvalidSignature
 	}
-	return claims, nil
+	return &Claims{inner: claims}, nil
 }
 
 // GetUser fetches the profile of the user jwt authenticates from the Auth
@@ -156,9 +191,9 @@ func (c *Client) GetUser(ctx context.Context, jwt string) (*User, error) {
 		return nil, newError(response.StatusCode, body)
 	}
 
-	user, err := parseUser(body)
+	user, err := profile.Parse(body)
 	if err != nil {
 		return nil, fmt.Errorf("auth: decoding user: %w", err)
 	}
-	return user, nil
+	return &User{inner: user}, nil
 }

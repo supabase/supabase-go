@@ -1,11 +1,13 @@
-package auth
+package profile_test
 
 import (
 	"testing"
 	"time"
+
+	"github.com/supabase/supabase-go/auth/internal/profile"
 )
 
-func TestParseUserFields(t *testing.T) {
+func TestParseFields(t *testing.T) {
 	body := []byte(`{
 		"id":"user-id",
 		"aud":"authenticated",
@@ -23,9 +25,9 @@ func TestParseUserFields(t *testing.T) {
 		]
 	}`)
 
-	user, err := parseUser(body)
+	user, err := profile.Parse(body)
 	if err != nil {
-		t.Fatalf("parseUser: %v", err)
+		t.Fatalf("Parse: %v", err)
 	}
 
 	if user.ID() != "user-id" {
@@ -55,10 +57,10 @@ func TestParseUserFields(t *testing.T) {
 	}
 }
 
-func TestParseUserAbsentTimestampsAreZero(t *testing.T) {
-	user, err := parseUser([]byte(`{"id":"user-id","created_at":"2026-01-01T00:00:00Z"}`))
+func TestParseAbsentTimestampsAreZero(t *testing.T) {
+	user, err := profile.Parse([]byte(`{"id":"user-id","created_at":"2026-01-01T00:00:00Z"}`))
 	if err != nil {
-		t.Fatalf("parseUser: %v", err)
+		t.Fatalf("Parse: %v", err)
 	}
 	if !user.LastSignInAt().IsZero() {
 		t.Errorf("LastSignInAt = %v, want zero", user.LastSignInAt())
@@ -71,10 +73,16 @@ func TestParseUserAbsentTimestampsAreZero(t *testing.T) {
 	}
 }
 
-func TestUserMetadataCopied(t *testing.T) {
-	user, err := parseUser([]byte(`{"id":"user-id","app_metadata":{"provider":"email"}}`))
+func TestParseNotAUserObject(t *testing.T) {
+	if _, err := profile.Parse([]byte("not json")); err == nil {
+		t.Error("Parse error = nil, want the decode error")
+	}
+}
+
+func TestMetadataCopied(t *testing.T) {
+	user, err := profile.Parse([]byte(`{"id":"user-id","app_metadata":{"provider":"email"}}`))
 	if err != nil {
-		t.Fatalf("parseUser: %v", err)
+		t.Fatalf("Parse: %v", err)
 	}
 	user.AppMetadata()["provider"] = "mutated"
 	if user.AppMetadata()["provider"] != "email" {

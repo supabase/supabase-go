@@ -1,22 +1,27 @@
-package auth
+package auth_test
 
 import (
+	"context"
 	"errors"
 	"testing"
+
+	"github.com/supabase/supabase-go/auth"
 )
 
 func TestErrorMessage(t *testing.T) {
-	withCode := &Error{HTTPStatus: 401, Code: "bad_jwt", Message: "invalid token"}
+	withCode := &auth.Error{HTTPStatus: 401, Code: "bad_jwt", Message: "invalid token"}
 	if got, want := withCode.Error(), "auth: invalid token (code bad_jwt, HTTP 401)"; got != want {
 		t.Errorf("Error() = %q, want %q", got, want)
 	}
-	withoutCode := &Error{HTTPStatus: 500, Message: "boom"}
+	withoutCode := &auth.Error{HTTPStatus: 500, Message: "boom"}
 	if got, want := withoutCode.Error(), "auth: boom (HTTP 500)"; got != want {
 		t.Errorf("Error() = %q, want %q", got, want)
 	}
 }
 
-func TestNewError(t *testing.T) {
+// TestErrorShapesFromServer drives the Auth server's error-response shapes
+// through GetUser and asserts how each parses into [*auth.Error].
+func TestErrorShapesFromServer(t *testing.T) {
 	cases := []struct {
 		name        string
 		body        string
@@ -29,22 +34,31 @@ func TestNewError(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			err := newError(400, []byte(testCase.body))
-			if err.Code != testCase.wantCode {
-				t.Errorf("Code = %q, want %q", err.Code, testCase.wantCode)
+			mock := newMockAuthServer(t)
+			mock.userStatus = 400
+			mock.userBody = testCase.body
+			client := mock.client(t)
+
+			_, err := client.GetUser(context.Background(), "any-token")
+			var serverError *auth.Error
+			if !errors.As(err, &serverError) {
+				t.Fatalf("GetUser error = %v, want *auth.Error", err)
 			}
-			if err.Message != testCase.wantMessage {
-				t.Errorf("Message = %q, want %q", err.Message, testCase.wantMessage)
+			if serverError.Code != testCase.wantCode {
+				t.Errorf("Code = %q, want %q", serverError.Code, testCase.wantCode)
 			}
-			if err.HTTPStatus != 400 {
-				t.Errorf("HTTPStatus = %d, want 400", err.HTTPStatus)
+			if serverError.Message != testCase.wantMessage {
+				t.Errorf("Message = %q, want %q", serverError.Message, testCase.wantMessage)
+			}
+			if serverError.HTTPStatus != 400 {
+				t.Errorf("HTTPStatus = %d, want 400", serverError.HTTPStatus)
 			}
 		})
 	}
 }
 
 func TestSentinelsAreDistinct(t *testing.T) {
-	all := []error{ErrMissingJWT, ErrMalformedJWT, ErrExpiredJWT, ErrInvalidSignature}
+	all := []error{auth.ErrMissingJWT, auth.ErrMalformedJWT, auth.ErrExpiredJWT, auth.ErrInvalidSignature}
 	for i := range all {
 		for j := range all {
 			if i != j && errors.Is(all[i], all[j]) {
