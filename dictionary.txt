@@ -57,6 +57,7 @@ postgrest
 PRODSEC
 reassignable
 rebalance
+RSASSA
 signup
 SLSA
 SQLSTATE

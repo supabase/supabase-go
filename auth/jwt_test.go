@@ -14,7 +14,7 @@ func TestDecodeTokenValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeToken: %v", err)
 	}
-	if decoded.header.Algorithm != "ES256" {
+	if decoded.header.Algorithm != algorithmES256 {
 		t.Errorf("alg = %q, want ES256", decoded.header.Algorithm)
 	}
 	if decoded.header.KeyID != "key-1" {
@@ -106,12 +106,12 @@ func TestVerifySignatureAlgorithmBoundToKey(t *testing.T) {
 func TestJSONWebKeyAlgorithmInference(t *testing.T) {
 	cases := []struct {
 		key  jsonWebKey
-		want string
+		want algorithm
 	}{
-		{jsonWebKey{Algorithm: "ES256"}, "ES256"},
-		{jsonWebKey{KeyType: "RSA"}, "RS256"},
-		{jsonWebKey{KeyType: "EC", Curve: "P-256"}, "ES256"},
-		{jsonWebKey{KeyType: "OKP", Curve: "Ed25519"}, "EdDSA"},
+		{jsonWebKey{Algorithm: algorithmES256}, algorithmES256},
+		{jsonWebKey{KeyType: "RSA"}, algorithmRS256},
+		{jsonWebKey{KeyType: "EC", Curve: "P-256"}, algorithmES256},
+		{jsonWebKey{KeyType: "OKP", Curve: "Ed25519"}, algorithmEdDSA},
 		{jsonWebKey{KeyType: "oct"}, ""},
 	}
 	for _, testCase := range cases {

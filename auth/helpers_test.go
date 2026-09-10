@@ -25,7 +25,7 @@ func base64URL(data []byte) string { return base64.RawURLEncoding.EncodeToString
 // testSigner mints JWTs for one signing key and publishes the matching public
 // JWK, so a test can drive verification end to end without the Auth server.
 type testSigner struct {
-	algorithm string
+	algorithm algorithm
 	keyID     string
 	publicJWK jsonWebKey
 	sign      func(signingInput string) []byte
@@ -59,12 +59,12 @@ func newES256Signer(t *testing.T, keyID string) testSigner {
 		t.Fatalf("generating ES256 key: %v", err)
 	}
 	return testSigner{
-		algorithm: "ES256",
+		algorithm: algorithmES256,
 		keyID:     keyID,
 		publicJWK: jsonWebKey{
 			KeyType:   "EC",
 			KeyID:     keyID,
-			Algorithm: "ES256",
+			Algorithm: algorithmES256,
 			Curve:     "P-256",
 			X:         base64URL(privateKey.X.FillBytes(make([]byte, 32))),
 			Y:         base64URL(privateKey.Y.FillBytes(make([]byte, 32))),
@@ -91,12 +91,12 @@ func newRS256Signer(t *testing.T, keyID string) testSigner {
 		t.Fatalf("generating RS256 key: %v", err)
 	}
 	return testSigner{
-		algorithm: "RS256",
+		algorithm: algorithmRS256,
 		keyID:     keyID,
 		publicJWK: jsonWebKey{
 			KeyType:   "RSA",
 			KeyID:     keyID,
-			Algorithm: "RS256",
+			Algorithm: algorithmRS256,
 			Modulus:   base64URL(privateKey.N.Bytes()),
 			Exponent:  base64URL(big.NewInt(int64(privateKey.E)).Bytes()),
 		},
@@ -119,12 +119,12 @@ func newEdDSASigner(t *testing.T, keyID string) testSigner {
 		t.Fatalf("generating EdDSA key: %v", err)
 	}
 	return testSigner{
-		algorithm: "EdDSA",
+		algorithm: algorithmEdDSA,
 		keyID:     keyID,
 		publicJWK: jsonWebKey{
 			KeyType:   "OKP",
 			KeyID:     keyID,
-			Algorithm: "EdDSA",
+			Algorithm: algorithmEdDSA,
 			Curve:     "Ed25519",
 			X:         base64URL(publicKey),
 		},

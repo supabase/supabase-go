@@ -13,14 +13,32 @@ import (
 	"strings"
 )
 
+// algorithm is a JWT alg header value, as registered in the IANA JOSE
+// registry (https://www.iana.org/assignments/jose).
+type algorithm string
+
+const (
+	// algorithmES256 is ECDSA using P-256 and SHA-256.
+	algorithmES256 algorithm = "ES256"
+
+	// algorithmRS256 is RSASSA-PKCS1-v1_5 using SHA-256.
+	algorithmRS256 algorithm = "RS256"
+
+	// algorithmEdDSA is Ed25519 signing under JOSE's polymorphic EdDSA name.
+	// The IANA registry deprecates that name in favor of the fully-specified
+	// Ed25519 and Ed448 values (RFC 9864), but EdDSA remains the alg the
+	// Supabase Auth server publishes for its Ed25519 signing keys.
+	algorithmEdDSA algorithm = "EdDSA"
+)
+
 // asymmetricAlgorithms is the set of JWT alg values this package verifies
 // locally against a published signing key. A token declaring any other alg -
 // the legacy HS* family, none, or an absent alg - routes to server
 // verification instead.
-var asymmetricAlgorithms = map[string]bool{
-	"ES256": true,
-	"RS256": true,
-	"EdDSA": true,
+var asymmetricAlgorithms = map[algorithm]bool{
+	algorithmES256: true,
+	algorithmRS256: true,
+	algorithmEdDSA: true,
 }
 
 // decodedToken holds the three parts of a parsed JWT: the decoded header and
@@ -35,8 +53,8 @@ type decodedToken struct {
 
 // tokenHeader is the subset of JWT header fields routing and verification need.
 type tokenHeader struct {
-	Algorithm string `json:"alg"`
-	KeyID     string `json:"kid"`
+	Algorithm algorithm `json:"alg"`
+	KeyID     string    `json:"kid"`
 }
 
 // decodeToken splits and base64url-decodes a JWT into its parts. It reports
@@ -89,7 +107,7 @@ func verifySignature(token decodedToken, key jsonWebKey) error {
 	digest := sha256.Sum256([]byte(token.signingInput))
 
 	switch key.algorithm() {
-	case "ES256":
+	case algorithmES256:
 		publicKey, err := key.ecdsaPublicKey()
 		if err != nil {
 			return ErrInvalidSignature
@@ -106,7 +124,7 @@ func verifySignature(token decodedToken, key jsonWebKey) error {
 		}
 		return nil
 
-	case "RS256":
+	case algorithmRS256:
 		publicKey, err := key.rsaPublicKey()
 		if err != nil {
 			return ErrInvalidSignature
@@ -116,7 +134,7 @@ func verifySignature(token decodedToken, key jsonWebKey) error {
 		}
 		return nil
 
-	case "EdDSA":
+	case algorithmEdDSA:
 		publicKey, err := key.ed25519PublicKey()
 		if err != nil {
 			return ErrInvalidSignature
@@ -135,29 +153,29 @@ func verifySignature(token decodedToken, key jsonWebKey) error {
 // jsonWebKey is the subset of a JWK's fields this package reads to build a
 // verification key. The Auth server publishes only public keys here.
 type jsonWebKey struct {
-	KeyType   string `json:"kty"`
-	KeyID     string `json:"kid"`
-	Algorithm string `json:"alg"`
-	Curve     string `json:"crv"`
-	X         string `json:"x"`
-	Y         string `json:"y"`
-	Modulus   string `json:"n"`
-	Exponent  string `json:"e"`
+	KeyType   string    `json:"kty"`
+	KeyID     string    `json:"kid"`
+	Algorithm algorithm `json:"alg"`
+	Curve     string    `json:"crv"`
+	X         string    `json:"x"`
+	Y         string    `json:"y"`
+	Modulus   string    `json:"n"`
+	Exponent  string    `json:"e"`
 }
 
 // algorithm returns the JWT alg the key verifies. It prefers the key's own alg
 // and infers one from the key type when the field is absent.
-func (k jsonWebKey) algorithm() string {
+func (k jsonWebKey) algorithm() algorithm {
 	if k.Algorithm != "" {
 		return k.Algorithm
 	}
 	switch {
 	case k.KeyType == "RSA":
-		return "RS256"
+		return algorithmRS256
 	case k.KeyType == "EC" && k.Curve == "P-256":
-		return "ES256"
+		return algorithmES256
 	case k.KeyType == "OKP" && k.Curve == "Ed25519":
-		return "EdDSA"
+		return algorithmEdDSA
 	default:
 		return ""
 	}
