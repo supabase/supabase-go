@@ -15,19 +15,25 @@ import (
 
 // algorithm is a JWT alg header value, as registered in the IANA JOSE
 // registry (https://www.iana.org/assignments/jose).
+// The Supabase docs describe the algorithms available for project signing keys:
+// https://supabase.com/docs/guides/auth/signing-keys#choosing-the-right-signing-algorithm
 type algorithm string
 
 const (
-	// algorithmES256 is ECDSA using P-256 and SHA-256.
+	// algorithmES256 is ECDSA using the NIST P-256 curve and SHA-256. The
+	// recommended algorithm for use with Supabase.
 	algorithmES256 algorithm = "ES256"
 
-	// algorithmRS256 is RSASSA-PKCS1-v1_5 using SHA-256.
+	// algorithmRS256 is RSASSA-PKCS1-v1_5 using SHA-256; Supabase issues
+	// 2048-bit keys for it (the docs' "RSA 2048" row).
 	algorithmRS256 algorithm = "RS256"
 
 	// algorithmEdDSA is Ed25519 signing under JOSE's polymorphic EdDSA name.
 	// The IANA registry deprecates that name in favor of the fully-specified
 	// Ed25519 and Ed448 values (RFC 9864), but EdDSA remains the alg the
 	// Supabase Auth server publishes for its Ed25519 signing keys.
+	// The hosted platform advertises Ed25519 keys as coming soon (as at
+	// September 2026); self-hosted projects can configure them today.
 	algorithmEdDSA algorithm = "EdDSA"
 )
 
