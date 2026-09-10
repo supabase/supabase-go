@@ -198,7 +198,7 @@ A Go test file in a package directory can declare one of two packages, and both 
 
 **Our default is the external test package (`foo_test`).** Testing through the public API tests what consumers actually use, keeps tests decoupled from internal details so refactoring internals does not spuriously break tests, and applies healthy pressure to keep the exported surface usable. Reach for an in-package test (`foo`) only when you genuinely need to exercise internals that are not observable through the public API, and prefer to keep such tests few and clearly named (for example `something_internal_test.go`).
 
-A note on terminology: the industry terms for these are "black-box" and "white-box" testing, and we mention them so the mapping is clear, but we prefer the precise, Go-native framing - *external test package* versus *in-package test* - which also sidesteps the loaded black/white metaphor. (Where a single word helps, the neutral synonyms *closed-box* and *clear-box* are also in common use.)
+A note on terminology: the industry terms for these are "black-box" and "white-box" testing, and we mention them so the mapping is clear, but we prefer the precise, Go-native framing - *external test package* versus *in-package test* - which also sidesteps loaded language.
 
 ## Local development environment troubleshooting and tips
 

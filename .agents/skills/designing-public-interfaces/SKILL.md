@@ -13,4 +13,6 @@ The following documents will be helpful:
 
 We must aim for consistency so patterns that already exist in this codebase should be considered for similarity and thus applicability for any new API design.
 
+The interior counterpart of this skill is `designing-internal-boundaries`, which governs how the types behind the exported surface keep their contracts compiler-enforced.
+
 A new or changed convention should also trigger the `recording-decisions` skill.
