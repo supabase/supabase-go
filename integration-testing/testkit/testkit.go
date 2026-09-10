@@ -1,8 +1,6 @@
-// Package integrationsupport provides the fixtures the SDK modules'
-// integration tests share: the local Supabase stack's credentials and
-// end-user signup. It exists so each integrationtest module states these
-// once-per-repository concerns exactly once.
-package integrationsupport
+// Package testkit provides the fixtures the SDK modules' integration tests
+// share: the local Supabase stack's credentials and end-user signup.
+package testkit
 
 import (
 	"bytes"

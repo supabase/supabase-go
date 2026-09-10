@@ -86,7 +86,7 @@ The decision is cheaply reversible (delete `go.work`, add `replace` blocks).
 ## Integration tests and their shared fixtures are adjacent non-published modules
 
 **What**:  
-Each module's `integrationtest` directory is its own module - never published, absent from `go.work`, entered with `GOWORK=off` and resolving its requirements through `replace` directives to the local tree - and the fixtures the suites share (stack credentials, end-user signup) live once in the sibling `integrationsupport` module.
+Each module's `integrationtest` directory is its own module - never published, absent from `go.work`, entered with `GOWORK=off` and resolving its requirements through `replace` directives to the local tree - and the fixtures the suites share (stack credentials, end-user signup) live once in the sibling [`integration-testing/testkit` module](integration-testing/testkit/).
 Test-module import paths stay under the parent module's path (`…/postgrest/integrationtest`), and the files carry no build tag.
 
 **Why**:  

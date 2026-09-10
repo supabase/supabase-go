@@ -9,13 +9,13 @@ import (
 	"testing"
 
 	"github.com/supabase/supabase-go/auth"
-	"github.com/supabase/supabase-go/integrationsupport"
+	"github.com/supabase/supabase-go/integration-testing/testkit"
 )
 
 // newAuthClient wires an Auth client at the local Supabase stack.
 func newAuthClient(t *testing.T) *auth.Client {
 	t.Helper()
-	projectURL, apiKey := integrationsupport.Credentials(t)
+	projectURL, apiKey := testkit.Credentials(t)
 	client, err := auth.New(projectURL, apiKey)
 	if err != nil {
 		t.Fatalf("auth.New: %v", err)

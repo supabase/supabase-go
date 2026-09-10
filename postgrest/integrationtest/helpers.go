@@ -7,7 +7,7 @@ import (
 
 	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
-	"github.com/supabase/supabase-go/integrationsupport"
+	"github.com/supabase/supabase-go/integration-testing/testkit"
 	"github.com/supabase/supabase-go/postgrest"
 )
 
@@ -17,7 +17,7 @@ import (
 // tests can exercise construction-time settings against the real stack.
 func newIntegrationClient(t *testing.T, options ...configuration.Option) *postgrest.Client {
 	t.Helper()
-	projectURL, apiKey := integrationsupport.Credentials(t)
+	projectURL, apiKey := testkit.Credentials(t)
 	projectConfiguration, err := configuration.New(core.ModulePathPostgrest, projectURL, apiKey, options...)
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)

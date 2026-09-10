@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/supabase/supabase-go/integrationsupport"
+	"github.com/supabase/supabase-go/integration-testing/testkit"
 	"github.com/supabase/supabase-go/postgrest"
 	"github.com/supabase/supabase-go/supabase"
 )
@@ -13,7 +13,7 @@ import (
 // the local Supabase stack started by scripts/integration-test.sh, covering
 // the composition of a new client, Database, From, Select and Collect.
 func TestRootClientSelect(t *testing.T) {
-	projectURL, apiKey := integrationsupport.Credentials(t)
+	projectURL, apiKey := testkit.Credentials(t)
 
 	client, err := supabase.New(projectURL, apiKey)
 	if err != nil {

@@ -8,7 +8,7 @@ go 1.25
 
 require (
 	github.com/supabase/supabase-go/auth v0.0.0-00010101000000-000000000000
-	github.com/supabase/supabase-go/integrationsupport v0.0.0-00010101000000-000000000000
+	github.com/supabase/supabase-go/integration-testing/testkit v0.0.0-00010101000000-000000000000
 )
 
 require github.com/supabase/supabase-go/core v0.0.0-00010101000000-000000000000 // indirect
@@ -16,5 +16,5 @@ require github.com/supabase/supabase-go/core v0.0.0-00010101000000-000000000000 
 replace (
 	github.com/supabase/supabase-go/auth => ../../auth
 	github.com/supabase/supabase-go/core => ../../core
-	github.com/supabase/supabase-go/integrationsupport => ../../integrationsupport
+	github.com/supabase/supabase-go/integration-testing/testkit => ../../integration-testing/testkit
 )

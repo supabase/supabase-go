@@ -18,8 +18,8 @@ enumerate_workspace_modules() {
 
 # Enumerate the non-published module directories carrying integration-test
 # code: each workspace module's adjacent integrationtest module plus their
-# shared integrationsupport fixtures module. These sit outside go.work (the
-# workspace is exactly the published set), so workspace enumeration never
+# shared integration-testing/testkit fixtures module. These sit outside go.work
+# (the workspace is exactly the published set), so workspace enumeration never
 # reaches them; scripts visiting them must run the go tool with GOWORK=off so
 # their replace directives resolve the SDK modules from the local tree.
 enumerate_adjacent_test_modules() {
@@ -27,5 +27,5 @@ enumerate_adjacent_test_modules() {
     auth/integrationtest \
     postgrest/integrationtest \
     supabase/integrationtest \
-    integrationsupport
+    integration-testing/testkit
 }

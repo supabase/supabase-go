@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/supabase/supabase-go/auth"
-	"github.com/supabase/supabase-go/integrationsupport"
+	"github.com/supabase/supabase-go/integration-testing/testkit"
 )
 
 // TestGetClaimsVerifiesSignedUpUser signs up a real user and verifies the
@@ -13,8 +13,8 @@ import (
 // pinned CLI signs access tokens with an asymmetric ES256 key, so this
 // exercises the JWK Set verification path end to end, not the server fallback.
 func TestGetClaimsVerifiesSignedUpUser(t *testing.T) {
-	projectURL, apiKey := integrationsupport.Credentials(t)
-	user := integrationsupport.SignUpUser(t, projectURL, apiKey)
+	projectURL, apiKey := testkit.Credentials(t)
+	user := testkit.SignUpUser(t, projectURL, apiKey)
 	client := newAuthClient(t)
 
 	if algorithm := tokenAlgorithm(t, user.AccessToken); algorithm != "ES256" {
@@ -40,8 +40,8 @@ func TestGetClaimsVerifiesSignedUpUser(t *testing.T) {
 // token: a real token whose signature has been altered fails against the
 // published key rather than being accepted.
 func TestGetClaimsRejectsTamperedToken(t *testing.T) {
-	projectURL, apiKey := integrationsupport.Credentials(t)
-	user := integrationsupport.SignUpUser(t, projectURL, apiKey)
+	projectURL, apiKey := testkit.Credentials(t)
+	user := testkit.SignUpUser(t, projectURL, apiKey)
 	client := newAuthClient(t)
 
 	_, err := client.GetClaims(t.Context(), tamperSignature(user.AccessToken))
@@ -53,8 +53,8 @@ func TestGetClaimsRejectsTamperedToken(t *testing.T) {
 // TestGetUserRoundTrip fetches the signed-up user's profile from the Auth
 // server and confirms a garbage token is rejected.
 func TestGetUserRoundTrip(t *testing.T) {
-	projectURL, apiKey := integrationsupport.Credentials(t)
-	user := integrationsupport.SignUpUser(t, projectURL, apiKey)
+	projectURL, apiKey := testkit.Credentials(t)
+	user := testkit.SignUpUser(t, projectURL, apiKey)
 	client := newAuthClient(t)
 
 	fetched, err := client.GetUser(t.Context(), user.AccessToken)

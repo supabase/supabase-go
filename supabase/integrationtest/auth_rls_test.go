@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/supabase/supabase-go/auth"
-	"github.com/supabase/supabase-go/integrationsupport"
+	"github.com/supabase/supabase-go/integration-testing/testkit"
 	"github.com/supabase/supabase-go/postgrest"
 	"github.com/supabase/supabase-go/supabase"
 )
@@ -25,8 +25,8 @@ type practiceLog struct {
 // issues a database call as that user, and Row Level Security confines the
 // result to the user's own rows.
 func TestVerifiedTokenScopesRLSQuery(t *testing.T) {
-	projectURL, apiKey := integrationsupport.Credentials(t)
-	user := integrationsupport.SignUpUser(t, projectURL, apiKey)
+	projectURL, apiKey := testkit.Credentials(t)
+	user := testkit.SignUpUser(t, projectURL, apiKey)
 
 	// 1. Verify the token the way backend middleware would.
 	authClient, err := auth.New(projectURL, apiKey)

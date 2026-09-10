@@ -31,7 +31,6 @@ govulncheck
 GOWORK
 inclusivity
 infertypeargs
-integrationsupport
 integrationtest
 isdistinct
 jsonv
