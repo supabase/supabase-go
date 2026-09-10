@@ -45,7 +45,12 @@ func tokenAlgorithm(t *testing.T, token string) string {
 }
 
 // tamperSignature flips one character of a JWT's signature, leaving it
-// structurally valid but cryptographically invalid.
+// structurally valid but cryptographically invalid. This is a simplistic
+// mutation, as it modifies the base64 encoding of the underlying raw signature,
+// therefore "structurally valid" means that the three-part JWT remains validly
+// formed ([Header].[Payload].[Signature]) and that the third part (Signature)
+// remains valid base64 which when decoded has a different first byte in the
+// raw, binary cryptographic hash.
 func tamperSignature(token string) string {
 	lastDot := strings.LastIndexByte(token, '.')
 	signature := []byte(token[lastDot+1:])
