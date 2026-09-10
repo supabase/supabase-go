@@ -34,3 +34,52 @@ func TestTamper(t *testing.T) {
 		t.Fatalf("tampered signature is no longer valid base64url: %v", err)
 	}
 }
+
+// TestTamperSignaturePanicsOnEmptySignature pins the failure mode for tokens
+// that no integration run should ever produce: any token that is empty or ends
+// with a dot leaves an empty signature slice, and indexing it panics.
+// Loud failure is acceptable in a fixture helper (fail early).
+func TestTamperSignaturePanicsOnEmptySignature(t *testing.T) {
+	testCases := []struct {
+		name  string
+		token string
+	}{
+		{name: "empty token", token: ""},
+		{name: "empty parts", token: ".."},
+		{name: "empty last part", token: "A.B."},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Error("tamperSignature returned without panicking")
+				}
+			}()
+			tamperSignature(testCase.token)
+		})
+	}
+}
+
+// TestTamperSignatureNeedsOnlyANonEmptyFinalPart pins that tamperSignature
+// never requires a three-part JWT: it flips the first character after the last
+// dot, wherever that is.
+func TestTamperSignatureNeedsOnlyANonEmptyFinalPart(t *testing.T) {
+	testCases := []struct {
+		name  string
+		token string
+		want  string
+	}{
+		{name: "two parts", token: "A.B", want: "A.A"},
+		// A dot-less token is all signature. This row also exercises the 'A' to
+		// 'B' flip branch, which the real token's '-'-leading signature never
+		// takes.
+		{name: "no dots", token: "AB", want: "BB"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := tamperSignature(testCase.token); got != testCase.want {
+				t.Errorf("tamperSignature(%q) = %q, want %q", testCase.token, got, testCase.want)
+			}
+		})
+	}
+}
