@@ -21,8 +21,8 @@
 # Bump SUPABASE_CLI_VERSION and the checksums together. The checksums are the
 # matching lines from:
 #   https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/checksums.txt
-# If the new CLI changes the config.toml schema then integration/supabase/config.toml may
-# also need to be updated.
+# If the new CLI changes the config.toml schema then integration-testing/supabase/config.toml
+# may also need to be updated.
 set -euo pipefail
 
 SUPABASE_CLI_VERSION="2.114.0"
@@ -74,7 +74,7 @@ fi
 
 echo "Integration Test..."
 
-# The CLI is pointed at a disposable copy of the committed integration/
+# The CLI is pointed at a disposable copy of the committed integration-testing/
 # project directory, because it writes scratch state (supabase/.branches and
 # supabase/.temp) inside whatever project it runs. The copy keeps the
 # committed tree pristine by construction - no scratch to gitignore, and
@@ -85,7 +85,7 @@ echo "Integration Test..."
 # Stopping from a copy still finds the running stack, which the CLI
 # identifies by the project_id in config.toml, not by path.
 project_directory="$(mktemp -d)"
-cp -R integration/. "${project_directory}/"
+cp -R integration-testing/. "${project_directory}/"
 
 cleanup() {
   echo "==> stopping local stack"
