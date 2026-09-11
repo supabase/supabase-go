@@ -27,6 +27,11 @@ supporting_symbols:
 features:
   auth.session.get_claims:
     status: implemented
+    note: |
+      The token is an explicit required parameter. This server-side SDK holds
+      no session store yet, so there is no "current session" to default from -
+      the target use case is verifying tokens that arrive on inbound requests.
+      Session-sourced defaults arrive with the session management capabilities.
     symbols:
       - auth.Client.GetClaims
     supporting_symbols:
@@ -48,6 +53,8 @@ features:
       - auth.ErrMalformedJWT
   auth.session.get_user:
     status: implemented
+    note: |
+      The token is an explicit required parameter, as for auth.session.get_claims.
     symbols:
       - auth.Client.GetUser
     supporting_symbols:
