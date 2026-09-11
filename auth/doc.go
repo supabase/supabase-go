@@ -21,6 +21,16 @@
 // carrying an unrecognized key id - is verified by the Auth server, the same
 // round trip [Client.GetUser] makes.
 //
+// Local verification works because Supabase signs tokens with an asymmetric
+// key pair. The Auth server holds the private half and signs each access token
+// it mints, and the project publishes only the public halves at its
+// /.well-known/jwks.json endpoint - a JWK Set as defined by RFC 7517. A public
+// key can check a signature but never produce one, so the document is safe to
+// serve unauthenticated, safe to cache and holds nothing secret. The legacy
+// HS256 scheme signs with a shared symmetric secret that could mint tokens if
+// published, which is why it never appears in the JWK Set and why those tokens
+// take the server round trip instead.
+//
 // [Client.GetUser] fetches the authenticated user's current profile from the
 // Auth server, which verifies the token as part of serving the request. It is
 // a round trip every time and returns server-fresh data, so prefer
