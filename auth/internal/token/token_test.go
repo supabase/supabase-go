@@ -21,17 +21,39 @@ func TestDecodeValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
-	if decoded.Algorithm() != "ES256" {
-		t.Errorf("Algorithm = %q, want ES256", decoded.Algorithm())
+	header := decoded.Header()
+	if header.Algorithm() != "ES256" {
+		t.Errorf("Algorithm = %q, want ES256", header.Algorithm())
 	}
-	if decoded.KeyID() != "key-1" {
-		t.Errorf("KeyID = %q, want key-1", decoded.KeyID())
+	if header.KeyID() != "key-1" {
+		t.Errorf("KeyID = %q, want key-1", header.KeyID())
+	}
+	if header.Type() != "JWT" {
+		t.Errorf("Type = %q, want JWT", header.Type())
 	}
 	if decoded.SigningInput() != jwt[:strings.LastIndexByte(jwt, '.')] {
 		t.Errorf("SigningInput = %q, want the header.payload prefix", decoded.SigningInput())
 	}
 	if len(decoded.Signature()) == 0 {
 		t.Error("Signature is empty, want the decoded signature bytes")
+	}
+	mutated := decoded.Signature()
+	mutated[0]++
+	if decoded.Signature()[0] == mutated[0] {
+		t.Error("Signature shares state between calls, want a fresh copy")
+	}
+}
+
+func TestDecodeHeaderOmissions(t *testing.T) {
+	jwt := base64URL([]byte(`{"alg":"HS256"}`)) + "." + base64URL([]byte(`{}`)) + "." + base64URL([]byte("sig"))
+
+	decoded, err := token.Decode(jwt)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	header := decoded.Header()
+	if header.Algorithm() != "HS256" || header.KeyID() != "" || header.Type() != "" {
+		t.Errorf("header = (%q, %q, %q), want (HS256, empty kid, empty typ)", header.Algorithm(), header.KeyID(), header.Type())
 	}
 }
 

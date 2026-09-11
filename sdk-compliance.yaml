@@ -51,6 +51,10 @@ features:
       - auth.ErrExpiredJWT
       - auth.ErrInvalidSignature
       - auth.ErrMalformedJWT
+      - auth.JWTHeader
+      - auth.JWTHeader.Algorithm
+      - auth.JWTHeader.KeyID
+      - auth.JWTHeader.Type
   auth.session.get_user:
     status: implemented
     note: |

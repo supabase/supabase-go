@@ -33,7 +33,7 @@ func TestVerifiedTokenScopesRLSQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("auth.New: %v", err)
 	}
-	claims, err := authClient.GetClaims(t.Context(), user.AccessToken)
+	claims, _, _, err := authClient.GetClaims(t.Context(), user.AccessToken)
 	if err != nil {
 		t.Fatalf("GetClaims: %v", err)
 	}

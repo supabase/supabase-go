@@ -25,7 +25,7 @@ func ExampleClient_GetClaims() {
 		return
 	}
 
-	claims, err := client.GetClaims(context.Background(), "END_USER_ACCESS_TOKEN")
+	claims, _, _, err := client.GetClaims(context.Background(), "END_USER_ACCESS_TOKEN")
 	switch {
 	case errors.Is(err, auth.ErrExpiredJWT):
 		fmt.Println("token expired - ask the client to refresh")
@@ -91,7 +91,7 @@ func Example_middleware() {
 				http.Error(writer, "missing bearer token", http.StatusUnauthorized)
 				return
 			}
-			claims, err := client.GetClaims(request.Context(), token)
+			claims, _, _, err := client.GetClaims(request.Context(), token)
 			if err != nil {
 				// Every verification failure is a 401: never leak which check failed.
 				http.Error(writer, "invalid token", http.StatusUnauthorized)

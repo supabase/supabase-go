@@ -21,9 +21,12 @@ func TestGetClaimsVerifiesSignedUpUser(t *testing.T) {
 		t.Fatalf("access token alg = %q, want ES256 - the local stack is not signing asymmetrically", algorithm)
 	}
 
-	claims, err := client.GetClaims(t.Context(), user.AccessToken)
+	claims, header, _, err := client.GetClaims(t.Context(), user.AccessToken)
 	if err != nil {
 		t.Fatalf("GetClaims: %v", err)
+	}
+	if header.Algorithm() != "ES256" || header.KeyID() == "" {
+		t.Errorf("header = (%q, kid %q), want ES256 with a key id", header.Algorithm(), header.KeyID())
 	}
 	if claims.Subject() != user.ID {
 		t.Errorf("Subject = %q, want %q", claims.Subject(), user.ID)
@@ -44,7 +47,7 @@ func TestGetClaimsRejectsTamperedToken(t *testing.T) {
 	user := testkit.SignUpUser(t, projectURL, apiKey)
 	client := newAuthClient(t)
 
-	_, err := client.GetClaims(t.Context(), tamperSignature(user.AccessToken))
+	_, _, _, err := client.GetClaims(t.Context(), tamperSignature(user.AccessToken))
 	if !errors.Is(err, auth.ErrInvalidSignature) {
 		t.Errorf("GetClaims(tampered) = %v, want ErrInvalidSignature", err)
 	}

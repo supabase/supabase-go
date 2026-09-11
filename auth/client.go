@@ -96,14 +96,17 @@ func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.F
 	}
 }
 
-// GetClaims verifies jwt and returns its claims. A token signed with one of the
+// GetClaims verifies jwt and returns its claims together with the token's
+// decoded header and raw signature bytes. A token signed with one of the
 // project's asymmetric signing keys (ES256, RS256 or EdDSA) is verified locally
 // against the project's published key set, fetched from the
 // /.well-known/jwks.json discovery endpoint and cached for ten minutes; a token
 // the key set cannot verify locally - one signed with the legacy shared secret,
 // or carrying an unrecognized key id - is verified by the Auth server instead,
 // exactly as [Client.GetUser] verifies. Claims are returned only after one of
-// those verifications succeeds.
+// those verifications succeeds, with the [JWTHeader] and signature describing
+// the token envelope on both routes. The signature is a copy the caller may
+// retain and modify freely.
 //
 // Returned sentinel errors:
 //   - [ErrMissingJWT] when jwt is empty.
@@ -114,51 +117,52 @@ func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.F
 //
 // A server-verified rejection surfaces as [*Error] with the Auth server's
 // response, and a JWK Set discovery failure is returned wrapped.
-func (c *Client) GetClaims(ctx context.Context, jwt string) (*Claims, error) {
+func (c *Client) GetClaims(ctx context.Context, jwt string) (*Claims, JWTHeader, []byte, error) {
 	if jwt == "" {
-		return nil, ErrMissingJWT
+		return nil, JWTHeader{}, nil, ErrMissingJWT
 	}
 
 	decoded, err := token.Decode(jwt)
 	if err != nil {
-		return nil, ErrMalformedJWT
+		return nil, JWTHeader{}, nil, ErrMalformedJWT
 	}
 	claims, err := decoded.Claims()
 	if err != nil {
-		return nil, ErrMalformedJWT
+		return nil, JWTHeader{}, nil, ErrMalformedJWT
 	}
 	if claims.ExpiresAt().IsZero() || !claims.ExpiresAt().After(c.now()) {
-		return nil, ErrExpiredJWT
+		return nil, JWTHeader{}, nil, ErrExpiredJWT
 	}
+	header := JWTHeader{inner: decoded.Header()}
 
 	// A token the local key set cannot verify - the legacy shared secret (an HS*
 	// or absent alg) or one without a key id - is verified by the Auth server,
 	// which trusts the returned claims only when it answers 200.
-	if !key.Supported(decoded.Algorithm()) || decoded.KeyID() == "" {
+	if !key.Supported(header.Algorithm()) || header.KeyID() == "" {
 		if _, err := c.GetUser(ctx, jwt); err != nil {
-			return nil, err
+			return nil, JWTHeader{}, nil, err
 		}
-		return &Claims{inner: claims}, nil
+		return &Claims{inner: claims}, header, decoded.Signature(), nil
 	}
 
-	signingKey, found, err := c.keys.Key(ctx, decoded.KeyID(), c.now())
+	signingKey, found, err := c.keys.Key(ctx, header.KeyID(), c.now())
 	if err != nil {
-		return nil, err
+		return nil, JWTHeader{}, nil, err
 	}
 	// A key id absent from the published set - a token from outside the project,
 	// or a key the server knows but the discovery endpoint has not yet
 	// advertised - defers to server verification rather than failing locally.
 	if !found {
 		if _, err := c.GetUser(ctx, jwt); err != nil {
-			return nil, err
+			return nil, JWTHeader{}, nil, err
 		}
-		return &Claims{inner: claims}, nil
+		return &Claims{inner: claims}, header, decoded.Signature(), nil
 	}
 
 	if err := signingKey.Verify(decoded.SigningInput(), decoded.Signature()); err != nil {
-		return nil, ErrInvalidSignature
+		return nil, JWTHeader{}, nil, ErrInvalidSignature
 	}
-	return &Claims{inner: claims}, nil
+	return &Claims{inner: claims}, header, decoded.Signature(), nil
 }
 
 // GetUser fetches the profile of the user jwt authenticates from the Auth

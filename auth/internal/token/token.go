@@ -19,33 +19,51 @@ import (
 // three-part base64url JWT carrying a JSON header and JSON claims.
 var errMalformed = errors.New("malformed JWT")
 
-// header is the subset of JWT header fields routing and verification need.
-type header struct {
+// headerWire is the JSON shape of the JWT header fields routing, verification
+// and the public surface need.
+type headerWire struct {
 	Algorithm string `json:"alg"`
 	KeyID     string `json:"kid"`
+	Type      string `json:"typ"`
 }
 
-// Token is a decoded JWT: the header fields for routing, the claims bytes and
-// the signature over the signing input. Instances come only from [Decode].
+// Header is the opaque decoded header of one token: unexported fields readable
+// only through accessors, mirroring [Claims].
+type Header struct {
+	algorithm string
+	keyID     string
+	typ       string
+}
+
+// Algorithm returns the raw alg value the token header declares.
+func (h Header) Algorithm() string { return h.algorithm }
+
+// KeyID returns the kid value the token header declares, or the empty string
+// when it carries none.
+func (h Header) KeyID() string { return h.keyID }
+
+// Type returns the typ value the token header declares, or the empty string
+// when it carries none.
+func (h Header) Type() string { return h.typ }
+
+// Token is a decoded JWT: the header for routing, the claims bytes and the
+// signature over the signing input. Instances come only from [Decode].
 type Token struct {
-	header       header
+	header       Header
 	claimsBytes  []byte
 	signature    []byte
 	signingInput string
 }
 
-// Algorithm returns the raw alg value the token header declares.
-func (t Token) Algorithm() string { return t.header.Algorithm }
-
-// KeyID returns the kid value the token header declares, or the empty string
-// when it carries none.
-func (t Token) KeyID() string { return t.header.KeyID }
+// Header returns the decoded token header.
+func (t Token) Header() Header { return t.header }
 
 // SigningInput returns the "header.payload" prefix a signature covers.
 func (t Token) SigningInput() string { return t.signingInput }
 
-// Signature returns the decoded signature bytes.
-func (t Token) Signature() []byte { return t.signature }
+// Signature returns the decoded signature bytes as a fresh copy each call, so
+// no caller can reach the state another caller received.
+func (t Token) Signature() []byte { return slices.Clone(t.signature) }
 
 // Decode splits and base64url-decodes a JWT into its parts. Any error means
 // the token is malformed.
@@ -75,13 +93,13 @@ func Decode(jwt string) (Token, error) {
 		return Token{}, errMalformed
 	}
 
-	var decodedHeader header
-	if err := json.Unmarshal(headerBytes, &decodedHeader); err != nil {
+	var wire headerWire
+	if err := json.Unmarshal(headerBytes, &wire); err != nil {
 		return Token{}, errMalformed
 	}
 
 	return Token{
-		header:       decodedHeader,
+		header:       Header{algorithm: wire.Algorithm, keyID: wire.KeyID, typ: wire.Type},
 		claimsBytes:  claimsBytes,
 		signature:    signature,
 		signingInput: jwt[:lastDot],

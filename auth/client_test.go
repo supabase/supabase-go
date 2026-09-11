@@ -1,8 +1,11 @@
 package auth_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/supabase/supabase-go/auth"
@@ -20,12 +23,18 @@ func TestGetClaimsVerifiesAsymmetricLocally(t *testing.T) {
 			mock := newMockAuthServer(t, signer)
 			client := mock.client(t)
 
-			claims, err := client.GetClaims(context.Background(), signer.Token(t, testkit.DefaultClaims()))
+			claims, header, signature, err := client.GetClaims(context.Background(), signer.Token(t, testkit.DefaultClaims()))
 			if err != nil {
 				t.Fatalf("GetClaims: %v", err)
 			}
 			if claims.Subject() != "11111111-1111-1111-1111-111111111111" {
 				t.Errorf("Subject = %q", claims.Subject())
+			}
+			if header.Algorithm() != name || header.KeyID() != "kid-1" || header.Type() != "JWT" {
+				t.Errorf("header = (%q, %q, %q), want (%q, kid-1, JWT)", header.Algorithm(), header.KeyID(), header.Type(), name)
+			}
+			if len(signature) == 0 {
+				t.Error("signature is empty, want the token's raw signature bytes")
 			}
 			if hits := mock.userHits.Load(); hits != 0 {
 				t.Errorf("user endpoint hit %d times, want 0 for local verification", hits)
@@ -37,12 +46,44 @@ func TestGetClaimsVerifiesAsymmetricLocally(t *testing.T) {
 	}
 }
 
+// TestGetClaimsReturnsSignatureCopy pins the returned signature to the token's
+// actual signature bytes and proves it is a copy: corrupting one call's bytes
+// must not bleed into the next.
+func TestGetClaimsReturnsSignatureCopy(t *testing.T) {
+	signer := testkit.NewES256(t, "kid-1")
+	mock := newMockAuthServer(t, signer)
+	client := mock.client(t)
+	jwt := signer.Token(t, testkit.DefaultClaims())
+
+	expected, err := base64.RawURLEncoding.DecodeString(jwt[strings.LastIndexByte(jwt, '.')+1:])
+	if err != nil {
+		t.Fatalf("decoding the token's signature segment: %v", err)
+	}
+
+	_, _, first, err := client.GetClaims(context.Background(), jwt)
+	if err != nil {
+		t.Fatalf("GetClaims: %v", err)
+	}
+	if !bytes.Equal(first, expected) {
+		t.Fatalf("signature = %x, want the token's signature segment %x", first, expected)
+	}
+
+	first[0] ^= 0xFF
+	_, _, second, err := client.GetClaims(context.Background(), jwt)
+	if err != nil {
+		t.Fatalf("GetClaims (second): %v", err)
+	}
+	if !bytes.Equal(second, expected) {
+		t.Error("second signature differs - returned bytes are not a copy")
+	}
+}
+
 func TestGetClaimsRejectsTamperedSignature(t *testing.T) {
 	signer := testkit.NewES256(t, "kid-1")
 	mock := newMockAuthServer(t, signer)
 	client := mock.client(t)
 
-	_, err := client.GetClaims(context.Background(), signer.TamperedToken(t, testkit.DefaultClaims()))
+	_, _, _, err := client.GetClaims(context.Background(), signer.TamperedToken(t, testkit.DefaultClaims()))
 	if !errors.Is(err, auth.ErrInvalidSignature) {
 		t.Errorf("GetClaims = %v, want ErrInvalidSignature", err)
 	}
@@ -58,12 +99,12 @@ func TestGetClaimsRejectsExpired(t *testing.T) {
 
 	claims := testkit.DefaultClaims()
 	claims["exp"] = int64(1_600_000_000) // 2020
-	if _, err := client.GetClaims(context.Background(), signer.Token(t, claims)); !errors.Is(err, auth.ErrExpiredJWT) {
+	if _, _, _, err := client.GetClaims(context.Background(), signer.Token(t, claims)); !errors.Is(err, auth.ErrExpiredJWT) {
 		t.Errorf("GetClaims (past exp) = %v, want ErrExpiredJWT", err)
 	}
 
 	delete(claims, "exp")
-	if _, err := client.GetClaims(context.Background(), signer.Token(t, claims)); !errors.Is(err, auth.ErrExpiredJWT) {
+	if _, _, _, err := client.GetClaims(context.Background(), signer.Token(t, claims)); !errors.Is(err, auth.ErrExpiredJWT) {
 		t.Errorf("GetClaims (absent exp) = %v, want ErrExpiredJWT", err)
 	}
 }
@@ -72,10 +113,10 @@ func TestGetClaimsRejectsMalformedAndEmpty(t *testing.T) {
 	mock := newMockAuthServer(t)
 	client := mock.client(t)
 
-	if _, err := client.GetClaims(context.Background(), ""); !errors.Is(err, auth.ErrMissingJWT) {
+	if _, _, _, err := client.GetClaims(context.Background(), ""); !errors.Is(err, auth.ErrMissingJWT) {
 		t.Errorf("GetClaims(empty) = %v, want ErrMissingJWT", err)
 	}
-	if _, err := client.GetClaims(context.Background(), "not-a-jwt"); !errors.Is(err, auth.ErrMalformedJWT) {
+	if _, _, _, err := client.GetClaims(context.Background(), "not-a-jwt"); !errors.Is(err, auth.ErrMalformedJWT) {
 		t.Errorf("GetClaims(garbage) = %v, want ErrMalformedJWT", err)
 	}
 }
@@ -86,12 +127,15 @@ func TestGetClaimsRoutesLegacyTokenToServer(t *testing.T) {
 
 	// A legacy HS256 token cannot be verified locally, so the claims are trusted
 	// only after the Auth server confirms the token with a 200.
-	claims, err := client.GetClaims(context.Background(), testkit.CraftToken(t, "HS256", "", testkit.DefaultClaims()))
+	claims, header, signature, err := client.GetClaims(context.Background(), testkit.CraftToken(t, "HS256", "", testkit.DefaultClaims()))
 	if err != nil {
 		t.Fatalf("GetClaims: %v", err)
 	}
 	if claims.Email() != "player@example.com" {
 		t.Errorf("Email = %q", claims.Email())
+	}
+	if header.Algorithm() != "HS256" || len(signature) == 0 {
+		t.Errorf("envelope = (%q, %d signature bytes), want HS256 with signature bytes on the server route too", header.Algorithm(), len(signature))
 	}
 	if hits := mock.userHits.Load(); hits != 1 {
 		t.Errorf("user endpoint hit %d times, want 1", hits)
@@ -106,7 +150,7 @@ func TestGetClaimsRoutesKeylessTokenToServer(t *testing.T) {
 	client := mock.client(t)
 
 	// Asymmetric alg but no key id: nothing to look up, so it defers to server.
-	if _, err := client.GetClaims(context.Background(), testkit.CraftToken(t, "ES256", "", testkit.DefaultClaims())); err != nil {
+	if _, _, _, err := client.GetClaims(context.Background(), testkit.CraftToken(t, "ES256", "", testkit.DefaultClaims())); err != nil {
 		t.Fatalf("GetClaims: %v", err)
 	}
 	if hits := mock.userHits.Load(); hits != 1 {
@@ -120,7 +164,7 @@ func TestGetClaimsUnknownKeyIDFallsBackToServer(t *testing.T) {
 	mock := newMockAuthServer(t, published)
 	client := mock.client(t)
 
-	if _, err := client.GetClaims(context.Background(), foreign.Token(t, testkit.DefaultClaims())); err != nil {
+	if _, _, _, err := client.GetClaims(context.Background(), foreign.Token(t, testkit.DefaultClaims())); err != nil {
 		t.Fatalf("GetClaims: %v", err)
 	}
 	if hits := mock.userHits.Load(); hits != 1 {
@@ -136,7 +180,7 @@ func TestGetClaimsJWKSetFetchFailureSurfaces(t *testing.T) {
 
 	// A discovery failure fails the call rather than falling back: the server's
 	// response surfaces as *auth.Error, shaped by the fetch closure.
-	_, err := client.GetClaims(context.Background(), signer.Token(t, testkit.DefaultClaims()))
+	_, _, _, err := client.GetClaims(context.Background(), signer.Token(t, testkit.DefaultClaims()))
 	var serverError *auth.Error
 	if !errors.As(err, &serverError) {
 		t.Fatalf("GetClaims error = %v, want *auth.Error", err)
@@ -155,7 +199,7 @@ func TestGetClaimsServerRejectionSurfaces(t *testing.T) {
 	mock.userBody = `{"error_code":"bad_jwt","msg":"invalid token"}`
 	client := mock.client(t)
 
-	_, err := client.GetClaims(context.Background(), testkit.CraftToken(t, "HS256", "", testkit.DefaultClaims()))
+	_, _, _, err := client.GetClaims(context.Background(), testkit.CraftToken(t, "HS256", "", testkit.DefaultClaims()))
 	var serverError *auth.Error
 	if !errors.As(err, &serverError) {
 		t.Fatalf("GetClaims error = %v, want *auth.Error", err)

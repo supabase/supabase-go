@@ -4,10 +4,11 @@
 // the user a token authenticates.
 //
 // [Client.GetClaims] is the primary entry point. It returns a token's verified
-// [Claims] - who the user is and how they authenticated - having checked the
+// [Claims] - who the user is and how they authenticated - together with the
+// token's decoded [JWTHeader] and signature bytes, having checked that
 // signature against the project's signing keys:
 //
-//	claims, err := client.GetClaims(ctx, token)
+//	claims, _, _, err := client.GetClaims(ctx, token)
 //	if err != nil {
 //	    // reject the request
 //	}
