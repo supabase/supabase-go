@@ -73,15 +73,19 @@ done
 # (infertypeargs, for example). Failing the gate on its findings keeps CI and a
 # contributor's editor in agreement. One invocation from the repository root
 # covers every module: gopls loads the committed go.work workspace, the same
-# view an IDE opened at the root sees. The file list is every tracked or new
-# unignored .go file, so work in progress is checked before it is committed.
+# view an IDE opened at the root sees. The file list is a filesystem walk: a
+# check gate reads the disk, not the git index, which reports an unstaged
+# rename's old path as still present and would feed gopls a ghost file. Pruned
+# from the walk: top-level dot-directories, node_modules (npm tooling ships
+# third-party .go files - the same subtree gofumpt and revive exclude above)
+# and user.transient (developer scratch space, per .gitignore).
 # Like gofumpt above, gopls check reports findings without failing - it always
 # exits zero - so fail on any output. The simplifier and unused-symbol
 # analyzers (infertypeargs among them) report at information severity, below
 # check's default warning-severity cutoff, so -severity=info is required to
 # fail on everything an editor's problems panel shows.
 echo "==> workspace-wide gopls check"
-diagnostics="$(git ls-files -zco --exclude-standard -- '*.go' | xargs -0 "${toolbin}/gopls" check -severity=info)"
+diagnostics="$(find . \( -path './.*' -o -name node_modules -o -name user.transient \) -prune -o -name '*.go' -print0 | xargs -0 "${toolbin}/gopls" check -severity=info)"
 if [ -n "${diagnostics}" ]; then
   echo "gopls check found:"
   echo "${diagnostics}"
