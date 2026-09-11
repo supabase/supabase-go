@@ -2,7 +2,8 @@ package auth
 
 import (
 	"encoding/json"
-	"fmt"
+
+	"github.com/supabase/supabase-go/core/responses"
 )
 
 // authError is a string-backed error type. Its values can be declared as
@@ -34,25 +35,13 @@ const ErrInvalidSignature = authError("JWT signature is invalid")
 // [Client.GetClaims] returns it when a token routes to server verification and
 // the server rejects it.
 type Error struct {
-	// HTTPStatus is the HTTP status code of the Auth server response.
-	HTTPStatus int
-
-	// Code is the Auth server's stable error code (for example
-	// "bad_jwt"), when the response carried one. Programmatic handling should
-	// branch on this. Empty when the server supplied none.
-	Code string
-
-	// Message is the human-readable summary of the failure.
-	Message string
+	responses.HTTPError
 }
 
 // Error renders the failure as "auth: <message> (code <code>, HTTP <status>)",
 // omitting the code clause when the server supplied no code.
 func (e *Error) Error() string {
-	if e.Code == "" {
-		return fmt.Sprintf("auth: %s (HTTP %d)", e.Message, e.HTTPStatus)
-	}
-	return fmt.Sprintf("auth: %s (code %s, HTTP %d)", e.Message, e.Code, e.HTTPStatus)
+	return "auth: " + e.HTTPError.Error()
 }
 
 // errorBody is the JSON shape the Auth server uses for error responses. Recent
@@ -71,7 +60,10 @@ type errorBody struct {
 func newError(httpStatus int, responseBody []byte) *Error {
 	var parsed errorBody
 	if err := json.Unmarshal(responseBody, &parsed); err != nil {
-		return &Error{HTTPStatus: httpStatus, Message: string(responseBody)}
+		return &Error{responses.HTTPError{
+			HTTPStatus: httpStatus,
+			Message:    string(responseBody),
+		}}
 	}
 
 	code := parsed.ErrorCode
@@ -85,5 +77,9 @@ func newError(httpStatus int, responseBody []byte) *Error {
 	if message == "" {
 		message = string(responseBody)
 	}
-	return &Error{HTTPStatus: httpStatus, Code: code, Message: message}
+	return &Error{responses.HTTPError{
+		HTTPStatus: httpStatus,
+		Code:       code,
+		Message:    message,
+	}}
 }

@@ -6,19 +6,23 @@
 
 sdk: go
 
-# Module-wide auth surface that supports several features without implementing
-# any single one.
+# Cross-module surface that supports several features without implementing any
+# single one.
 supporting_symbols:
   - auth.Client
   - auth.ErrMissingJWT
   - auth.Error
-  - auth.Error.Code
   - auth.Error.Error
-  - auth.Error.HTTPStatus
-  - auth.Error.Message
+  - auth.Error.HTTPError
   - auth.New
   - auth.NewFromConfiguration
   - core.ModulePathAuth
+  - postgrest.Error.HTTPError
+  - responses.HTTPError
+  - responses.HTTPError.Code
+  - responses.HTTPError.Error
+  - responses.HTTPError.HTTPStatus
+  - responses.HTTPError.Message
 
 features:
   auth.session.get_claims:

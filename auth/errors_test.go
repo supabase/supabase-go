@@ -6,14 +6,15 @@ import (
 	"testing"
 
 	"github.com/supabase/supabase-go/auth"
+	"github.com/supabase/supabase-go/core/responses"
 )
 
 func TestErrorMessage(t *testing.T) {
-	withCode := &auth.Error{HTTPStatus: 401, Code: "bad_jwt", Message: "invalid token"}
+	withCode := &auth.Error{HTTPError: responses.HTTPError{HTTPStatus: 401, Code: "bad_jwt", Message: "invalid token"}}
 	if got, want := withCode.Error(), "auth: invalid token (code bad_jwt, HTTP 401)"; got != want {
 		t.Errorf("Error() = %q, want %q", got, want)
 	}
-	withoutCode := &auth.Error{HTTPStatus: 500, Message: "boom"}
+	withoutCode := &auth.Error{HTTPError: responses.HTTPError{HTTPStatus: 500, Message: "boom"}}
 	if got, want := withoutCode.Error(), "auth: boom (HTTP 500)"; got != want {
 		t.Errorf("Error() = %q, want %q", got, want)
 	}
