@@ -108,6 +108,13 @@ func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.F
 // the token envelope on both routes. The signature is a copy the caller may
 // retain and modify freely.
 //
+// Verification establishes authenticity - the token was signed for this
+// project and has not expired - not authorization. Policy over claim values
+// such as audience, issuer or role stays with the caller, decided on the
+// verified [Claims] through its accessors, because those values vary
+// legitimately per deployment: the audience is configurable and third-party
+// auth providers change the issuer, so no fixed check here fits every project.
+//
 // Returned sentinel errors:
 //   - [ErrMissingJWT] when jwt is empty.
 //   - [ErrMalformedJWT] when jwt is not a three-part base64url JWT carrying a
