@@ -52,4 +52,12 @@
 // secrets: local verification uses only the public keys the project publishes.
 // Construct one Client per project and share it, since it caches those keys
 // internally. A Client is safe for concurrent use by multiple goroutines.
+//
+// Every call takes a [context.Context] and honors its deadline and
+// cancellation end to end. Transport-level timeouts belong to the caller's
+// [net/http.Client], supplied through [configuration.WithHTTPClient]. Auth
+// requests are made once per call: the automatic-retry option
+// ([configuration.WithRetry]) has no effect on this module today, because
+// verification sits on request-handling hot paths where invisible backoff
+// multiplies caller latency.
 package auth
