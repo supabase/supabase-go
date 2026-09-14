@@ -1,6 +1,7 @@
 // Package supabase is the convenience entry point to the Supabase Go SDK. It
 // composes the SDK's domain modules behind a single configured client. The
-// Database client is reached through [Client.Database].
+// Database client is reached through [Client.Database] and the Auth client
+// through [Client.Auth].
 //
 // There are two ways to use the SDK. Importing this package wires the shared
 // transport, API key, and options through one place. Callers who need only one

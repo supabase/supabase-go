@@ -10,6 +10,7 @@ The official Supabase SDK for Go. This is a multi-module monorepo, currently in 
 | `github.com/supabase/supabase-go` module | Purpose |
 | ------ | ------- |
 | [`core`](core/) | Shared configuration, functional options and the HTTP pipeline |
+| [`auth`](auth/) | Auth client for server-side JWT verification |
 | [`postgrest`](postgrest/) | Database (PostgREST) client |
 | [`supabase`](supabase/) | Convenience root client composing the domains |
 

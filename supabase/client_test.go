@@ -19,3 +19,20 @@ func TestNewValidationPropagates(t *testing.T) {
 		t.Fatalf("want ErrMissingKey, got %v", err)
 	}
 }
+
+// TestAuthAccessorReturnsStableHandle pins that Auth hands back the one
+// handle New constructed, identical across calls, keeping domain navigation
+// context-free and error-free.
+func TestAuthAccessorReturnsStableHandle(t *testing.T) {
+	client, err := supabase.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	first := client.Auth()
+	if first == nil {
+		t.Fatal("Auth returned nil")
+	}
+	if second := client.Auth(); second != first {
+		t.Error("Auth returned a different handle on the second call")
+	}
+}

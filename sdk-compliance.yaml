@@ -23,6 +23,7 @@ supporting_symbols:
   - responses.HTTPError.Error
   - responses.HTTPError.HTTPStatus
   - responses.HTTPError.Message
+  - supabase.Client.Auth
 
 features:
   auth.session.get_claims:

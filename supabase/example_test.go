@@ -111,3 +111,44 @@ func ExampleClient_Database_collectSingle() {
 	}
 	fmt.Println(instrument, response.HTTPStatus)
 }
+
+// ExampleClient_Auth verifies an inbound end-user access token and then
+// queries the Database as that user, the composed backend flow: Row Level
+// Security confines the result to the verified user's own rows.
+// It requires a reachable Supabase project, so it is compiled but not run by go test.
+func ExampleClient_Auth() {
+	type PracticeLog struct {
+		UserID string `json:"user_id"`
+		Piece  string `json:"piece"`
+	}
+
+	supabase, err := supabase.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// The token arrives on an inbound request, for example from its
+	// Authorization: Bearer header.
+	token := "INBOUND_USER_JWT"
+
+	claims, _, _, err := supabase.Auth().GetClaims(context.Background(), token)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	userDatabase := supabase.Database().WithAccessTokenProvider(
+		func(context.Context) (string, error) { return token, nil },
+	)
+	logs, _, err := postgrest.Collect(
+		context.Background(),
+		userDatabase,
+		postgrest.From[PracticeLog]("practice_logs"),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(claims.Subject(), len(logs))
+}

@@ -15,4 +15,7 @@ func TestNewWiresHandles(t *testing.T) {
 	if client.database == nil {
 		t.Error("database handle was not wired")
 	}
+	if client.auth == nil {
+		t.Error("auth handle was not wired")
+	}
 }

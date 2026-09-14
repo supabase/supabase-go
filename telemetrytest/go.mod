@@ -15,7 +15,10 @@ require (
 	github.com/supabase/supabase-go/postgrest v0.999.2-fabricated
 )
 
-require github.com/supabase/supabase-go/core v0.0.0-00010101000000-000000000000 // indirect
+require (
+	github.com/supabase/supabase-go/auth v0.0.0-00010101000000-000000000000 // indirect
+	github.com/supabase/supabase-go/core v0.0.0-00010101000000-000000000000 // indirect
+)
 
 replace (
 	github.com/supabase/supabase-go/supabase => ../supabase
