@@ -90,6 +90,8 @@ features:
     status: implemented
     symbols:
       - postgrest.From
+    supporting_symbols:
+      - postgrest.ErrMissingTable
   database.query.rpc:
     status: implemented
     note: |
@@ -281,6 +283,11 @@ features:
       - postgrest.OrderedFilterBuilder.Descending
       - postgrest.OrderedFilterBuilder.NullsFirst
       - postgrest.OrderedDescendingFilterBuilder.NullsLast
+    supporting_symbols:
+      - postgrest.OrderedDescendingFilterBuilder
+      - postgrest.OrderedDescendingFilterBuilder.FilterBuilder
+      - postgrest.OrderedFilterBuilder
+      - postgrest.OrderedFilterBuilder.FilterBuilder
   database.using_modifiers.range:
     status: implemented
     symbols:
@@ -293,3 +300,57 @@ features:
     status: implemented
     symbols:
       - postgrest.CollectSingle
+
+# Construction, execution and shared value plumbing that spans features rather
+# than implementing any single one: client and configuration constructors with
+# their sentinel errors and option type, the module identity constants they
+# take, the builder spine every query rides, the shared execution error and
+# response metadata shapes and the Range value family accepted across the
+# range-aware filters. Types tied to exactly one feature are registered with
+# that feature above instead.
+supporting_symbols:
+  - configuration.Configuration
+  - configuration.Configuration.BaseURL
+  - configuration.Configuration.HTTPClient
+  - configuration.ErrInvalidURL
+  - configuration.ErrMissingKey
+  - configuration.ErrMissingURL
+  - configuration.HTTPClient
+  - configuration.HTTPClient.Do
+  - configuration.New
+  - configuration.Option
+  - core.ModulePath
+  - core.ModulePathPostgrest
+  - core.ModulePathRoot
+  - postgrest.Client
+  - postgrest.EmptyRange
+  - postgrest.ErrMissingClient
+  - postgrest.Error
+  - postgrest.Error.Code
+  - postgrest.Error.Details
+  - postgrest.Error.Error
+  - postgrest.Error.HTTPStatus
+  - postgrest.Error.Hint
+  - postgrest.Error.Message
+  - postgrest.Error.Unwrap
+  - postgrest.FilterBuilder
+  - postgrest.New
+  - postgrest.NewFromConfiguration
+  - postgrest.NewRange
+  - postgrest.Query
+  - postgrest.QueryBuilder
+  - postgrest.QueryBuilder.FilterBuilder
+  - postgrest.Range
+  - postgrest.RangeBuilder
+  - postgrest.RangeBuilder.FromExclusive
+  - postgrest.RangeBuilder.FromInclusive
+  - postgrest.RangeBuilder.RangeFromBuilder
+  - postgrest.RangeFromBuilder
+  - postgrest.RangeFromBuilder.ToExclusive
+  - postgrest.RangeFromBuilder.ToInclusive
+  - postgrest.Response
+  - postgrest.Response.Count
+  - postgrest.Response.HTTPStatus
+  - supabase.Client
+  - supabase.Client.Database
+  - supabase.New
