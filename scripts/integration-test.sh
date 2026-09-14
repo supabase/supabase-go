@@ -21,8 +21,8 @@
 # Bump SUPABASE_CLI_VERSION and the checksums together. The checksums are the
 # matching lines from:
 #   https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/checksums.txt
-# If the new CLI changes the config.toml schema then integration/supabase/config.toml may
-# also need to be updated.
+# If the new CLI changes the config.toml schema then integration-testing/supabase/config.toml
+# may also need to be updated.
 set -euo pipefail
 
 SUPABASE_CLI_VERSION="2.114.0"
@@ -74,7 +74,7 @@ fi
 
 echo "Integration Test..."
 
-# The CLI is pointed at a disposable copy of the committed integration/
+# The CLI is pointed at a disposable copy of the committed integration-testing/
 # project directory, because it writes scratch state (supabase/.branches and
 # supabase/.temp) inside whatever project it runs. The copy keeps the
 # committed tree pristine by construction - no scratch to gitignore, and
@@ -85,7 +85,7 @@ echo "Integration Test..."
 # Stopping from a copy still finds the running stack, which the CLI
 # identifies by the project_id in config.toml, not by path.
 project_directory="$(mktemp -d)"
-cp -R integration/. "${project_directory}/"
+cp -R integration-testing/. "${project_directory}/"
 
 cleanup() {
   echo "==> stopping local stack"
@@ -105,21 +105,24 @@ echo "==> starting local stack (pinned CLI $("${SUPABASE_CLI}" --version))"
 # CLI repository's own e2e tests consume.
 eval "$("${SUPABASE_CLI}" --workdir "${project_directory}" status -o env)"
 
-# The modules with integration-tagged tests - deliberately a curated subset of
-# the workspace (core has none), so this is NOT derived from go.work like the
-# build/lint/vuln lists are. Selection is by the integration build tag alone -
-# no -run name filter - so a tagged test can never be silently skipped by its
-# name. The hermetic unit tests compiled under the tag simply run again here.
-modules=(supabase postgrest)
+# The modules with an adjacent integrationtest module - deliberately a curated
+# subset of the workspace (core has none), so this is NOT derived from go.work
+# like the build/lint/vuln lists are. Each integrationtest directory is its own
+# non-published module outside the workspace, hence GOWORK=off with its replace
+# directives resolving the SDK modules from the local tree. Selection is the
+# module boundary alone - ./... with no -run name filter - so a test there can
+# never be silently skipped by its name.
+modules=(supabase postgrest auth)
 
-echo "==> running integration tests (-race, tag: integration)"
+echo "==> running integration tests (-race)"
 for module in "${modules[@]}"; do
   echo "==> ${module}"
   (
-    cd "${module}"
+    cd "${module}/integrationtest"
+    GOWORK=off \
     SUPABASE_URL="${API_URL}" \
     SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
-      go test -v -race -shuffle=on -tags integration ./...
+      go test -v -race -shuffle=on ./...
   )
 done
 

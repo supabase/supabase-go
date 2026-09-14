@@ -1,5 +1,3 @@
-//go:build integration
-
 package integrationtest
 
 import (
@@ -10,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/supabase/supabase-go/core/configuration"
+	"github.com/supabase/supabase-go/integration-testing/testkit"
 	"github.com/supabase/supabase-go/postgrest"
 )
 
@@ -35,9 +34,9 @@ type practiceLog struct {
 // their own - the database applying each user's Row Level Security policies from
 // the attached token.
 func TestAccessTokenRLSIsolation(t *testing.T) {
-	projectURL, apiKey := integrationCredentials(t)
-	alice := signUpUser(t, projectURL, apiKey)
-	bob := signUpUser(t, projectURL, apiKey)
+	projectURL, apiKey := testkit.Credentials(t)
+	alice := testkit.SignUpUser(t, projectURL, apiKey)
+	bob := testkit.SignUpUser(t, projectURL, apiKey)
 
 	aliceClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(alice.AccessToken))
 	bobClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(bob.AccessToken))
@@ -90,8 +89,8 @@ func TestAccessTokenRLSIsolation(t *testing.T) {
 // user inserts a row, the base client's read returns an empty slice at HTTP 200,
 // not a permission error - and no token bled onto the base client.
 func TestAccessTokenAnonymousBaseSeesNothing(t *testing.T) {
-	projectURL, apiKey := integrationCredentials(t)
-	user := signUpUser(t, projectURL, apiKey)
+	projectURL, apiKey := testkit.Credentials(t)
+	user := testkit.SignUpUser(t, projectURL, apiKey)
 	userClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(user.AccessToken))
 
 	if _, err := postgrest.Execute(
@@ -121,9 +120,9 @@ func TestAccessTokenAnonymousBaseSeesNothing(t *testing.T) {
 // id is refused with the RLS violation, HTTP 403 code 42501 - the grant-versus-
 // policy failure asymmetry, pinned.
 func TestAccessTokenCrossTenantInsertRejected(t *testing.T) {
-	projectURL, apiKey := integrationCredentials(t)
-	alice := signUpUser(t, projectURL, apiKey)
-	bob := signUpUser(t, projectURL, apiKey)
+	projectURL, apiKey := testkit.Credentials(t)
+	alice := testkit.SignUpUser(t, projectURL, apiKey)
+	bob := testkit.SignUpUser(t, projectURL, apiKey)
 	aliceClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(alice.AccessToken))
 
 	_, err := postgrest.Execute(
@@ -150,9 +149,9 @@ func TestAccessTokenCrossTenantInsertRejected(t *testing.T) {
 // unchanged. This silent-filter semantic is the classic consumer surprise, so
 // it earns its own test.
 func TestAccessTokenCrossTenantUpdateInvisible(t *testing.T) {
-	projectURL, apiKey := integrationCredentials(t)
-	alice := signUpUser(t, projectURL, apiKey)
-	bob := signUpUser(t, projectURL, apiKey)
+	projectURL, apiKey := testkit.Credentials(t)
+	alice := testkit.SignUpUser(t, projectURL, apiKey)
+	bob := testkit.SignUpUser(t, projectURL, apiKey)
 	aliceClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(alice.AccessToken))
 	bobClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(bob.AccessToken))
 
@@ -197,9 +196,9 @@ func TestAccessTokenCrossTenantUpdateInvisible(t *testing.T) {
 // the option is Alice again - so the option scopes to its call and leaks no
 // state.
 func TestAccessTokenPerReadProviderOverridesClientProvider(t *testing.T) {
-	projectURL, apiKey := integrationCredentials(t)
-	alice := signUpUser(t, projectURL, apiKey)
-	bob := signUpUser(t, projectURL, apiKey)
+	projectURL, apiKey := testkit.Credentials(t)
+	alice := testkit.SignUpUser(t, projectURL, apiKey)
+	bob := testkit.SignUpUser(t, projectURL, apiKey)
 
 	aliceClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(alice.AccessToken))
 	bobClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(bob.AccessToken))
@@ -238,8 +237,8 @@ func TestAccessTokenPerReadProviderOverridesClientProvider(t *testing.T) {
 // Postgres function on both RPC transports: current_user_id() decodes to the
 // caller's id through CollectRaw over a POST and over a read-only GET alike.
 func TestAccessTokenRPCCarriesClaims(t *testing.T) {
-	projectURL, apiKey := integrationCredentials(t)
-	alice := signUpUser(t, projectURL, apiKey)
+	projectURL, apiKey := testkit.Credentials(t)
+	alice := testkit.SignUpUser(t, projectURL, apiKey)
 	aliceClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(alice.AccessToken))
 
 	t.Run("via POST", func(t *testing.T) {
@@ -276,8 +275,8 @@ func TestAccessTokenRPCCarriesClaims(t *testing.T) {
 // plus three renewal re-asks) - before surfacing HTTP 401. It doubles as the
 // wire-level budget-exhaustion proof.
 func TestAccessTokenOpaqueTokenRejectedByServer(t *testing.T) {
-	projectURL, apiKey := integrationCredentials(t)
-	alice := signUpUser(t, projectURL, apiKey)
+	projectURL, apiKey := testkit.Credentials(t)
+	alice := testkit.SignUpUser(t, projectURL, apiKey)
 
 	var providerCalls atomic.Int64
 	doublePrefixed := "Bearer " + alice.AccessToken
@@ -305,8 +304,8 @@ func TestAccessTokenOpaqueTokenRejectedByServer(t *testing.T) {
 // the re-send succeeds, returning the user's rows with the provider asked
 // exactly twice.
 func TestAccessTokenRenewalRecoversStaleToken(t *testing.T) {
-	projectURL, apiKey := integrationCredentials(t)
-	user := signUpUser(t, projectURL, apiKey)
+	projectURL, apiKey := testkit.Credentials(t)
+	user := testkit.SignUpUser(t, projectURL, apiKey)
 
 	seedClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(user.AccessToken))
 	if _, err := postgrest.Execute(t.Context(), seedClient,

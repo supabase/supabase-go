@@ -7,6 +7,7 @@ go 1.25
 // otherwise cannot do that for them.
 
 use (
+	./auth
 	./core
 	./postgrest
 	./supabase

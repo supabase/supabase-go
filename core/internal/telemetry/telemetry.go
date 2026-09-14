@@ -44,6 +44,7 @@ func buildClientInformationHeaderValues() map[core.ModulePath]string {
 	clientNames := map[core.ModulePath]string{
 		core.ModulePathRoot:      rootClientName,
 		core.ModulePathPostgrest: "postgrest-go",
+		core.ModulePathAuth:      "auth-go",
 	}
 
 	clientBases := make(map[core.ModulePath]string, len(clientNames))

@@ -96,6 +96,7 @@ func WithHeader(key, value string) Option {
 // the build, otherwise this function will panic:
 //   - [core.ModulePathRoot]
 //   - [core.ModulePathPostgrest]
+//   - [core.ModulePathAuth]
 //
 // Returns one of these sentinel errors, when inputs are unusable:
 //   - [ErrMissingURL] when rawURL is empty.

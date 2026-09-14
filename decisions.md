@@ -83,6 +83,18 @@ The one workspace hazard is the overlay masking a missing or wrong `require`: ev
 [`scripts/check-module-paths.sh`](scripts/check-module-paths.sh) guards the path case: it fails when a workspace (published) module requires a first-party path that is not itself a workspace module, which a consumer could not resolve. A missing require or a wrong version still rests on review, since there is no tidy gate yet (zero external dependencies).
 The decision is cheaply reversible (delete `go.work`, add `replace` blocks).
 
+## Integration tests and their shared fixtures are adjacent non-published modules
+
+**What**:  
+Each module's `integrationtest` directory is its own module - never published, absent from `go.work`, entered with `GOWORK=off` and resolving its requirements through `replace` directives to the local tree - and the fixtures the suites share (stack credentials, end-user signup) live once in the sibling [`integration-testing/testkit` module](integration-testing/testkit/).
+Test-module import paths stay under the parent module's path (`…/postgrest/integrationtest`), and the files carry no build tag.
+
+**Why**:  
+A shared fixtures package can live nowhere inside the published set: a published module must not require a never-published path (`scripts/check-module-paths.sh` fails exactly that, because a consumer could not resolve it), and a copy per module drifts.
+Adjacent modules keep every published `go.mod` consumer-resolvable while the test tier composes freely.
+The nested import path preserves `internal` package access, which is prefix-based and indifferent to module boundaries.
+The module boundary already isolates integration code from every `./...` a published module runs, so a build tag would gate nothing extra and editors need no build-tag configuration; the symbol extractor likewise skips directories carrying their own `go.mod`, so the `integrationtest` package name recurring across the repository cannot trip its package-name uniqueness guard.
+
 ## Error model
 
 ### Sentinel errors are compile-time constants, not package variables
@@ -478,9 +490,9 @@ Distinguishing "the server answered with an error" (`*Error`) from "we never got
 **What**:  
 CI's integration job and `scripts/integration-test.sh` run the same script, which starts a local stack using the Supabase CLI, a committed minimal `config.toml` (only db, api and auth enabled), a committed schema migration and a committed data-only `seed.sql`.
 The CLI is the pinned release binary, verified against a committed SHA-256 and installed into Go's own bin directory (GOBIN, else GOPATH/bin), never taken from npm.
-Integration tests are build-tagged `integration`, env-gated and run under `-race`.
-They live in test-only `integrationtest` packages beside the code they exercise, consuming only the public API, and selection is by the tag alone: the script passes no `-run` name filter, so the hermetic unit tests compiled under the tag simply run again in the integration job.
-The CI job runs the same `["1.25", "stable"]` matrix as build-and-test; `go vet -tags integration` in the unit script additionally keeps the tagged file compiling for fast local signal.
+Integration tests are env-gated and run under `-race`.
+They live in `integrationtest` modules beside the code they exercise, consuming only the public API, and selection is by the module boundary alone: the script runs `./...` in each with no `-run` name filter.
+The CI job runs the same `["1.25", "stable"]` matrix as build-and-test; a `GOWORK=off go vet` pass over the same modules in the unit script additionally keeps them compiling for fast local signal.
 
 **Why**:  
 The CLI cannot be installed with `go install` at v2 for two independent reasons: its module (`github.com/supabase/cli`) now lives in `apps/cli-go/` while the repo root carries no `go.mod`, so the module proxy resolves that path only to the stale v1 root-module history rather than the v2 code, and its `go.mod` carries local `replace` directives, which `go install pkg@version` refuses outright.
@@ -488,7 +500,7 @@ It is fetched instead as the pinned release binary, verified against a committed
 npm was rejected as the channel even though it pins equally well, because bundling the CLI into `tools/node` conflated it with the unrelated cspell tool - every `npm ci` pulling both - and forced a node_modules write into the checkout, whereas cspell stays on npm as a genuine JS tool whose deep dependency tree is what a lockfile exists for.
 The auth service stays enabled despite no test calling it, because `supabase status -o env` emits the stack's API keys (PUBLISHABLE_KEY included) only while auth is enabled - the harness reads its credentials from that output, consuming PUBLISHABLE_KEY exactly as the CLI repository's own e2e harness does (ANON_KEY is deprecated upstream).
 Schema lives in `migrations/` and only data in `seed.sql` because the CLI applies the seed as a single batch whose statements are prepared before earlier ones execute, so DDL cannot ride with inserts that depend on it (SQLSTATE 42P01 on a fresh stack) - the same layout as the CLI repository's own e2e project.
-The script runs the CLI against a disposable `mktemp -d` copy of `integration/` because the CLI writes scratch state (`supabase/.branches`, `supabase/.temp`) into whatever project directory it runs: the copy keeps committed trees pristine by construction and lets the harness run from a read-only checkout, while `stop` still finds the stack because the CLI identifies it by `config.toml`'s `project_id`, not by path.
+The script runs the CLI against a disposable `mktemp -d` copy of `integration-testing/` because the CLI writes scratch state (`supabase/.branches`, `supabase/.temp`) into whatever project directory it runs: the copy keeps committed trees pristine by construction and lets the harness run from a read-only checkout, while `stop` still finds the stack because the CLI identifies it by `config.toml`'s `project_id`, not by path.
 Every other unused service is disabled because this harness's startup time and flakiness set the floor for all future CI.
 A name-anchored `-run` filter (`^TestIntegration`) would spare the unit re-run, but its failure mode is silence: a tagged test named outside the anchor compiles cleanly, never runs and lets the suite pass vacuously, whereas the re-run it prevents is hermetic and costs seconds.
 The dedicated test-only package makes the consumer stance structural - every test package is external, so unexported access never exists to lose - and keeps the integration namespace decoupled from the unit test files, so suite selection never depends on function names and names never collide across suites.

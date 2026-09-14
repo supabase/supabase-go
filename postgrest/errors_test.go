@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/supabase/supabase-go/core/responses"
 	"github.com/supabase/supabase-go/postgrest"
 )
 
@@ -17,12 +18,12 @@ func TestErrorRendering(t *testing.T) {
 	}{
 		{
 			name:  "with code",
-			value: &postgrest.Error{HTTPStatus: 404, Code: "42P01", Message: "relation does not exist"},
+			value: &postgrest.Error{HTTPError: responses.HTTPError{HTTPStatus: 404, Code: "42P01", Message: "relation does not exist"}},
 			want:  `postgrest: relation does not exist (code 42P01, HTTP 404)`,
 		},
 		{
 			name:  "without code",
-			value: &postgrest.Error{HTTPStatus: 502, Message: "bad gateway"},
+			value: &postgrest.Error{HTTPError: responses.HTTPError{HTTPStatus: 502, Message: "bad gateway"}},
 			want:  `postgrest: bad gateway (HTTP 502)`,
 		},
 	}
@@ -39,7 +40,7 @@ func TestErrorRendering(t *testing.T) {
 // branch on *Error with a single errors.As, and that a body-parsed Error
 // has no underlying cause to unwrap.
 func TestErrorMatchesWithErrorsAs(t *testing.T) {
-	var err error = &postgrest.Error{HTTPStatus: 404, Code: "42P01", Message: "missing"}
+	var err error = &postgrest.Error{HTTPError: responses.HTTPError{HTTPStatus: 404, Code: "42P01", Message: "missing"}}
 
 	var matched *postgrest.Error
 	if !errors.As(err, &matched) {

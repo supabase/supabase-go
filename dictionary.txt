@@ -34,6 +34,7 @@ infertypeargs
 integrationtest
 isdistinct
 jsonv
+jwks
 ldflags
 mistargeted
 mockability
@@ -56,6 +57,7 @@ postgrest
 PRODSEC
 reassignable
 rebalance
+RSASSA
 signup
 SLSA
 SQLSTATE

@@ -1,12 +1,10 @@
-//go:build integration
-
 package integrationtest
 
 import (
 	"net/http"
-	"os"
 	"testing"
 
+	"github.com/supabase/supabase-go/integration-testing/testkit"
 	"github.com/supabase/supabase-go/postgrest"
 	"github.com/supabase/supabase-go/supabase"
 )
@@ -15,11 +13,7 @@ import (
 // the local Supabase stack started by scripts/integration-test.sh, covering
 // the composition of a new client, Database, From, Select and Collect.
 func TestRootClientSelect(t *testing.T) {
-	projectURL := os.Getenv("SUPABASE_URL")
-	apiKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
-	if projectURL == "" || apiKey == "" {
-		t.Fatal("SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set for integration tests - run scripts/integration-test.sh")
-	}
+	projectURL, apiKey := testkit.Credentials(t)
 
 	client, err := supabase.New(projectURL, apiKey)
 	if err != nil {

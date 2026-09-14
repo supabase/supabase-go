@@ -46,20 +46,46 @@ for module in ${workspace_modules}; do
   )
 done
 
+# The adjacent test modules sit outside the workspace, so the loop above never
+# reaches them. GOWORK=off lets the go-package-graph tools resolve each one the
+# way its own replace directives declare; gofumpt and revive walk the
+# filesystem and need no module resolution (and these directories hold no
+# node_modules or nested modules, so neither needs its exclusion dance).
+for module in $(enumerate_adjacent_test_modules); do
+  echo "==> ${module}"
+  (
+    cd "${module}"
+    unformatted="$("${toolbin}/gofumpt" -l .)"
+    if [ -n "${unformatted}" ]; then
+      echo "gofumpt would reformat:"
+      echo "${unformatted}"
+      exit 1
+    fi
+    GOWORK=off go vet ./...
+    GOWORK=off "${toolbin}/staticcheck" ./...
+    GOWORK=off "${toolbin}/errcheck" ./...
+    "${toolbin}/revive" -set_exit_status ./...
+  )
+done
+
 # gopls is the diagnostic engine behind VS Code and every other LSP editor, and
 # its default analyzers cover ground none of the standalone linters above do
 # (infertypeargs, for example). Failing the gate on its findings keeps CI and a
 # contributor's editor in agreement. One invocation from the repository root
 # covers every module: gopls loads the committed go.work workspace, the same
-# view an IDE opened at the root sees. The file list is every tracked or new
-# unignored .go file, so work in progress is checked before it is committed.
+# view an IDE opened at the root sees. The file list is a filesystem walk: a
+# check gate reads the disk, not the git index, which reports an unstaged
+# rename's old path as still present and would feed gopls a ghost file. Pruned
+# from the walk: top-level dot-directories, node_modules (npm tooling ships
+# third-party .go files - the same subtree gofumpt and revive exclude above)
+# and user.transient (developer scratch space, per .gitignore).
 # Like gofumpt above, gopls check reports findings without failing - it always
 # exits zero - so fail on any output. The simplifier and unused-symbol
 # analyzers (infertypeargs among them) report at information severity, below
 # check's default warning-severity cutoff, so -severity=info is required to
 # fail on everything an editor's problems panel shows.
 echo "==> workspace-wide gopls check"
-diagnostics="$(git ls-files -zco --exclude-standard -- '*.go' | xargs -0 "${toolbin}/gopls" check -severity=info)"
+diagnostics="$(find . \( -path './.*' -o -name node_modules -o -name user.transient \) -prune -o -name '*.go' -print0 | xargs -0 "${toolbin}/gopls" check -severity=info)"
 if [ -n "${diagnostics}" ]; then
   echo "gopls check found:"
   echo "${diagnostics}"

@@ -7,6 +7,7 @@ module github.com/supabase/supabase-go/supabase
 go 1.25
 
 require (
+	github.com/supabase/supabase-go/auth v0.0.0-00010101000000-000000000000
 	github.com/supabase/supabase-go/core v0.0.0-00010101000000-000000000000
 	github.com/supabase/supabase-go/postgrest v0.0.0-00010101000000-000000000000
 )

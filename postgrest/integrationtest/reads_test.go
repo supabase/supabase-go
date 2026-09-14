@@ -1,5 +1,3 @@
-//go:build integration
-
 package integrationtest
 
 // cSpell:ignore Fworld Fleading
@@ -503,13 +501,13 @@ func TestCollectAppliesMultiColumnOrder(t *testing.T) {
 				t.Fatalf("row count = %d, want 6 (seed drifted?)", len(rows))
 			}
 
-			rowIds := make([]int, len(rows))
+			rowIDs := make([]int, len(rows))
 			for index, row := range rows {
-				rowIds[index] = row.ID
+				rowIDs[index] = row.ID
 			}
 
-			if !slices.Equal(testCase.want, rowIds) {
-				t.Errorf("want %q, got %q", testCase.want, rowIds)
+			if !slices.Equal(testCase.want, rowIDs) {
+				t.Errorf("want %q, got %q", testCase.want, rowIDs)
 			}
 		})
 	}
@@ -1572,14 +1570,14 @@ func TestFilters(t *testing.T) {
 				t.Fatalf("row count = %d, want %d (seed drifted?)", len(rows), len(testCase.want))
 			}
 
-			rowIds := make([]int, len(rows))
+			rowIDs := make([]int, len(rows))
 			for index, row := range rows {
-				rowIds[index] = row.ID
+				rowIDs[index] = row.ID
 			}
-			slices.Sort(rowIds) // because we didn't ask the PostgREST service to Order for us
+			slices.Sort(rowIDs) // because we didn't ask the PostgREST service to Order for us
 
-			if !slices.Equal(testCase.want, rowIds) {
-				t.Errorf("want %q, got %q", testCase.want, rowIds)
+			if !slices.Equal(testCase.want, rowIDs) {
+				t.Errorf("want %q, got %q", testCase.want, rowIDs)
 			}
 		})
 	}

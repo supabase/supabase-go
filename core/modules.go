@@ -15,4 +15,8 @@ const (
 	// ModulePathPostgrest is the import path for the Supabase Go SDK's PostgREST
 	// client module.
 	ModulePathPostgrest ModulePath = basePath + "postgrest"
+
+	// ModulePathAuth is the import path for the Supabase Go SDK's Auth client
+	// module.
+	ModulePathAuth ModulePath = basePath + "auth"
 )

@@ -16,11 +16,17 @@ for module in ${workspace_modules}; do
     cd "${module}"
     go build ./...
     go test -v -race -shuffle=on ./...
-    # Compile-only guard for integration-tagged tests, so they get fast signal
-    # here and for local developers without Docker (the integration tier also
-    # compiles them, but later and slower).
-    go vet -tags integration ./...
   )
+done
+
+# Compile-only guard for the adjacent test modules, which the workspace loop
+# above never reaches: vet compiles as it analyzes, giving the integration
+# tests fast signal here and for local developers without Docker (the
+# integration tier runs them, but later and needing the stack). Their tests
+# are environment-gated, so this deliberately does not run them.
+for module in $(enumerate_adjacent_test_modules); do
+  echo "==> ${module} (vet only)"
+  ( cd "${module}" && GOWORK=off go vet ./... )
 done
 
 echo "✅ Build and Test Passed."

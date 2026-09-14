@@ -6,7 +6,89 @@
 
 sdk: go
 
+# Cross-module surface that supports several features without implementing any
+# single one.
+supporting_symbols:
+  - auth.Client
+  - auth.ErrMissingJWT
+  - auth.Error
+  - auth.Error.Error
+  - auth.Error.HTTPError
+  - auth.New
+  - auth.NewFromConfiguration
+  - core.ModulePathAuth
+  - postgrest.Error.HTTPError
+  - responses.HTTPError
+  - responses.HTTPError.Code
+  - responses.HTTPError.Error
+  - responses.HTTPError.HTTPStatus
+  - responses.HTTPError.Message
+
 features:
+  auth.session.get_claims:
+    status: implemented
+    note: |
+      The token is an explicit required parameter. This server-side SDK holds
+      no session store yet, so there is no "current session" to default from -
+      the target use case is verifying tokens that arrive on inbound requests.
+      Session-sourced defaults arrive with the session management capabilities.
+    symbols:
+      - auth.Client.GetClaims
+    supporting_symbols:
+      - auth.Claims
+      - auth.Claims.Audience
+      - auth.Claims.AuthenticatorAssuranceLevel
+      - auth.Claims.CustomClaim
+      - auth.Claims.Email
+      - auth.Claims.ExpiresAt
+      - auth.Claims.IsAnonymous
+      - auth.Claims.IssuedAt
+      - auth.Claims.Issuer
+      - auth.Claims.Phone
+      - auth.Claims.Role
+      - auth.Claims.SessionID
+      - auth.Claims.Subject
+      - auth.ErrExpiredJWT
+      - auth.ErrInvalidSignature
+      - auth.ErrMalformedJWT
+      - auth.JWTHeader
+      - auth.JWTHeader.Algorithm
+      - auth.JWTHeader.KeyID
+      - auth.JWTHeader.Type
+  auth.session.get_user:
+    status: implemented
+    note: |
+      The token is an explicit required parameter, as for auth.session.get_claims.
+    symbols:
+      - auth.Client.GetUser
+    supporting_symbols:
+      - auth.Identity
+      - auth.Identity.CreatedAt
+      - auth.Identity.ID
+      - auth.Identity.IdentityData
+      - auth.Identity.IdentityID
+      - auth.Identity.LastSignInAt
+      - auth.Identity.Provider
+      - auth.Identity.UpdatedAt
+      - auth.Identity.UserID
+      - auth.User
+      - auth.User.AppMetadata
+      - auth.User.Audience
+      - auth.User.BannedUntil
+      - auth.User.ConfirmedAt
+      - auth.User.CreatedAt
+      - auth.User.DeletedAt
+      - auth.User.Email
+      - auth.User.EmailConfirmedAt
+      - auth.User.ID
+      - auth.User.Identities
+      - auth.User.IsAnonymous
+      - auth.User.LastSignInAt
+      - auth.User.Phone
+      - auth.User.PhoneConfirmedAt
+      - auth.User.Role
+      - auth.User.UpdatedAt
+      - auth.User.UserMetadata
   client.request_configuration.custom_http_client:
     status: implemented
     symbols:

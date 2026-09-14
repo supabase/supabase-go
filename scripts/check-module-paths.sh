@@ -8,7 +8,8 @@
 # from local source, so a `require` naming a first-party path that is not a
 # published module (a typo, or a module that is not published) builds and tests
 # green in-repo and would only break consumers once real tags exist. tools/go,
-# tools/node and telemetrytest are never published, so they are out of scope.
+# tools/node, telemetrytest, integration-testing/testkit and the integrationtest
+# modules are never published, so they are out of scope.
 set -euo pipefail
 
 source "$(dirname "$0")/common.sh"

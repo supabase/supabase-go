@@ -2,7 +2,8 @@ package postgrest
 
 import (
 	"encoding/json"
-	"fmt"
+
+	"github.com/supabase/supabase-go/core/responses"
 )
 
 // postgrestError is a string-backed error type. Its values can be declared as
@@ -43,15 +44,7 @@ const ErrTooManyRows = postgrestError("query matched more than one row")
 // knows one), then Code (a stable PostgREST or Postgres code such as "42P01" -
 // branch on this), then Details, then Message.
 type Error struct {
-	// HTTPStatus is the HTTP status code of the PostgREST response.
-	HTTPStatus int
-
-	// Code is the stable PostgREST (for example "PGRST116") or Postgres (for
-	// example "42P01") error code. Programmatic handling should branch on this.
-	Code string
-
-	// Message is the human-readable summary of the failure.
-	Message string
+	responses.HTTPError
 
 	// Details carries extra context from the database, often the offending
 	// value, key, or row. Empty when the server supplied none.
@@ -68,10 +61,7 @@ type Error struct {
 // Error renders the failure as "postgrest: <message> (code <code>, HTTP
 // <status>)", omitting the code clause when the server supplied no code.
 func (e *Error) Error() string {
-	if e.Code == "" {
-		return fmt.Sprintf("postgrest: %s (HTTP %d)", e.Message, e.HTTPStatus)
-	}
-	return fmt.Sprintf("postgrest: %s (code %s, HTTP %d)", e.Message, e.Code, e.HTTPStatus)
+	return "postgrest: " + e.HTTPError.Error()
 }
 
 // Unwrap returns the underlying cause when this Error wraps one, and nil
@@ -95,16 +85,18 @@ type errorBody struct {
 func newError(httpStatus int, responseBody []byte) *Error {
 	var parsed errorBody
 	if err := json.Unmarshal(responseBody, &parsed); err != nil || parsed.Message == "" {
-		return &Error{
+		return &Error{HTTPError: responses.HTTPError{
 			HTTPStatus: httpStatus,
 			Message:    string(responseBody),
-		}
+		}}
 	}
 	return &Error{
-		HTTPStatus: httpStatus,
-		Code:       parsed.Code,
-		Message:    parsed.Message,
-		Details:    parsed.Details,
-		Hint:       parsed.Hint,
+		HTTPError: responses.HTTPError{
+			HTTPStatus: httpStatus,
+			Code:       parsed.Code,
+			Message:    parsed.Message,
+		},
+		Details: parsed.Details,
+		Hint:    parsed.Hint,
 	}
 }

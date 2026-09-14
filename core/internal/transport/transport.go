@@ -28,6 +28,7 @@ type transport struct {
 // the build, otherwise this function will panic:
 //   - [core.ModulePathRoot]
 //   - [core.ModulePathPostgrest]
+//   - [core.ModulePathAuth]
 func WrapClient(entryModulePath core.ModulePath, client *http.Client, apiKey string, headers http.Header) *http.Client {
 	if client == nil {
 		client = http.DefaultClient
