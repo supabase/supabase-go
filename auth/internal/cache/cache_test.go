@@ -58,6 +58,32 @@ func TestCacheRefetchAfterTTL(t *testing.T) {
 	}
 }
 
+func TestCacheFruitlessForcedFetchesBackOff(t *testing.T) {
+	fetches, fetch := staticFetch(t, testkit.JWKSetDocument(t, testkit.NewES256(t, "kid-1")))
+	keyCache := cache.NewCache(fetch)
+	base := time.Now()
+
+	lookup := func(offset time.Duration, wantFetches int32) {
+		t.Helper()
+		if _, found, err := keyCache.Key(context.Background(), "bogus", base.Add(offset)); err != nil || found {
+			t.Fatalf("lookup at +%v: found=%v err=%v", offset, found, err)
+		}
+		if fetches.Load() != wantFetches {
+			t.Errorf("fetches after lookup at +%v = %d, want %d", offset, fetches.Load(), wantFetches)
+		}
+	}
+
+	lookup(0, 1)                    // first miss always fetches, opening a 1s window
+	lookup(500*time.Millisecond, 1) // inside 1s: answered from the last fetch
+	lookup(time.Second, 2)          // window elapsed: fetches, doubling to 2s
+	lookup(2*time.Second, 2)        // only 1s after that fetch: gated
+	lookup(3*time.Second, 3)        // 2s elapsed: fetches, doubling to 4s
+	lookup(7*time.Second, 4)        // 4s elapsed: fetches, doubling to 8s
+	lookup(15*time.Second, 5)       // 8s elapsed: fetches, doubling to 16s
+	lookup(30*time.Second, 5)       // 15s elapsed: gated at the backstop
+	lookup(31*time.Second, 6)       // 16s elapsed: one fetch per backstop from here
+}
+
 func TestCacheRefetchOnUnknownKeyID(t *testing.T) {
 	first := testkit.NewES256(t, "kid-1")
 	second := testkit.NewES256(t, "kid-2")
@@ -90,6 +116,42 @@ func TestCacheRefetchOnUnknownKeyID(t *testing.T) {
 	}
 	if fetches.Load() != 2 {
 		t.Errorf("JWK Set fetched %d times, want 2 (initial + rotation refetch)", fetches.Load())
+	}
+}
+
+func TestCacheResolvingFetchClearsBackoff(t *testing.T) {
+	first := testkit.NewES256(t, "kid-1")
+	second := testkit.NewES256(t, "kid-2")
+	published, err := key.ParseSet(testkit.JWKSetDocument(t, first))
+	if err != nil {
+		t.Fatalf("ParseSet: %v", err)
+	}
+
+	var fetches atomic.Int32
+	keyCache := cache.NewCache(func(_ context.Context) ([]key.Key, error) {
+		fetches.Add(1)
+		return published, nil
+	})
+	base := time.Now()
+
+	// A fruitless forced fetch opens the backoff window.
+	_, _, _ = keyCache.Key(context.Background(), "bogus", base)
+
+	// The key rotates and its first token arrives once the window has elapsed:
+	// the forced fetch resolves it and clears the backoff.
+	published, err = key.ParseSet(testkit.JWKSetDocument(t, first, second))
+	if err != nil {
+		t.Fatalf("ParseSet: %v", err)
+	}
+	if _, found, err := keyCache.Key(context.Background(), "kid-2", base.Add(time.Second)); err != nil || !found {
+		t.Fatalf("rotated lookup: found=%v err=%v", found, err)
+	}
+
+	// With the window cleared, the very next unknown key id may force a fetch
+	// immediately rather than waiting anything out.
+	_, _, _ = keyCache.Key(context.Background(), "bogus-2", base.Add(time.Second))
+	if fetches.Load() != 3 {
+		t.Errorf("fetches = %d, want 3 (fruitless, resolving, immediately allowed)", fetches.Load())
 	}
 }
 
