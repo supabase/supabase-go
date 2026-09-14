@@ -12,4 +12,4 @@ permissions:
 
 jobs:
   validate:
-    uses: supabase/sdk/.github/workflows/validate-sdk-compliance-go.yml@ad910cfa7b87ed7dab32b409f5509611d64168c9 # capability-matrix-v1.9.0
+    uses: supabase/sdk/.github/workflows/validate-sdk-compliance-go.yml@a20a629cc8565f5adcd1fc22671588626cb63e01 # sdk PR #176 head, pre-merge e2e test only
