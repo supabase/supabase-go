@@ -5,6 +5,7 @@
 # Only list an id here once this SDK actually implements it.
 
 sdk: go
+api_coverage: full
 
 features:
   client.request_configuration.custom_http_client:
