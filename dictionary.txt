@@ -46,6 +46,7 @@ nullslast
 oapi
 omitempty
 omitzero
+opentelemetry
 otelhttp
 pgrst
 PGRST
@@ -63,12 +64,14 @@ SLSA
 SQLSTATE
 staticcheck
 stdlib
+stdouttrace
 subtest
 supabase
 synctest
 telemetrytest
 testkit
 torschlusspanik
+traceparent
 tsquery
 tstzrange
 tsvector
