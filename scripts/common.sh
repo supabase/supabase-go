@@ -29,3 +29,13 @@ enumerate_adjacent_test_modules() {
     supabase/integrationtest \
     integration-testing/testkit
 }
+
+# Enumerate the non-published example program modules under examples/. Like
+# the adjacent test modules they sit outside go.work, so the go tool visits
+# them with GOWORK=off and their replace directives resolve the SDK modules
+# from the local tree. scripts/integration-test.sh additionally runs each one
+# against the local stack.
+enumerate_example_modules() {
+  printf '%s\n' \
+    examples/tracing-otel
+}

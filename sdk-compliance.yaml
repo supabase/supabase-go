@@ -138,6 +138,19 @@ features:
       - auth.User.Role
       - auth.User.UpdatedAt
       - auth.User.UserMetadata
+  client.observability.trace_propagation:
+    status: implemented
+    note: |
+      Vendor-neutral by construction rather than through SDK-owned trace
+      machinery: every call's context.Context reaches its outgoing request,
+      and WithHTTPClient injects a caller-instrumented transport (for example
+      otelhttp.NewTransport) that reads the active span from the request
+      context and writes the W3C trace context headers. No OpenTelemetry type
+      or dependency enters the SDK surface, and no host allow-list is needed
+      because the injected transport serves only this SDK's requests to the
+      project URL.
+    symbols:
+      - configuration.WithHTTPClient
   client.request_configuration.custom_http_client:
     status: implemented
     symbols:

@@ -663,3 +663,20 @@ The tests obtain user tokens from `POST /auth/v1/signup` on the already-enabled 
 **Why**:  
 `JWT_SECRET` is deprecated in the CLI's status output and the platform is moving to asymmetric signing keys, so tokens minted locally from it would exercise a shrinking path.
 Issued tokens travel the same path a production consumer's do.
+
+## Example programs are non-published modules run by the integration tier
+
+**What**:  
+`examples/` holds standalone main-package modules outside `go.work` with replace directives to the local tree. The fast tier compiles them (vet), lint covers them and `scripts/integration-test.sh` runs each against the local stack.
+
+**Why**:  
+`Example` test functions cannot demonstrate a consumer-shaped module graph - a dependency quarantine or a scoped import is a property of a separate `go.mod`'s requires - nor run against a live stack, and a separate non-published module keeps example-only dependencies (OpenTelemetry, for `tracing-otel`) out of every consumer's graph.
+
+## Trace propagation is the context path and the transport seam, not SDK machinery
+
+**What**:  
+`client.observability.trace_propagation` is claimed on what already exists: every call's context reaches its wire request and `WithHTTPClient` injects a caller-instrumented transport (`otelhttp.NewTransport`) that writes the W3C headers. No trace option, extractor, host allow-list or OpenTelemetry dependency is added.
+
+**Why**:  
+The sibling SDKs built opt-in trace machinery because their runtimes hold ambient global trace context and their HTTP layers lack a per-request context, so they must extract, filter by host and inject themselves; Go's context is explicit and the injected transport serves only this SDK's requests to the project URL, so the caller's transport choice already scopes propagation.
+Vendor neutrality is a fixed constraint: no OpenTelemetry type may enter the public surface, and a forced OTel version would create diamond-dependency conflicts for teams already running it.
