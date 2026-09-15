@@ -117,7 +117,10 @@ jobs:
 
       # Every first-party require in a published (workspace) module must name
       # another published module, or a consumer could not resolve it. The
-      # go.work overlay otherwise hides such a path until tags exist. This is
-      # the same script developers run locally via check-fast.sh.
-      - name: Assert published modules require only published modules
+      # go.work overlay otherwise hides such a path until tags exist. The same
+      # script holds the require graph to its layering DAG: core requires
+      # nothing first-party, domains require only core and only the root
+      # composes the domains. This is the same script developers run locally
+      # via check-fast.sh.
+      - name: Assert published module requires resolve and respect the DAG
         run: ./scripts/check-module-paths.sh
