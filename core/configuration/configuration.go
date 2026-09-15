@@ -5,6 +5,7 @@ package configuration
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -34,8 +35,9 @@ const (
 )
 
 // Configuration holds the resolved settings shared across the SDK: the project
-// base URL, the API key, and the HTTP client whose transport injects
-// authentication and global headers on every request.
+// base URL, the API key, the HTTP client whose transport injects
+// authentication and global headers on every request, and the logger that
+// receives that transport's log emissions.
 //
 // A Configuration is created with [New] and is safe for concurrent
 // use by multiple goroutines once constructed. Its zero value is not usable, so
@@ -46,6 +48,7 @@ type Configuration struct {
 	httpClient *http.Client
 	headers    http.Header
 	retry      bool
+	logger     *slog.Logger
 }
 
 // Option configures a [Configuration]. Options are applied by [New]
@@ -88,6 +91,21 @@ func WithHeader(key, value string) Option {
 	}
 }
 
+// WithLogger sets the [slog.Logger] that receives the SDK's log emissions.
+// Without one the SDK is silent: every emission is discarded, and failures
+// reach the caller as returned errors regardless. The SDK emits once per
+// request round trip at [slog.LevelDebug], carrying the request method,
+// host, path, outcome (response status or transport error) and duration.
+// Bodies, query strings and header values are never logged. A nil logger is
+// ignored.
+func WithLogger(logger *slog.Logger) Option {
+	return func(c *Configuration) {
+		if logger != nil {
+			c.logger = logger
+		}
+	}
+}
+
 // New validates rawURL and apiKey, applies the supplied options in order, and
 // returns a ready-to-use [Configuration]. It identifies itself to Supabase
 // services according to entryModulePath.
@@ -104,8 +122,8 @@ func WithHeader(key, value string) Option {
 //   - [ErrInvalidURL] when rawURL is not an absolute http or https URL. The
 //     underlying parse failure, when there is one, is wrapped.
 //
-// See [WithHTTPClient], [WithHeader] and [WithRetry] for the available
-// options.
+// See [WithHTTPClient], [WithHeader], [WithRetry] and [WithLogger] for the
+// available options.
 func New(entryModulePath core.ModulePath, rawURL, apiKey string, options ...Option) (*Configuration, error) {
 	if rawURL == "" {
 		return nil, ErrMissingURL
@@ -128,12 +146,13 @@ func New(entryModulePath core.ModulePath, rawURL, apiKey string, options ...Opti
 		httpClient: http.DefaultClient,
 		headers:    make(http.Header),
 		retry:      true,
+		logger:     slog.New(slog.DiscardHandler),
 	}
 	for _, option := range options {
 		option(configuration)
 	}
 
-	configuration.httpClient = transport.WrapClient(entryModulePath, configuration.httpClient, configuration.apiKey, configuration.headers)
+	configuration.httpClient = transport.WrapClient(entryModulePath, configuration.httpClient, configuration.apiKey, configuration.headers, configuration.logger)
 	return configuration, nil
 }
 

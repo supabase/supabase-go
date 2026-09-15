@@ -3,7 +3,9 @@ package configuration_test
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/supabase/supabase-go/core"
@@ -37,4 +39,22 @@ func ExampleNew_invalidInput() {
 	// Output:
 	// true
 	// true
+}
+
+// ExampleWithLogger routes the SDK's log emissions to a debug-enabled text
+// handler on stderr. Without WithLogger the SDK is silent.
+func ExampleWithLogger() {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	projectConfiguration, err := configuration.New(
+		core.ModulePathRoot,
+		"https://PROJECT_ID.supabase.co",
+		"API_KEY",
+		configuration.WithLogger(logger),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(projectConfiguration.BaseURL())
+	// Output: https://PROJECT_ID.supabase.co
 }

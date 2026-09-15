@@ -37,8 +37,9 @@ type Client struct {
 // key.
 //
 // It returns the sentinel errors documented by [configuration.New] when
-// projectURL or apiKey are unusable. See [configuration.WithHTTPClient] and
-// [configuration.WithHeader] for the available options.
+// projectURL or apiKey are unusable. See [configuration.WithHTTPClient],
+// [configuration.WithHeader] and [configuration.WithLogger] for the available
+// options.
 func New(projectURL, apiKey string, options ...configuration.Option) (*Client, error) {
 	projectConfiguration, err := configuration.New(core.ModulePathAuth, projectURL, apiKey, options...)
 	if err != nil {
