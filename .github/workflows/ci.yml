@@ -106,6 +106,17 @@ jobs:
             exit 1
           fi
 
+      # NOTICE is Apache-2.0's attribution mechanism with no MIT counterpart,
+      # so LICENSE is the entire licensing story here.
+      - name: Assert no NOTICE file exists
+        run: |
+          offenders=$(git ls-files | grep -iE '(^|/)NOTICE(\.(md|txt))?$' || true)
+          if [ -n "$offenders" ]; then
+            echo "NOTICE files must not exist in this repository - LICENSE is the sole licensing artifact:"
+            echo "$offenders"
+            exit 1
+          fi
+
       # Every first-party require in a published (workspace) module must name
       # another published module, or a consumer could not resolve it. The
       # go.work overlay otherwise hides such a path until tags exist. The same

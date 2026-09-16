@@ -25,3 +25,7 @@ The oldest Go version we support is referred to as our "consumer floor" and can 
 This SDK is in pre-release and is not yet accepting external code contributions (see [`DEVELOPMENT.md`](DEVELOPMENT.md)).
 
 Also see [`standard.md`](standard.md) for our definition of "what good looks like" for a Go SDK.
+
+## License
+
+This SDK is licensed under the MIT License - see [`LICENSE`](LICENSE).
