@@ -20,6 +20,19 @@ We support the two most recent major versions of Go, aligning with the Go projec
 
 The oldest Go version we support is referred to as our "consumer floor" and can be found in each module's `go` directive (see `go.mod` files, for example [`supabase/go.mod`](supabase/go.mod)), raised opportunistically per-module after each new Go release.
 
+## Security
+
+This SDK is built for backend processes that hold privileged credentials, with its security posture enforced by design:
+
+- **Zero external runtime dependencies**: the published modules require only each other, so consumers inherit no third-party code from us.
+- **Vulnerability scanning is continuous and scheduled**: `govulncheck` runs on every push and pull request and daily on a schedule.
+- **Credentials never enter logs**: silent by default, and an injected logger gets one debug record per request round trip - bodies, query strings and header values are never logged.
+- **Keys live only in memory**: API keys and end-user tokens are held in client configuration for the client's lifetime and never persisted.
+- **No Cgo**: pure Go throughout, with no memory-unsafe boundary of our own.
+- **Token verification is local-first**: the `auth` module verifies end-user JWTs against the project's published signing keys, deferring to the Auth server only for tokens the key set cannot verify.
+
+To report a vulnerability, see our organization-wide [security policy](https://github.com/supabase/.github/blob/main/SECURITY.md).
+
 ## Contributing and development
 
 This SDK is in pre-release and is not yet accepting external code contributions (see [`DEVELOPMENT.md`](DEVELOPMENT.md)).
