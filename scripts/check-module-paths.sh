@@ -8,8 +8,8 @@
 # sibling from local source, so a `require` naming a first-party path that is
 # not a published module (a typo, or a module that is not published) builds and
 # tests green in-repo and would only break consumers once real tags exist.
-# tools/go, tools/node, telemetrytest, integration-testing/testkit and the
-# integrationtest modules are never published, so they are out of scope.
+# tools/go, telemetrytest, integration-testing/testkit and the integrationtest
+# modules are never published, so they are out of scope.
 #
 # Layering: the require graph must stay the strict DAG the module structure
 # promises - core requires no first-party module, a domain module requires only
