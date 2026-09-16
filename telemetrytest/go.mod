@@ -4,15 +4,15 @@
 // consumer build does.
 module telemetrytest
 
-go 1.25
+go 1.26
 
 // Fabricated, self-labeled versions - nothing is published and the replace
 // block resolves them to the local working tree. Each must outrank every other
 // require of the same module path in this build, or the higher one becomes the
 // selected version that build information records and main.go asserts.
 require (
-	github.com/supabase/supabase-go/supabase v0.999.1-fabricated
 	github.com/supabase/supabase-go/postgrest v0.999.2-fabricated
+	github.com/supabase/supabase-go/supabase v0.999.1-fabricated
 )
 
 require (
@@ -21,8 +21,8 @@ require (
 )
 
 replace (
-	github.com/supabase/supabase-go/supabase => ../supabase
+	github.com/supabase/supabase-go/auth => ../auth
 	github.com/supabase/supabase-go/core => ../core
 	github.com/supabase/supabase-go/postgrest => ../postgrest
-	github.com/supabase/supabase-go/auth => ../auth
+	github.com/supabase/supabase-go/supabase => ../supabase
 )
