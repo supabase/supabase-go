@@ -44,3 +44,27 @@ func TestRootClientSelect(t *testing.T) {
 		t.Errorf("row count = %d, want 3 (seed drifted?)", len(rows))
 	}
 }
+
+// TestRootClientGetUser fetches the signed-up user's profile through the
+// composed Auth client, proving the auth handle New wires derives its base
+// URL, key and transport from the root configuration.
+func TestRootClientGetUser(t *testing.T) {
+	projectURL, apiKey := testkit.Credentials(t)
+	user := testkit.SignUpUser(t, projectURL, apiKey)
+
+	client, err := supabase.New(projectURL, apiKey)
+	if err != nil {
+		t.Fatalf("supabase.New: %v", err)
+	}
+
+	profile, err := client.Auth().GetUser(t.Context(), user.AccessToken)
+	if err != nil {
+		t.Fatalf("GetUser: %v", err)
+	}
+	if profile.ID() != user.ID {
+		t.Errorf("ID = %q, want %q", profile.ID(), user.ID)
+	}
+	if profile.Email() != user.Email {
+		t.Errorf("Email = %q, want %q", profile.Email(), user.Email)
+	}
+}

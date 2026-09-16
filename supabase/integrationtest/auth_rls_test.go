@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/supabase/supabase-go/auth"
 	"github.com/supabase/supabase-go/integration-testing/testkit"
 	"github.com/supabase/supabase-go/postgrest"
 	"github.com/supabase/supabase-go/supabase"
@@ -20,20 +19,22 @@ type practiceLog struct {
 	Minutes int    `json:"minutes"`
 }
 
-// TestVerifiedTokenScopesRLSQuery is the block's readiness signal in composed
-// form: a backend verifies an inbound end-user token with the Auth client, then
-// issues a database call as that user, and Row Level Security confines the
-// result to the user's own rows.
+// TestVerifiedTokenScopesRLSQuery is the composed Alpha use case through one
+// configured root client: a backend verifies an inbound end-user token with
+// the Auth client, then issues a database call as that user, and Row Level
+// Security confines the result to the user's own rows. Standalone-module
+// coverage of the same flow lives in auth/integrationtest.
 func TestVerifiedTokenScopesRLSQuery(t *testing.T) {
 	projectURL, apiKey := testkit.Credentials(t)
 	user := testkit.SignUpUser(t, projectURL, apiKey)
 
-	// 1. Verify the token the way backend middleware would.
-	authClient, err := auth.New(projectURL, apiKey)
+	client, err := supabase.New(projectURL, apiKey)
 	if err != nil {
-		t.Fatalf("auth.New: %v", err)
+		t.Fatalf("supabase.New: %v", err)
 	}
-	claims, _, _, err := authClient.GetClaims(t.Context(), user.AccessToken)
+
+	// 1. Verify the token the way backend middleware would.
+	claims, _, _, err := client.Auth().GetClaims(t.Context(), user.AccessToken)
 	if err != nil {
 		t.Fatalf("GetClaims: %v", err)
 	}
@@ -42,10 +43,6 @@ func TestVerifiedTokenScopesRLSQuery(t *testing.T) {
 	}
 
 	// 2. Act as the verified user against the database with the same token.
-	client, err := supabase.New(projectURL, apiKey)
-	if err != nil {
-		t.Fatalf("supabase.New: %v", err)
-	}
 	userDatabase := client.Database().WithAccessTokenProvider(
 		func(context.Context) (string, error) { return user.AccessToken, nil },
 	)

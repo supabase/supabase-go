@@ -1,6 +1,7 @@
 package supabase
 
 import (
+	"github.com/supabase/supabase-go/auth"
 	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest"
@@ -12,6 +13,7 @@ import (
 type Client struct {
 	configuration *configuration.Configuration
 	database      *postgrest.Client
+	auth          *auth.Client
 }
 
 // New constructs a Supabase client for the given project URL and API key.
@@ -22,8 +24,8 @@ type Client struct {
 //   - [configuration.ErrInvalidURL] when projectURL is not an absolute http or
 //     https URL.
 //
-// See [configuration.WithHTTPClient] and [configuration.WithHeader] for the
-// available options.
+// See [configuration.WithHTTPClient], [configuration.WithHeader] and
+// [configuration.WithRetry] for the available options.
 func New(projectURL, apiKey string, options ...configuration.Option) (*Client, error) {
 	projectConfiguration, err := configuration.New(core.ModulePathRoot, projectURL, apiKey, options...)
 	if err != nil {
@@ -32,6 +34,7 @@ func New(projectURL, apiKey string, options ...configuration.Option) (*Client, e
 	return &Client{
 		configuration: projectConfiguration,
 		database:      postgrest.NewFromConfiguration(projectConfiguration),
+		auth:          auth.NewFromConfiguration(projectConfiguration),
 	}, nil
 }
 
@@ -44,4 +47,12 @@ func New(projectURL, apiKey string, options ...configuration.Option) (*Client, e
 //	    postgrest.From[Instrument]("instruments").Select("id, name"))
 func (c *Client) Database() *postgrest.Client {
 	return c.database
+}
+
+// Auth returns the composed Auth client, which verifies end-user access
+// tokens and fetches the profiles they authenticate:
+//
+//	claims, _, _, err := supabase.Auth().GetClaims(ctx, token)
+func (c *Client) Auth() *auth.Client {
+	return c.auth
 }
