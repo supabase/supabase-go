@@ -208,6 +208,22 @@ A Go test file in a package directory can declare one of two packages, and both 
 
 A note on terminology: the industry terms for these are "black-box" and "white-box" testing, and we mention them so the mapping is clear, but we prefer the precise, Go-native framing - *external test package* versus *in-package test* - which also sidesteps loaded language.
 
+## Raising the Go consumer floor
+
+When a new Go major ships, the oldest major still supported by the Go project rises and our floor follows.
+Major Go releases happen infrequently, twice a year in February and August, so the task of raising the consumer floor is classed as a 'manual' job for which you run [the `raise-consumer-floor.sh` script](./scripts/raise-consumer-floor.sh) locally:
+
+```bash
+./scripts/raise-consumer-floor.sh
+```
+
+It requires the Git working tree to be clean and creates a commit for the bump for you.
+
+At this point it's worth checking for floor-relative claims in [`decisions.md`](decisions.md) because some entries might justify a design by where a Go version sits against the floor.
+Search that document for "floor" and rewrite anything the raise has invalidated.
+
+See also: [Running checks at the consumer floor](#running-checks-at-the-consumer-floor)
+
 ## Local development environment troubleshooting and tips
 
 ### Upgrading Go from the terminal (CLI) on macOS
