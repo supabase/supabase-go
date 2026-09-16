@@ -19,12 +19,11 @@ for module in ${workspace_modules}; do
   )
 done
 
-# Compile-only guard for the adjacent test modules, which the workspace loop
-# above never reaches: vet compiles as it analyzes, giving the integration
-# tests fast signal here and for local developers without Docker (the
-# integration tier runs them, but later and needing the stack). Their tests
-# are environment-gated, so this deliberately does not run them.
-for module in $(enumerate_adjacent_test_modules); do
+# Compile-only guard for the adjacent test modules and example programs, which
+# the workspace loop above never reaches: vet compiles as it analyzes, giving
+# the integration tier fast signal here and for local developers without
+# Docker (that tier runs them, but later and needing the stack).
+for module in $(enumerate_adjacent_test_modules) $(enumerate_example_modules); do
   echo "==> ${module} (vet only)"
   ( cd "${module}" && GOWORK=off go vet ./... )
 done

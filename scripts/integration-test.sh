@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run the integration tests against a local Supabase stack, exactly as CI does.
+# Run the integration tests and example programs against a local Supabase
+# stack, exactly as CI does.
 # Requires Docker (the stack's services are containers) and curl. Run from the
 # repository root.
 #
@@ -24,6 +25,8 @@
 # If the new CLI changes the config.toml schema then integration-testing/supabase/config.toml
 # may also need to be updated.
 set -euo pipefail
+
+source "$(dirname "$0")/common.sh"
 
 SUPABASE_CLI_VERSION="2.114.0"
 
@@ -123,6 +126,21 @@ for module in "${modules[@]}"; do
     SUPABASE_URL="${API_URL}" \
     SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
       go test -v -race -shuffle=on ./...
+  )
+done
+
+# The example programs are consumer-shaped documentation: each must actually
+# run against the stack, not merely compile, so a drifted example fails here
+# rather than in a reader's hands.
+echo "==> running example programs"
+for example in $(enumerate_example_modules); do
+  echo "==> ${example}"
+  (
+    cd "${example}"
+    GOWORK=off \
+    SUPABASE_URL="${API_URL}" \
+    SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
+      go run .
   )
 done
 

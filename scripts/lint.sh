@@ -46,12 +46,13 @@ for module in ${workspace_modules}; do
   )
 done
 
-# The adjacent test modules sit outside the workspace, so the loop above never
-# reaches them. GOWORK=off lets the go-package-graph tools resolve each one the
-# way its own replace directives declare; gofumpt and revive walk the
-# filesystem and need no module resolution (and these directories hold no
-# node_modules or nested modules, so neither needs its exclusion dance).
-for module in $(enumerate_adjacent_test_modules); do
+# The adjacent test modules and example programs sit outside the workspace, so
+# the loop above never reaches them. GOWORK=off lets the go-package-graph
+# tools resolve each one the way its own replace directives declare; gofumpt
+# and revive walk the filesystem and need no module resolution (and these
+# directories hold no node_modules or nested modules, so neither needs its
+# exclusion dance).
+for module in $(enumerate_adjacent_test_modules) $(enumerate_example_modules); do
   echo "==> ${module}"
   (
     cd "${module}"
