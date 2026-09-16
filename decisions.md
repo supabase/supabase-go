@@ -61,11 +61,11 @@ The guiding test is whether a check helps avoid mistakes that would later force 
 ## The two Go-version environments are kept discrete
 
 **What**:  
-The `go` directive in published modules (`1.25`) is separate from, and unaffected by, the toolchain CI and tooling run on (latest stable).
+The `go` directive in published modules (the consumer floor) is separate from, and unaffected by, the toolchain CI and tooling run on (latest stable).
 
 **Why**:  
 They are different concerns: the published `go` directive is a compatibility contract for the consumer's unknown environment, while the CI/lint toolchain is our own deterministic environment (latest, our choice).
-A latest toolchain compiles a go 1.25 module fine.
+A latest toolchain compiles a floor-versioned module fine.
 Tool-pinning machinery must never live in the published modules, or it would drag our environment's needs into the consumer's contract and force the floor up.
 
 ## Use a committed go.work workspace for intra-repo module resolution
@@ -492,7 +492,7 @@ CI's integration job and `scripts/integration-test.sh` run the same script, whic
 The CLI is the pinned release binary, verified against a committed SHA-256 and installed into Go's own bin directory (GOBIN, else GOPATH/bin), never taken from npm.
 Integration tests are env-gated and run under `-race`.
 They live in `integrationtest` modules beside the code they exercise, consuming only the public API, and selection is by the module boundary alone: the script runs `./...` in each with no `-run` name filter.
-The CI job runs the same `["1.25", "stable"]` matrix as build-and-test; a `GOWORK=off go vet` pass over the same modules in the unit script additionally keeps them compiling for fast local signal.
+The CI job runs the same floor + stable matrix as build-and-test; a `GOWORK=off go vet` pass over the same modules in the unit script additionally keeps them compiling for fast local signal.
 
 **Why**:  
 The CLI cannot be installed with `go install` at v2 for two independent reasons: its module (`github.com/supabase/cli`) now lives in `apps/cli-go/` while the repo root carries no `go.mod`, so the module proxy resolves that path only to the stale v1 root-module history rather than the v2 code, and its `go.mod` carries local `replace` directives, which `go install pkg@version` refuses outright.
@@ -513,7 +513,7 @@ The `telemetrytest/` module is a stand-in consumer: it requires the SDK modules 
 `scripts/telemetry-test.sh` runs it with `GOWORK=off` and the module is not listed in `go.work`.
 A second leg rebuilds the same program in GOPATH mode (`GO111MODULE=off`), where binaries carry build information without module records, and asserts the version-unknowable `0.0.0` fallback in every header.
 The `TELEMETRY_TEST_MODE` environment variable tells the program which expectations to hold.
-The check is part of the fast tier (`check-fast.sh`) and runs in CI as a step of the build-and-test job, on its `["1.25", "stable"]` matrix.
+The check is part of the fast tier (`check-fast.sh`) and runs in CI as a step of the build-and-test job, on its floor + stable matrix.
 The probe is a plain program, not a `go test` suite.
 
 **Why**:  
@@ -543,14 +543,13 @@ The panic survives only where module identity is present and contradicts the cal
 ## The consumer floor is a policy: the oldest Go major the Go project still supports
 
 **What**:  
-Every floor-carrying artefact - the published `go.mod` directives, [`go.work`](go.work), the [`telemetrytest`](telemetrytest/) stand-in consumer and [CI](.github/workflows/ci.yml)'s floor matrix legs - carries the oldest Go major release still supported by the Go project, currently `1.25`.
+Every floor-carrying artefact - the published `go.mod` directives, [`go.work`](go.work), the consumer-shaped modules outside the workspace and [CI](.github/workflows/ci.yml)'s floor matrix legs - carries the oldest Go major release still supported by the Go project, raised in lockstep by [`scripts/raise-consumer-floor.sh`](scripts/raise-consumer-floor.sh).
 This floor should be raised opportunistically after each Go release rather than on release day.
 The policy is stated consumer-facing in [our root `README.md`](README.md) ("Supported Go versions").
 
 **Why**:  
 The standard library is statically linked into every consumer binary and only the two newest majors receive security fixes, so a floor inside Go's support window never claims compatibility with toolchains whose binaries cannot be patched.
-A lower floor buys no reach: every Go line below `1.25` is end of life, so no supported-toolchain consumer distinguishes `1.25` from lower floors.
-The ecosystem this SDK composes with already sits at the same point - `golang.org/x` applies the two-release policy to itself and [pgx](https://github.com/jackc/pgx), [grpc-go](https://github.com/grpc/grpc-go), [google-cloud-go](https://github.com/googleapis/google-cloud-go) and [the original Supabase community postgrest-go](https://github.com/supabase-community/postgrest-go) all require 1.25 - so the floor is aligned rather than pioneering.
+A lower floor buys no reach: every Go line below the floor is end of life, so no supported-toolchain consumer distinguishes the floor from anything lower.
 
 ## `request_timeout` is satisfied by `http.Client.Timeout` through `WithHTTPClient`, not a dedicated option
 
