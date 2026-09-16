@@ -680,3 +680,12 @@ Issued tokens travel the same path a production consumer's do.
 **Why**:  
 The sibling SDKs built opt-in trace machinery because their runtimes hold ambient global trace context and their HTTP layers lack a per-request context, so they must extract, filter by host and inject themselves; Go's context is explicit and the injected transport serves only this SDK's requests to the project URL, so the caller's transport choice already scopes propagation.
 Vendor neutrality is a fixed constraint: no OpenTelemetry type may enter the public surface, and a forced OTel version would create diamond-dependency conflicts for teams already running it.
+
+## The logging seam takes *slog.Logger and emits at debug only
+
+**What**:  
+`configuration.WithLogger` accepts a `*slog.Logger` rather than a `slog.Handler`, and no emission rises above `slog.LevelDebug`.
+
+**Why**:  
+The logger is the unit applications already hold, and a caller with only a handler recovers the other shape with one `slog.New` call.
+Failures already reach callers as returned errors, so a louder emission would report the same failure twice.

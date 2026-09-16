@@ -138,6 +138,16 @@ features:
       - auth.User.Role
       - auth.User.UpdatedAt
       - auth.User.UserMetadata
+  client.observability.diagnostic_logging:
+    status: implemented
+    note: |
+      One logger for the whole SDK, injected at construction and flowing to
+      every domain client through the shared transport, which writes one
+      debug log emission per request round trip. Silent by default via a
+      discard logger, and credentials, bodies, query strings and header
+      values are never logged.
+    symbols:
+      - configuration.WithLogger
   client.observability.trace_propagation:
     status: implemented
     note: |

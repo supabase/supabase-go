@@ -48,8 +48,8 @@ type Client struct {
 //
 // It returns the sentinel errors documented by [configuration.New] when
 // projectURL or apiKey are unusable. See [configuration.WithHTTPClient],
-// [configuration.WithHeader] and [configuration.WithRetry] for the available
-// options.
+// [configuration.WithHeader], [configuration.WithRetry] and
+// [configuration.WithLogger] for the available options.
 func New(projectURL, apiKey string, options ...configuration.Option) (*Client, error) {
 	projectConfiguration, err := configuration.New(core.ModulePathPostgrest, projectURL, apiKey, options...)
 	if err != nil {
