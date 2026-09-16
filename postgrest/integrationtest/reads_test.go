@@ -507,7 +507,7 @@ func TestCollectAppliesMultiColumnOrder(t *testing.T) {
 			}
 
 			if !slices.Equal(testCase.want, rowIDs) {
-				t.Errorf("want %q, got %q", testCase.want, rowIDs)
+				t.Errorf("want %v, got %v", testCase.want, rowIDs)
 			}
 		})
 	}
@@ -852,10 +852,10 @@ func TestCollectAppliesRange(t *testing.T) {
 			}
 			if rowCount > 0 {
 				if rows[0] != testCase.wantFirst {
-					t.Fatalf("first row unexpected - want %q, got %q", rows[0], testCase.wantFirst)
+					t.Fatalf("first row unexpected - got %+v, want %+v", rows[0], testCase.wantFirst)
 				}
 				if rows[rowCount-1] != testCase.wantLast {
-					t.Fatalf("last row unexpected - want %q, got %q", rows[rowCount-1], testCase.wantLast)
+					t.Fatalf("last row unexpected - got %+v, want %+v", rows[rowCount-1], testCase.wantLast)
 				}
 			}
 		})
@@ -1577,7 +1577,7 @@ func TestFilters(t *testing.T) {
 			slices.Sort(rowIDs) // because we didn't ask the PostgREST service to Order for us
 
 			if !slices.Equal(testCase.want, rowIDs) {
-				t.Errorf("want %q, got %q", testCase.want, rowIDs)
+				t.Errorf("want %v, got %v", testCase.want, rowIDs)
 			}
 		})
 	}
