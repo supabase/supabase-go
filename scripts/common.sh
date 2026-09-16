@@ -37,5 +37,7 @@ enumerate_adjacent_test_modules() {
 # against the local stack.
 enumerate_example_modules() {
   printf '%s\n' \
+    examples/rls-backend \
+    examples/database-standalone \
     examples/tracing-otel
 }
