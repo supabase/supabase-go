@@ -1,6 +1,6 @@
 # Developing the Supabase Go SDK
 
-<!-- cSpell:ignore darwin linux mvdan -->
+<!-- cSpell:ignore darwin linux mvdan startswith -->
 
 This file holds the Go/SDK-specific guidance for working in this repository.
 General, organization-wide contribution policy lives in our [shared `.github` repository](https://github.com/supabase/.github)'s CONTRIBUTING.md file.
@@ -61,14 +61,18 @@ To run the whole fast tier before pushing - build and unit test plus the module-
 
 ### Running checks at the consumer floor
 
-CI proves consumer-facing behavior on two toolchains: the published floor (`go 1.25`, the oldest Go a consumer may hold us to) and current stable, on Linux runners. A local run uses whatever Go is installed, so to reproduce the floor legs name the toolchain for one run (downloaded and checksum-verified automatically on first use). That is the whole recipe:
+[CI](.github/workflows/ci.yml) proves consumer-facing behavior on two toolchains: the published floor (the oldest Go a consumer may hold us to - see [Supported Go versions](README.md#supported-go-versions)) and current stable. A local run uses whatever Go is installed, so to reproduce the floor legs name the toolchain for that run:
 
 ```bash
-GOTOOLCHAIN=go1.25.12 ./scripts/build-and-test.sh
-GOTOOLCHAIN=go1.25.12 ./scripts/telemetry-test.sh
+GOTOOLCHAIN=go1.26.8 ./scripts/check-fast.sh
+GOTOOLCHAIN=go1.26.8 ./scripts/integration-test.sh
 ```
 
-`go1.25.12` is the newest 1.25 point release, matching what CI's `1.25` matrix legs resolve to. `./scripts/integration-test.sh` accepts the same prefixes (see its prerequisites below). Lint, vulnerability scan and spell check have no floor legs - they are our own environment, deliberately kept on stable.
+You can discover the current, full version number for a particular major version of Go (in this example, for Go `1.26`):
+
+```bash
+curl -s "https://go.dev/dl/?mode=json" | jq -r '.[].version | select(startswith("go1.26"))' | head -n 1
+```
 
 ### Fixing Formatting for `gofumpt`
 
