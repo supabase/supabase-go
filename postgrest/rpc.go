@@ -199,7 +199,7 @@ func (c RPCVoidCall) mutation() {}
 
 // rpcPostRequest builds the POST form of a function call: the arguments as the
 // JSON request body, or the empty object when none were given so the function
-// runs on its parameter defaults. A marshalling failure is parked as a deferred
+// runs on its parameter defaults. A marshaling failure is parked as a deferred
 // build error, surfacing at the executing function rather than on the wire.
 func rpcPostRequest(function string, arguments any) request.Request {
 	post := request.New(http.MethodPost, rpcPathSegment, function)

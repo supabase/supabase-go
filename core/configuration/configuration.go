@@ -113,7 +113,7 @@ func WithLogger(logger *slog.Logger) Option {
 // The apiKey may be any Supabase project API key, publishable or secret.
 //
 // entryModulePath must be one of the following, with its module linked into
-// the build, otherwise this function will panic:
+// the build, otherwise this function panics:
 //   - [core.ModulePathRoot]
 //   - [core.ModulePathPostgrest]
 //   - [core.ModulePathAuth]

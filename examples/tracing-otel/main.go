@@ -71,7 +71,7 @@ func main() {
 
 	// In an application the active span usually exists already, opened by
 	// HTTP-handler middleware for the inbound request being served, and you
-	// simply pass that request's context to the SDK call. This standalone
+	// pass that request's context to the SDK call. This standalone
 	// program has no inbound request, so it opens the span itself. Either way
 	// the context carries the span to the injected transport, and the outgoing
 	// Supabase request is recorded as a child span in the same trace as the

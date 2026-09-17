@@ -13,7 +13,7 @@ import (
 // cSpell:ignore ilike imatch isdistinct phraseto phfts plainto plfts tsquery websearch wfts
 
 // listGrammar instances must only contain characters mapping to the ASCII set
-// (byte values 0 thru 127), for the way they're used in this implementation.
+// (byte values 0 through 127), for the way they are used in this implementation.
 // The first character (index 0) must be the opener and the second character
 // (index 1) must be the closer.
 type listGrammar string

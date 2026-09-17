@@ -29,7 +29,7 @@ type transport struct {
 // [http.DefaultClient] remains safe.
 //
 // entryModulePath must be one of the following, with its module linked into
-// the build, otherwise this function will panic:
+// the build, otherwise this function panics:
 //   - [core.ModulePathRoot]
 //   - [core.ModulePathPostgrest]
 //   - [core.ModulePathAuth]

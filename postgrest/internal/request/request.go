@@ -153,7 +153,7 @@ func (r Request) WithPreference(preference string) Request {
 
 // WithError returns a new Request carrying err as a deferred build failure.
 // HTTPRequest returns it before assembling anything, so a failure raised while
-// a builder prepares a request - a payload that will not marshal, say - reaches
+// a builder prepares a request - a payload that does not marshal, say - reaches
 // the caller at execution rather than being lost.
 func (r Request) WithError(err error) Request {
 	clone := r

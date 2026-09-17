@@ -7,12 +7,12 @@ import "fmt"
 // the HTTP response returned by the server as a result of a single request
 // sent by this SDK, when that response had a non-2xx status.
 type HTTPError struct {
-	// HTTPStatus is the HTTP status code of the response, which will never be
-	// in the 2xx range.
+	// HTTPStatus is the HTTP status code of the response, which is never in
+	// the 2xx range.
 	HTTPStatus int
 
 	// Code is the stable error code returned by the service if one was returned,
-	// otherwise will be empty.
+	// otherwise empty.
 	// Programmatic handling should branch on this.
 	//
 	// Examples of values found here include:
