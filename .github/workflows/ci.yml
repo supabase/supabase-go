@@ -55,10 +55,10 @@ jobs:
           key: supabase-cli-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/integration-test.sh') }}
       - run: ./scripts/integration-test.sh
 
-  # Lint and vuln are deliberately separate jobs so a vulnerability finding fails
-  # on its own, clearly distinct from a lint failure. Each calls a single script
-  # that is also what developers run locally (identical command in both places).
-  # Tool versions are checksum-pinned in tools/go/go.mod + tools/go/go.sum.
+  # Lint calls a single script that is also what developers run locally
+  # (identical command in both places). Tool versions are checksum-pinned in
+  # tools/go/go.mod + tools/go/go.sum. The vulnerability scan runs from its
+  # own workflow, vulnerability-scan.yml, on a superset of these triggers.
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -67,15 +67,6 @@ jobs:
         with:
           go-version: stable
       - run: ./scripts/lint.sh
-
-  vulnerabilities-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version: stable
-      - run: ./scripts/vulncheck.sh
 
   # cSpell runs on Node, which the ubuntu-latest image already provides, so this
   # job needs no setup-go and no setup-node - the runner's Node is part of the
@@ -112,6 +103,17 @@ jobs:
             echo "These files are provided org-wide by supabase/.github and must not exist in this repository:"
             echo "$offenders"
             echo "Put repo-specific guidance in DEVELOPMENT.md instead."
+            exit 1
+          fi
+
+      # NOTICE is Apache-2.0's attribution mechanism with no MIT counterpart,
+      # so LICENSE is the entire licensing story here.
+      - name: Assert no NOTICE file exists
+        run: |
+          offenders=$(git ls-files | grep -iE '(^|/)NOTICE(\.(md|txt))?$' || true)
+          if [ -n "$offenders" ]; then
+            echo "NOTICE files must not exist in this repository - LICENSE is the sole licensing artifact:"
+            echo "$offenders"
             exit 1
           fi
 
