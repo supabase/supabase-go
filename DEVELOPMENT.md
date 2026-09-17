@@ -1,6 +1,6 @@
 # Developing the Supabase Go SDK
 
-<!-- cSpell:ignore darwin linux mvdan -->
+<!-- cSpell:ignore darwin linux mvdan startswith -->
 
 This file holds the Go/SDK-specific guidance for working in this repository.
 General, organization-wide contribution policy lives in our [shared `.github` repository](https://github.com/supabase/.github)'s CONTRIBUTING.md file.
@@ -61,14 +61,18 @@ To run the whole fast tier before pushing - build and unit test plus the module-
 
 ### Running checks at the consumer floor
 
-CI proves consumer-facing behavior on two toolchains: the published floor (`go 1.25`, the oldest Go a consumer may hold us to) and current stable, on Linux runners. A local run uses whatever Go is installed, so to reproduce the floor legs name the toolchain for one run (downloaded and checksum-verified automatically on first use). That is the whole recipe:
+[CI](.github/workflows/ci.yml) proves consumer-facing behavior on two toolchains: the published floor (the oldest Go a consumer may hold us to - see [Supported Go versions](README.md#supported-go-versions)) and current stable. A local run uses whatever Go is installed, so to reproduce the floor legs name the toolchain for that run:
 
 ```bash
-GOTOOLCHAIN=go1.25.12 ./scripts/build-and-test.sh
-GOTOOLCHAIN=go1.25.12 ./scripts/telemetry-test.sh
+GOTOOLCHAIN=go1.26.8 ./scripts/check-fast.sh
+GOTOOLCHAIN=go1.26.8 ./scripts/integration-test.sh
 ```
 
-`go1.25.12` is the newest 1.25 point release, matching what CI's `1.25` matrix legs resolve to. `./scripts/integration-test.sh` accepts the same prefixes (see its prerequisites below). Lint, vulnerability scan and spell check have no floor legs - they are our own environment, deliberately kept on stable.
+You can discover the current, full version number for a particular major version of Go (in this example, for Go `1.26`):
+
+```bash
+curl -s "https://go.dev/dl/?mode=json" | jq -r '.[].version | select(startswith("go1.26"))' | head -n 1
+```
 
 ### Fixing Formatting for `gofumpt`
 
@@ -203,6 +207,22 @@ A Go test file in a package directory can declare one of two packages, and both 
 **Our default is the external test package (`foo_test`).** Testing through the public API tests what consumers actually use, keeps tests decoupled from internal details so refactoring internals does not spuriously break tests, and applies healthy pressure to keep the exported surface usable. Reach for an in-package test (`foo`) only when you genuinely need to exercise internals that are not observable through the public API, and prefer to keep such tests few and clearly named (for example `something_internal_test.go`).
 
 A note on terminology: the industry terms for these are "black-box" and "white-box" testing, and we mention them so the mapping is clear, but we prefer the precise, Go-native framing - *external test package* versus *in-package test* - which also sidesteps loaded language.
+
+## Raising the Go consumer floor
+
+When a new Go major ships, the oldest major still supported by the Go project rises and our floor follows.
+Major Go releases happen infrequently, twice a year in February and August, so the task of raising the consumer floor is classed as a 'manual' job for which you run [the `raise-consumer-floor.sh` script](./scripts/raise-consumer-floor.sh) locally:
+
+```bash
+./scripts/raise-consumer-floor.sh
+```
+
+It requires the Git working tree to be clean and creates a commit for the bump for you.
+
+At this point it's worth checking for floor-relative claims in [`decisions.md`](decisions.md) because some entries might justify a design by where a Go version sits against the floor.
+Search that document for "floor" and rewrite anything the raise has invalidated.
+
+See also: [Running checks at the consumer floor](#running-checks-at-the-consumer-floor)
 
 ## Local development environment troubleshooting and tips
 

@@ -16,7 +16,9 @@ The official Supabase SDK for Go. This is a multi-module monorepo, currently in 
 
 ## Supported Go versions
 
-This SDK supports the Go releases that the Go project itself supports: the two most recent major versions. Each module's `go` directive - the minimum Go version required to consume the SDK - tracks the older of those two majors and will be raised opportunistically after each new Go release.
+We support the two most recent major versions of Go, aligning with the Go project's [Release Policy](https://go.dev/doc/devel/release#policy).
+
+The oldest Go version we support is referred to as our "consumer floor" and can be found in each module's `go` directive (see `go.mod` files, for example [`supabase/go.mod`](supabase/go.mod)), raised opportunistically per-module after each new Go release.
 
 ## Contributing and development
 

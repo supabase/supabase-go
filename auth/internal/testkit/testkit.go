@@ -84,6 +84,14 @@ func NewES256(t *testing.T, keyID string) Signer {
 	if err != nil {
 		t.Fatalf("generating ES256 key: %v", err)
 	}
+
+	// The SEC 1 uncompressed point: one form byte, then the two fixed-width
+	// 32-byte coordinates - exactly the full-size values a JWK requires.
+	publicKeyPoint, err := privateKey.PublicKey.Bytes()
+	if err != nil {
+		t.Fatalf("encoding ES256 public key: %v", err)
+	}
+
 	return Signer{
 		algorithm: "ES256",
 		keyID:     keyID,
@@ -92,8 +100,8 @@ func NewES256(t *testing.T, keyID string) Signer {
 			"kid": keyID,
 			"alg": "ES256",
 			"crv": "P-256",
-			"x":   base64URL(privateKey.X.FillBytes(make([]byte, 32))),
-			"y":   base64URL(privateKey.Y.FillBytes(make([]byte, 32))),
+			"x":   base64URL(publicKeyPoint[1:33]),
+			"y":   base64URL(publicKeyPoint[33:65]),
 		},
 		sign: func(signingInput string) []byte {
 			digest := sha256.Sum256([]byte(signingInput))

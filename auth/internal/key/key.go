@@ -155,11 +155,21 @@ func (k Key) ecdsaPublicKey() (*ecdsa.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ecdsa.PublicKey{
-		Curve: elliptic.P256(),
-		X:     new(big.Int).SetBytes(x),
-		Y:     new(big.Int).SetBytes(y),
-	}, nil
+
+	// A P-256 coordinate is exactly 32 bytes, both in a JWK (RFC 7518,
+	// section 6.2.1.2) and in the SEC 1 uncompressed point form. Undersize
+	// coordinates - a publisher stripping leading zeros - name the same
+	// integers, so they are left-padded rather than rejected; oversize ones
+	// are rejected.
+	const coordinateSize = 32
+	if len(x) > coordinateSize || len(y) > coordinateSize {
+		return nil, errDoesNotVerify
+	}
+	point := make([]byte, 1+2*coordinateSize)
+	point[0] = 4 // SEC 1 uncompressed point form
+	copy(point[1+coordinateSize-len(x):], x)
+	copy(point[1+2*coordinateSize-len(y):], y)
+	return ecdsa.ParseUncompressedPublicKey(elliptic.P256(), point)
 }
 
 func (k Key) rsaPublicKey() (*rsa.PublicKey, error) {

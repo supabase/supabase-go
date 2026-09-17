@@ -3,4 +3,4 @@
 // workspace; its consumers resolve it with a replace directive.
 module github.com/supabase/supabase-go/integration-testing/testkit
 
-go 1.25
+go 1.26

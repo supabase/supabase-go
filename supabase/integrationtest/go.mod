@@ -5,7 +5,7 @@
 // below resolve every requirement from the local tree.
 module github.com/supabase/supabase-go/supabase/integrationtest
 
-go 1.25
+go 1.26
 
 require (
 	github.com/supabase/supabase-go/integration-testing/testkit v0.0.0-00010101000000-000000000000

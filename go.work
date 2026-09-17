@@ -1,4 +1,4 @@
-go 1.25
+go 1.26
 
 // This use set always matches exactly the modules that we publish from this SDK repository,
 // and is to be considered canonical in that respect.

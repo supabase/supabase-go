@@ -9,8 +9,9 @@ workspace_modules="$(enumerate_workspace_modules)"
 
 echo "Lint..."
 
-# Build the pinned tools standalone - GOWORK=off so the 1.25 workspace does not
-# interfere with the 1.25.0 tools/go module - into a throwaway bin directory.
+# Build the pinned tools standalone into a throwaway bin directory.
+# We build/install with GOWORK=off so the workspace Go version (this SDK's
+# consumer floor) does not interfere with the tools/go module's Go version.
 toolbin="$(mktemp -d)"
 trap 'rm -rf "${toolbin}"' EXIT
 (
@@ -39,10 +40,7 @@ for module in ${workspace_modules}; do
     go vet ./...
     "${toolbin}/staticcheck" ./...
     "${toolbin}/errcheck" ./...
-    # revive resolves ./... by walking the filesystem (mgechev/dots), not the
-    # go/packages module graph, so - like gofumpt above - it ignores the
-    # tools/node nested module and descends into node_modules. Exclude that subtree.
-    "${toolbin}/revive" -exclude ./tools/node/... -set_exit_status ./...
+    "${toolbin}/revive" -set_exit_status ./...
   )
 done
 
@@ -78,7 +76,7 @@ done
 # check gate reads the disk, not the git index, which reports an unstaged
 # rename's old path as still present and would feed gopls a ghost file. Pruned
 # from the walk: top-level dot-directories, node_modules (npm tooling ships
-# third-party .go files - the same subtree gofumpt and revive exclude above)
+# third-party .go files - the same subtree gofumpt excludes above)
 # and user.transient (developer scratch space, per .gitignore).
 # Like gofumpt above, gopls check reports findings without failing - it always
 # exits zero - so fail on any output. The simplifier and unused-symbol

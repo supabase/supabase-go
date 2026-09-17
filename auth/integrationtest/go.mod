@@ -4,7 +4,7 @@
 // below resolve every requirement from the local tree.
 module github.com/supabase/supabase-go/auth/integrationtest
 
-go 1.25
+go 1.26
 
 require (
 	github.com/supabase/supabase-go/auth v0.0.0-00010101000000-000000000000

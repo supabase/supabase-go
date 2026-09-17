@@ -6,7 +6,7 @@
 // replace directives resolving the SDK modules from the local tree.
 module github.com/supabase/supabase-go/examples/tracing-otel
 
-go 1.25.0
+go 1.26
 
 replace (
 	github.com/supabase/supabase-go/auth => ../../auth
