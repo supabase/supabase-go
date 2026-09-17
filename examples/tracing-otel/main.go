@@ -36,8 +36,8 @@ type instrument struct {
 
 func main() {
 	projectURL := os.Getenv("SUPABASE_URL")
-	apiKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
-	if projectURL == "" || apiKey == "" {
+	publishableKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
+	if projectURL == "" || publishableKey == "" {
 		fmt.Fprintln(os.Stderr, "SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set - run via scripts/integration-test.sh")
 		os.Exit(1)
 	}
@@ -62,7 +62,7 @@ func main() {
 	// The Supabase-specific line: instrument the default transport (a nil base
 	// means http.DefaultTransport, the stdlib convention) and inject it through
 	// the SDK's single HTTP seam.
-	client, err := supabase.New(projectURL, apiKey,
+	client, err := supabase.New(projectURL, publishableKey,
 		configuration.WithHTTPClient(&http.Client{Transport: otelhttp.NewTransport(nil)}))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "supabase.New:", err)

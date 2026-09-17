@@ -110,6 +110,8 @@ func WithLogger(logger *slog.Logger) Option {
 // returns a ready-to-use [Configuration]. It identifies itself to Supabase
 // services according to entryModulePath.
 //
+// The apiKey may be any Supabase project API key, publishable or secret.
+//
 // entryModulePath must be one of the following, with its module linked into
 // the build, otherwise this function will panic:
 //   - [core.ModulePathRoot]

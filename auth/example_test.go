@@ -11,7 +11,7 @@ import (
 )
 
 func ExampleNew() {
-	client, err := auth.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	fmt.Println(client != nil && err == nil)
 	// Output: true
 }
@@ -19,7 +19,7 @@ func ExampleNew() {
 // ExampleClient_GetClaims verifies an end-user token and branches on the ways
 // verification can fail, so a caller sees how each maps to an HTTP response.
 func ExampleClient_GetClaims() {
-	client, err := auth.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -49,7 +49,7 @@ func ExampleClient_GetClaims() {
 // server-fresh data - here, whether the email is confirmed right now, not
 // whether it was confirmed when the token was minted.
 func ExampleClient_GetUser() {
-	client, err := auth.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -78,7 +78,7 @@ type claimsContextKey struct{}
 // token to a Database client so the query runs under the user's Row Level
 // Security policies.
 func Example_middleware() {
-	client, err := auth.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return

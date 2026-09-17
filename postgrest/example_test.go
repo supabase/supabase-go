@@ -12,7 +12,7 @@ import (
 )
 
 func ExampleNew() {
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	fmt.Println(client != nil && err == nil)
 	// Output: true
 }
@@ -25,7 +25,7 @@ func ExampleFrom() {
 		Name string `json:"name"`
 	}
 
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -55,7 +55,7 @@ func ExampleFrom() {
 // container instead of a named struct. A bare From reads every column, which
 // suits a container that names none.
 func ExampleCollect_schemaDriven() {
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -90,7 +90,7 @@ var instrumentsByName = postgrest.From[Instrument]("instruments").Select("id, na
 // one is a package-level variable, with a client supplied only at the
 // executing read function.
 func ExampleFrom_packageLevel() {
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -118,7 +118,7 @@ func ExampleCollect_requestTimeout() {
 
 	client, err := postgrest.New(
 		"https://PROJECT_ID.supabase.co",
-		"API_KEY",
+		"sb_publishable_...",
 		configuration.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
 	)
 	if err != nil {
@@ -150,7 +150,7 @@ func ExampleCollect_requestTimeout() {
 // the client or the query. The contract itself - which requests qualify, on
 // which failures and with what backoff - is documented on [postgrest.Client].
 func ExampleWithRetry() {
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -177,7 +177,7 @@ func ExampleWithRetry() {
 // boolean distinguishes a missing row from a present one whose fields hold
 // zero values, and more than one match fails with ErrTooManyRows.
 func ExampleCollectSingleMaybe() {
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -209,7 +209,7 @@ func ExampleCollectSingleMaybe() {
 // [postgrest.Execute] applies the insert and returns only the response
 // metadata, taking PostgREST's default minimal return.
 func ExampleQueryBuilder_Insert() {
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -234,7 +234,7 @@ func ExampleQueryBuilder_Insert() {
 // passing an insert to [postgrest.Collect] returns the created rows, and
 // [postgrest.MutationBuilder.Returning] narrows which columns they carry.
 func ExampleMutationBuilder_Returning() {
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -257,7 +257,7 @@ func ExampleMutationBuilder_Returning() {
 }
 
 func ExampleFilterBuilder_Update() {
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -284,7 +284,7 @@ func ExampleFilterBuilder_Update() {
 // chain first, exactly as on a read, and Delete ends the chain. Execute
 // applies the delete without reading anything back.
 func ExampleFilterBuilder_Delete() {
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -310,7 +310,7 @@ func ExampleFilterBuilder_Delete() {
 // returns only the response metadata, taking PostgREST's default minimal
 // return.
 func ExampleQueryBuilder_Upsert() {
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -335,7 +335,7 @@ func ExampleQueryBuilder_Upsert() {
 // rather than the primary key, and reads the affected rows back by passing the
 // upsert to [postgrest.Collect].
 func ExampleUpsertBuilder_OnConflict() {
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -365,7 +365,7 @@ func ExampleRPCBuilder_Rows() {
 		Title string `json:"title"`
 	}
 
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -397,7 +397,7 @@ func ExampleRPCRowsCall_ReadOnly() {
 		Title string `json:"title"`
 	}
 
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -423,7 +423,7 @@ func ExampleRPCRowsCall_ReadOnly() {
 // the whole body with CollectRaw. This function takes no arguments, so Arguments
 // is omitted and the call runs on the function's own parameter defaults.
 func ExampleRPCBuilder_Value() {
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -445,7 +445,7 @@ func ExampleRPCBuilder_Value() {
 // type and no result shape: the call is ready for Execute, which runs it and
 // reads nothing back.
 func ExampleRPCVoid() {
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -475,7 +475,7 @@ func ExampleClient_WithAccessTokenProvider() {
 		Minutes int    `json:"minutes"`
 	}
 
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -510,7 +510,7 @@ func ExampleClient_WithSchema() {
 		PriceCents int64  `json:"price_cents"`
 	}
 
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return

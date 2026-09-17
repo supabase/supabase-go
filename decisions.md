@@ -1,6 +1,6 @@
 # Development Decisions for `supabase-go`
 
-<!-- cSpell:ignore Cheney claude Cname iter mktemp openai pgrst pgx Seq sqlc vnd WHATWG -->
+<!-- cSpell:ignore Cheney claude Cname Getenv iter mktemp openai pgrst pgx Seq sqlc vnd WHATWG -->
 
 This document has been created to capture decisions that have been made during development on this SDK which felt like worth recording for future reference.
 It's designed to be quick and friction-less to populate, a friction log inspired micro decisions list, often expected to be imperfect but with the ethos of "something is better than nothing" in terms of what we capture.
@@ -688,3 +688,24 @@ Vendor neutrality is a fixed constraint: no OpenTelemetry type may enter the pub
 **Why**:  
 The logger is the unit applications already hold, and a caller with only a handler recovers the other shape with one `slog.New` call.
 Failures already reach callers as returned errors, so a louder emission would report the same failure twice.
+
+## Placeholder credentials in rendered examples name the real key type
+
+**What**:  
+Example code that renders on pkg.go.dev constructs clients with `https://PROJECT_ID.supabase.co` and the key literal `sb_publishable_...`, passes end-user tokens as `END_USER_ACCESS_TOKEN` and never embeds a JWT-shaped or entropy-bearing literal.
+Runnable example programs carry no credential literals, reading `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` from the environment.
+
+**Why**:  
+`sb_publishable_...` mirrors the prefix-plus-ellipsis form the official API keys guide prints, so a reader pastes the right one of the platform's four key types, which a generic `API_KEY` or the `your-publishable-key` style in the JS and Swift READMEs leaves ambiguous, while the truncated body carries no entropy to read as a leaked credential.
+The legacy `anon` and `service_role` vocabulary is deprecated by the platform and appears on no consumer-facing surface.
+SCREAMING placeholders cannot pass for live values, where the docs-site style `your-project.supabase.co` reads as a plausible real subdomain.
+
+## Constructor key parameters stay apiKey while example variables name the key type they hold
+
+**What**:  
+Public constructors and the plumbing behind them name the credential parameter `apiKey`, with constructor doc comments stating the accepted key types.
+Example code that fetches a known key type names its variable for it, as in `publishableKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")`.
+
+**Why**:  
+The parameter accepts any Supabase project API key and a server-side SDK is routinely constructed with the secret key, so a narrowed name like `publishableApiKey` would misdirect privileged callers - among the sibling SDKs only client-side Flutter narrows the name, where secret keys are forbidden outright.
+In an example the variable's content is certain, so naming the type it holds lets the flow read against the env var it mirrors.

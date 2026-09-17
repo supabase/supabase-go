@@ -82,13 +82,13 @@ func practiceLogsHandler(client *supabase.Client) http.Handler {
 
 func main() {
 	projectURL := os.Getenv("SUPABASE_URL")
-	apiKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
-	if projectURL == "" || apiKey == "" {
+	publishableKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
+	if projectURL == "" || publishableKey == "" {
 		fmt.Fprintln(os.Stderr, "SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set - run via scripts/integration-test.sh")
 		os.Exit(1)
 	}
 
-	client, err := supabase.New(projectURL, apiKey)
+	client, err := supabase.New(projectURL, publishableKey)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "supabase.New:", err)
 		os.Exit(1)
@@ -97,7 +97,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	userID, token, err := signUpDemoUser(ctx, projectURL, apiKey)
+	userID, token, err := signUpDemoUser(ctx, projectURL, publishableKey)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "signing up demo user:", err)
 		os.Exit(1)
@@ -153,7 +153,7 @@ func main() {
 // the response carries a usable session immediately. An application would run
 // its own sign-in flow instead; the SDK's session capabilities are the part of
 // the Auth surface this backend does not need.
-func signUpDemoUser(ctx context.Context, projectURL, apiKey string) (userID, accessToken string, err error) {
+func signUpDemoUser(ctx context.Context, projectURL, publishableKey string) (userID, accessToken string, err error) {
 	email := fmt.Sprintf("rls-backend-%d@example.com", time.Now().UnixNano())
 	payload, err := json.Marshal(map[string]string{"email": email, "password": "example-password"})
 	if err != nil {
@@ -163,7 +163,7 @@ func signUpDemoUser(ctx context.Context, projectURL, apiKey string) (userID, acc
 	if err != nil {
 		return "", "", err
 	}
-	request.Header.Set("apikey", apiKey)
+	request.Header.Set("apikey", publishableKey)
 	request.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {

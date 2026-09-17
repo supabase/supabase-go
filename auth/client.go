@@ -34,7 +34,7 @@ type Client struct {
 }
 
 // New constructs a standalone Auth [Client] for the given project URL and API
-// key.
+// key. The apiKey may be any Supabase project API key, publishable or secret.
 //
 // It returns the sentinel errors documented by [configuration.New] when
 // projectURL or apiKey are unusable. See [configuration.WithHTTPClient],

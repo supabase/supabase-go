@@ -46,6 +46,12 @@ type Client struct {
 // New constructs a standalone PostgREST [Client] for the given project URL
 // and API key.
 //
+// The apiKey may be any Supabase project API key. Pass the publishable key
+// for access governed by Row Level Security, attaching end-user tokens via
+// [Client.WithAccessTokenProvider] so queries run as that user, or the
+// secret key for privileged access that bypasses Row Level Security. See
+// https://supabase.com/docs/guides/api/api-keys for the key types.
+//
 // It returns the sentinel errors documented by [configuration.New] when
 // projectURL or apiKey are unusable. See [configuration.WithHTTPClient],
 // [configuration.WithHeader], [configuration.WithRetry] and

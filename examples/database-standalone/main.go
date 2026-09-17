@@ -24,13 +24,13 @@ type instrument struct {
 
 func main() {
 	projectURL := os.Getenv("SUPABASE_URL")
-	apiKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
-	if projectURL == "" || apiKey == "" {
+	publishableKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
+	if projectURL == "" || publishableKey == "" {
 		fmt.Fprintln(os.Stderr, "SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set - run via scripts/integration-test.sh")
 		os.Exit(1)
 	}
 
-	client, err := postgrest.New(projectURL, apiKey)
+	client, err := postgrest.New(projectURL, publishableKey)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "postgrest.New:", err)
 		os.Exit(1)
