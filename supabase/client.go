@@ -18,6 +18,12 @@ type Client struct {
 
 // New constructs a Supabase client for the given project URL and API key.
 //
+// The apiKey may be any Supabase project API key. Pass the publishable key
+// for access governed by Row Level Security, attaching per-request user
+// tokens so queries run as the end user, or the secret key for privileged
+// access that bypasses Row Level Security. See
+// https://supabase.com/docs/guides/api/api-keys for the key types.
+//
 // Returned sentinel errors relate to misconfiguration:
 //   - [configuration.ErrMissingURL] when projectURL is empty.
 //   - [configuration.ErrMissingKey] when apiKey is empty.
