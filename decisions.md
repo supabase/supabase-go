@@ -688,3 +688,14 @@ Vendor neutrality is a fixed constraint: no OpenTelemetry type may enter the pub
 **Why**:  
 The logger is the unit applications already hold, and a caller with only a handler recovers the other shape with one `slog.New` call.
 Failures already reach callers as returned errors, so a louder emission would report the same failure twice.
+
+## Placeholder credentials in rendered examples name the real key type
+
+**What**:  
+Example code that renders on pkg.go.dev constructs clients with `https://PROJECT_ID.supabase.co` and the key literal `sb_publishable_...`, passes end-user tokens as `END_USER_ACCESS_TOKEN` and never embeds a JWT-shaped or entropy-bearing literal.
+Runnable example programs carry no credential literals, reading `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` from the environment.
+
+**Why**:  
+`sb_publishable_...` mirrors the prefix-plus-ellipsis form the official API keys guide prints, so a reader pastes the right one of the platform's four key types, which a generic `API_KEY` or the `your-publishable-key` style in the JS and Swift READMEs leaves ambiguous, while the truncated body carries no entropy to read as a leaked credential.
+The legacy `anon` and `service_role` vocabulary is deprecated by the platform and appears on no consumer-facing surface.
+SCREAMING placeholders cannot pass for live values, where the docs-site style `your-project.supabase.co` reads as a plausible real subdomain.

@@ -13,7 +13,7 @@ import (
 )
 
 func ExampleNew() {
-	supabase, err := supabase.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	supabase, err := supabase.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	fmt.Println(supabase != nil && err == nil)
 	// Output: true
 }
@@ -24,7 +24,7 @@ func ExampleNew() {
 func ExampleNew_options() {
 	supabase, err := supabase.New(
 		"https://PROJECT_ID.supabase.co",
-		"API_KEY",
+		"sb_publishable_...",
 		configuration.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
 		configuration.WithHeader("X-App-Version", "1.0.0+user.generated"),
 	)
@@ -49,7 +49,7 @@ func ExampleClient_Database_collect() {
 		Name string `json:"name"`
 	}
 
-	supabase, err := supabase.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	supabase, err := supabase.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -84,7 +84,7 @@ func ExampleClient_Database_collectSingle() {
 		Name string `json:"name"`
 	}
 
-	supabase, err := supabase.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	supabase, err := supabase.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -122,7 +122,7 @@ func ExampleClient_Auth() {
 		Piece  string `json:"piece"`
 	}
 
-	supabase, err := supabase.New("https://PROJECT_ID.supabase.co", "API_KEY")
+	supabase, err := supabase.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return

@@ -16,7 +16,7 @@ func ExampleNew() {
 	projectConfiguration, err := configuration.New(
 		core.ModulePathRoot,
 		"https://PROJECT_ID.supabase.co",
-		"API_KEY",
+		"sb_publishable_...",
 		configuration.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
 		configuration.WithHeader("X-App-Version", "1.0.0+user.generated"),
 	)
@@ -31,10 +31,10 @@ func ExampleNew() {
 // ExampleNew_invalidInput tells the validation failures apart with
 // errors.Is against the exported sentinels.
 func ExampleNew_invalidInput() {
-	_, err := configuration.New(core.ModulePathRoot, "", "API_KEY")
+	_, err := configuration.New(core.ModulePathRoot, "", "sb_publishable_...")
 	fmt.Println(errors.Is(err, configuration.ErrMissingURL))
 
-	_, err = configuration.New(core.ModulePathRoot, "ftp://example.com", "API_KEY")
+	_, err = configuration.New(core.ModulePathRoot, "ftp://example.com", "sb_publishable_...")
 	fmt.Println(errors.Is(err, configuration.ErrInvalidURL))
 	// Output:
 	// true
@@ -48,7 +48,7 @@ func ExampleWithLogger() {
 	projectConfiguration, err := configuration.New(
 		core.ModulePathRoot,
 		"https://PROJECT_ID.supabase.co",
-		"API_KEY",
+		"sb_publishable_...",
 		configuration.WithLogger(logger),
 	)
 	if err != nil {
