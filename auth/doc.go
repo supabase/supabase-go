@@ -36,9 +36,10 @@
 //
 // The two methods carry different trust models by design. GetClaims establishes
 // identity from the token itself, a snapshot taken when the token was minted.
-// GetUser reads the authoritative profile as it stands now. Reach for GetUser
-// when a decision turns on data that may have changed since sign-in - a fresh
-// email-confirmation state, updated metadata - and for GetClaims otherwise.
+// GetUser reads the authoritative profile as it stands now at the remote Auth
+// server. Reach for GetUser when a decision turns on data that may have changed
+// since sign-in (e.g. a fresh email-confirmation state or updated metadata) and
+// for GetClaims otherwise.
 //
 // To act on the database as the verified user afterwards - so Row Level
 // Security policies apply - attach the same token to a Database client through
