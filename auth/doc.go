@@ -41,8 +41,8 @@
 // since sign-in (e.g. a fresh email-confirmation state or updated metadata) and
 // for GetClaims otherwise.
 //
-// To act on the database as the verified user afterwards - so Row Level
-// Security policies apply - attach the same token to a Database client through
+// To act on the database as the verified user afterwards, so that Row Level
+// Security policies apply, attach the same token to a Database client through
 // its access-token provider. Verify at the edge with this package, then let the
 // verified token authorize the query.
 //
