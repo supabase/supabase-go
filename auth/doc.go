@@ -58,6 +58,10 @@
 // verification sits on request-handling hot paths where invisible backoff
 // multiplies caller latency.
 //
+// Note: The term "minted" refers to the process that the Supabase Auth server
+// performs to create a JSON Web Token - that is, generating the token,
+// cryptographically signing it and then issuing it to the user.
+//
 // [JWT]: https://supabase.com/docs/guides/auth/jwts
 // [Authorization header]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Authorization
 // [signing keys]: https://supabase.com/docs/guides/auth/signing-keys
