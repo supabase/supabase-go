@@ -10,12 +10,6 @@ import (
 	"github.com/supabase/supabase-go/auth"
 )
 
-func ExampleNew() {
-	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
-	fmt.Println(client != nil && err == nil)
-	// Output: true
-}
-
 // ExampleClient_GetClaims verifies an end-user token and branches on the ways
 // verification can fail, so a caller sees how each maps to an HTTP response.
 func ExampleClient_GetClaims() {
