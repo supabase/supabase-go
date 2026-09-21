@@ -1,6 +1,6 @@
-// Package auth is the Supabase Auth client for server-side JWT verification.
+// Package auth is the Supabase Auth client for server-side [JWT] verification.
 // A [Client] verifies the end-user access tokens a backend receives - on the
-// Authorization header of an inbound request, say - and fetches the profile of
+// [Authorization header] of an inbound request, say - and fetches the profile of
 // the user a token authenticates.
 //
 // [Client.GetClaims] is the primary entry point. It returns a token's verified
@@ -14,7 +14,7 @@
 //	}
 //	// claims.Subject() is the verified user ID
 //
-// A token signed with one of the project's asymmetric signing keys (ES256,
+// A token signed with one of the project's asymmetric [signing keys] (ES256,
 // RS256 or EdDSA) is verified locally against the key set published at the
 // project's /.well-known/jwks.json endpoint, cached in the client, so the
 // common path needs no per-request round trip to the Auth server. A token the
@@ -60,4 +60,8 @@
 // ([configuration.WithRetry]) has no effect on this module today, because
 // verification sits on request-handling hot paths where invisible backoff
 // multiplies caller latency.
+//
+// [JWT]: https://supabase.com/docs/guides/auth/jwts
+// [Authorization header]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Authorization
+// [signing keys]: https://supabase.com/docs/guides/auth/signing-keys
 package auth
