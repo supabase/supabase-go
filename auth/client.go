@@ -49,10 +49,7 @@ func New(projectURL, apiKey string, options ...configuration.Option) (*Client, e
 }
 
 // NewFromConfiguration constructs an Auth [Client] from the shared
-// [configuration.Configuration]. The Auth endpoints live under the project's
-// /auth/v1 path, derived from [configuration.Configuration.BaseURL], and
-// requests carry the authentication and global headers configured on
-// [configuration.Configuration.HTTPClient].
+// [configuration.Configuration].
 func NewFromConfiguration(projectConfiguration *configuration.Configuration) *Client {
 	httpClient := projectConfiguration.HTTPClient()
 	baseURL := projectConfiguration.BaseURL().JoinPath("auth", "v1")
