@@ -14,18 +14,20 @@
 //	}
 //	// claims.Subject() is the verified user ID
 //
-// A token signed with one of the project's asymmetric [signing keys] (ES256,
-// RS256 or EdDSA) is verified against a locally cached copy of the key set
-// published at the project's remote /.well-known/jwks.json endpoint, which
+// A token signed with one of the Supabase project's asymmetric [signing keys]
+// (ES256, RS256 or EdDSA) is verified against a locally cached copy of the key
+// set published at the project's remote /.well-known/jwks.json endpoint, which
 // means that the most common path needs no further per-request round trip to
 // the Auth server. A token the key set cannot verify locally (that is, one
 // signed with the legacy shared secret, or carrying an unrecognized key id) is
-// verified by the Auth server (the same round trip [Client.GetUser] makes).
+// verified by the remote Supabase Auth server (the same round trip
+// [Client.GetUser] makes).
 //
 // Local verification works because Supabase signs tokens with an asymmetric
-// key pair. The Auth server holds the private half and signs each access token
-// it mints, and the project publishes only the public, not-secret halves at its
-// /.well-known/jwks.json endpoint (a JWK Set as defined by RFC 7517).
+// key pair. The remote Supabase Auth server holds the private half and signs
+// each access token it mints, and the project publishes only the public,
+// not-secret halves at its /.well-known/jwks.json endpoint (a JWK Set as
+// defined by RFC 7517).
 //
 // [Client.GetUser] fetches the authenticated user's current profile from the
 // Auth server, which verifies the token as part of serving the request. It is
