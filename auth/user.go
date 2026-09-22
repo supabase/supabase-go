@@ -8,8 +8,8 @@ import (
 
 // User is the authenticated user's profile as the Auth server holds it now. A
 // User is immutable and safe for concurrent use by multiple goroutines.
-// Instances come only from [Client.GetUser]. Timestamp accessors return the
-// zero [time.Time] when the server supplied no value.
+// Timestamp accessors return the zero [time.Time] when the server supplied no
+// value.
 type User struct {
 	inner profile.User
 }

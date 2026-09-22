@@ -47,7 +47,7 @@ func (h Header) KeyID() string { return h.keyID }
 func (h Header) Type() string { return h.typ }
 
 // Token is a decoded JWT: the header for routing, the claims bytes and the
-// signature over the signing input. Instances come only from [Decode].
+// signature over the signing input.
 type Token struct {
 	header       Header
 	claimsBytes  []byte

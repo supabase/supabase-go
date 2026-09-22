@@ -9,8 +9,7 @@ import (
 // Claims is the verified payload of an end-user JWT: who the user is and under
 // which authentication circumstances the token was issued. A Claims is
 // immutable, reporting the token exactly as verified, and is safe for
-// concurrent use by multiple goroutines. Instances come only from
-// [Client.GetClaims].
+// concurrent use by multiple goroutines.
 type Claims struct {
 	inner token.Claims
 }

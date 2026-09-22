@@ -5,8 +5,7 @@ import "github.com/supabase/supabase-go/auth/internal/token"
 // JWTHeader is the decoded header of the token [Client.GetClaims] verified:
 // the envelope metadata describing how the token was signed, kept apart from
 // the identity assertions [Claims] carries. A JWTHeader is immutable and safe
-// for concurrent use by multiple goroutines. Instances come only from
-// [Client.GetClaims].
+// for concurrent use by multiple goroutines.
 type JWTHeader struct {
 	inner token.Header
 }

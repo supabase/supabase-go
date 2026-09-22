@@ -61,8 +61,7 @@ var errDoesNotVerify = errors.New("signature does not verify with this key")
 
 // Key is one verification key from a project's JWK Set. Its algorithm is
 // bound to the key material - the key's own alg field, or one inferred from
-// its type - never to what a token header claims. Instances come only from
-// [ParseSet].
+// its type - never to what a token header claims.
 type Key struct {
 	keyType  string
 	keyID    string
