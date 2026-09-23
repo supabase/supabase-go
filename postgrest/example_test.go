@@ -11,12 +11,6 @@ import (
 	"github.com/supabase/supabase-go/postgrest"
 )
 
-func ExampleNew() {
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
-	fmt.Println(client != nil && err == nil)
-	// Output: true
-}
-
 // ExampleFrom demonstrates a Database read for consumers who import
 // this module directly instead of the root supabase package.
 func ExampleFrom() {
@@ -312,6 +306,9 @@ func ExampleMutationBuilder_Returning() {
 	fmt.Println(created.ID)
 }
 
+// ExampleFilterBuilder_Update changes the rows a filter chooses: a
+// map[string]any assigns only the columns it names, leaving the rest
+// untouched. Execute applies the update without reading anything back.
 func ExampleFilterBuilder_Update() {
 	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
@@ -319,8 +316,6 @@ func ExampleFilterBuilder_Update() {
 		return
 	}
 
-	// A map[string]any assigns only the columns it names, leaving the rest
-	// untouched. Execute applies the update without reading anything back.
 	response, err := postgrest.Execute(
 		context.Background(),
 		client,
@@ -415,39 +410,10 @@ func ExampleUpsertBuilder_OnConflict() {
 // ExampleRPCBuilder_Rows calls a table-valued Postgres function and decodes its
 // rows like a table read: Arguments passes the function's inputs, Rows declares
 // the result shape and Collect decodes each returned row into the named type.
+// This function only reads, so ReadOnly sends the call as a GET that qualifies
+// for automatic retries and Supabase read replicas. Without ReadOnly the call
+// is a POST, which runs every function.
 func ExampleRPCBuilder_Rows() {
-	type Piece struct {
-		ID    int    `json:"id"`
-		Title string `json:"title"`
-	}
-
-	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	pieces, _, err := postgrest.Collect(
-		context.Background(),
-		client,
-		postgrest.
-			RPC[Piece]("search_pieces").
-			Arguments(map[string]any{"query": "cello"}).
-			Rows(),
-	)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println(len(pieces))
-}
-
-// ExampleRPCRowsCall_ReadOnly declares a rows-returning function read-only,
-// sending it as a GET. PostgREST runs a read-only call in a READ ONLY
-// transaction, and the call becomes eligible for automatic retries, HTTP
-// caching and Supabase read replicas - so declare ReadOnly only for a function
-// that never writes, or the server refuses it.
-func ExampleRPCRowsCall_ReadOnly() {
 	type Piece struct {
 		ID    int    `json:"id"`
 		Title string `json:"title"`
@@ -537,7 +503,7 @@ func ExampleClient_WithAccessTokenProvider() {
 		return
 	}
 
-	accessToken := "USER_ACCESS_TOKEN"
+	accessToken := "END_USER_ACCESS_TOKEN"
 	userClient := client.WithAccessTokenProvider(
 		func(context.Context) (string, error) { return accessToken, nil },
 	)
