@@ -283,6 +283,35 @@ func TestSelectColumnSubset(t *testing.T) {
 	}
 }
 
+// TestSelectRenamesColumns proves PostgREST's renaming syntax passes through
+// Select: an alias:column item returns the column under the alias alone.
+func TestSelectRenamesColumns(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[map[string]any]("instruments").
+			Select("id, instrument:name"),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	testkit.AssertOKResponse(t, response)
+	if len(rows) != 3 {
+		t.Fatalf("row count = %d, want 3 (seed drifted?)", len(rows))
+	}
+	for index, row := range rows {
+		if _, present := row["name"]; present {
+			t.Errorf("rows[%d] carries name, want the column under its instrument alias alone", index)
+		}
+		if instrument, _ := row["instrument"].(string); instrument == "" {
+			t.Errorf("rows[%d][instrument] = %v, want a seeded instrument name", index, row["instrument"])
+		}
+	}
+}
+
 // TestCollectAppliesLimit proves that the [postgrest.Limit] method applies the
 // specified limit when that limit is more than one and that limit is less than
 // the number of rows in the seeded data.
