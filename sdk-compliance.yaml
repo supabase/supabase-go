@@ -445,6 +445,16 @@ features:
     status: implemented
     symbols:
       - postgrest.FilterBuilder.Range
+  database.using_modifiers.relationship_embed:
+    status: partially_implemented
+    note: |
+      The mechanism is PostgREST's embed grammar carried verbatim in the
+      Select column string, not a dedicated builder. Filters inside an embed
+      take its dotted column path on the filter methods. Ordering and row
+      limits inside an embed have no dedicated option and are reachable only
+      through FilterBuilder.RawLiteralCondition.
+    symbols:
+      - postgrest.QueryBuilder.Select
   database.using_modifiers.request_cancellation:
     status: implemented
     symbols:
