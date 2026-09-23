@@ -14,64 +14,76 @@ type Claims struct {
 	inner token.Claims
 }
 
-// Issuer returns the iss claim (see RFC 7519, Section 4.1.1): the Auth server
-// that issued the token.
+// Issuer returns the iss claim (see RFC 7519, Section 4.1.1 and
+// [required claims]): the Auth server that issued the token.
+//
+// [required claims]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
 func (c *Claims) Issuer() string { return c.inner.Issuer() }
 
-// Subject returns the sub claim (see RFC 7519, Section 4.1.2): the authenticated
-// user's ID.
+// Subject returns the sub claim (see RFC 7519, Section 4.1.2 and
+// [required claims]): the authenticated user's ID.
+//
+// [required claims]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
 func (c *Claims) Subject() string { return c.inner.Subject() }
 
-// Audience returns the aud claim (see RFC 7519, Section 4.1.3): the token's
-// intended audiences, usually the single value "authenticated" (see
-// [Supabase audience values]). The result is a copy the caller may retain
-// and modify freely.
+// Audience returns the aud claim (see RFC 7519, Section 4.1.3 and
+// [required claims]): the token's intended audiences, usually the single
+// value "authenticated" (see [audience values]). The result is a
+// copy the caller may retain and modify freely.
 //
-// [Supabase audience values]: https://supabase.com/docs/guides/auth/jwt-fields#audience-values--aud-
+// [required claims]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
+// [audience values]: https://supabase.com/docs/guides/auth/jwt-fields#audience-values--aud-
 func (c *Claims) Audience() []string { return c.inner.Audience() }
 
-// ExpiresAt returns the exp claim (see RFC 7519, Section 4.1.4): the instant
-// after which the token is no longer valid.
+// ExpiresAt returns the exp claim (see RFC 7519, Section 4.1.4 and
+// [required claims]): the instant after which the token is no longer valid.
+//
+// [required claims]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
 func (c *Claims) ExpiresAt() time.Time { return c.inner.ExpiresAt() }
 
-// IssuedAt returns the iat claim (see RFC 7519, Section 4.1.6): the instant the
-// token was issued, or the zero time when the token carried no iat.
+// IssuedAt returns the iat claim (see RFC 7519, Section 4.1.6 and
+// [required claims]): the instant the token was issued, or the zero time when
+// the token carried no iat.
+//
+// [required claims]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
 func (c *Claims) IssuedAt() time.Time { return c.inner.IssuedAt() }
 
-// Role returns the role claim (see [Supabase JWT fields]): the Postgres role the
+// Role returns the role claim (see [required claims]): the Postgres role the
 // database applies Row Level Security policies for, usually "authenticated".
 //
-// [Supabase JWT fields]: https://supabase.com/docs/guides/auth/jwt-fields#role-values--role-
+// [required claims]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
 func (c *Claims) Role() string { return c.inner.Role() }
 
-// AuthenticatorAssuranceLevel returns the aal claim (see [Supabase JWT fields]):
-// "aal1" for a single factor or "aal2" when a second factor was satisfied.
+// AuthenticatorAssuranceLevel returns the aal claim (see [required claims]):
+// "aal1" for a single factor or "aal2" when a second factor was satisfied (see
+// [authenticator assurance level]).
 //
-// [Supabase JWT fields]: https://supabase.com/docs/guides/auth/jwt-fields#authenticator-assurance-level--aal-
+// [required claims]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
+// [authenticator assurance level]: https://supabase.com/docs/guides/auth/jwt-fields#authenticator-assurance-level--aal-
 func (c *Claims) AuthenticatorAssuranceLevel() string { return c.inner.AuthenticatorAssuranceLevel() }
 
-// SessionID returns the session_id claim (see [Supabase JWT fields]): the ID of
-// the session the token belongs to.
+// SessionID returns the session_id claim (see [required claims]): the ID of the
+// session the token belongs to.
 //
-// [Supabase JWT fields]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
+// [required claims]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
 func (c *Claims) SessionID() string { return c.inner.SessionID() }
 
-// Email returns the email claim (see [Supabase JWT fields]), or the empty string
+// Email returns the email claim (see [required claims]), or the empty string
 // when the token carried none.
 //
-// [Supabase JWT fields]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
+// [required claims]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
 func (c *Claims) Email() string { return c.inner.Email() }
 
-// Phone returns the phone claim (see [Supabase JWT fields]), or the empty string
+// Phone returns the phone claim (see [required claims]), or the empty string
 // when the token carried none.
 //
-// [Supabase JWT fields]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
+// [required claims]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
 func (c *Claims) Phone() string { return c.inner.Phone() }
 
-// IsAnonymous returns the is_anonymous claim (see [Supabase JWT fields]): whether
+// IsAnonymous returns the is_anonymous claim (see [required claims]): whether
 // the token authenticates an anonymous user rather than a signed-in one.
 //
-// [Supabase JWT fields]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
+// [required claims]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
 func (c *Claims) IsAnonymous() bool { return c.inner.IsAnonymous() }
 
 // CustomClaim returns the named claim and whether the token carried it, for
