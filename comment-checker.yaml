@@ -1,0 +1,21 @@
+# Configuration for tools/go/commentchecker, run via ./scripts/comment-check.sh:
+# the fully-qualified domain names the tool may probe with HTTP GET when
+# validating the external URLs found in the published modules' comments.
+# Matching is exact, so a subdomain needs its own entry.
+allowed-domains:
+  - developer.mozilla.org
+  - docs.postgrest.org
+  - github.com
+  - supabase.com
+  - www.postgresql.org
+
+# URLs excused from checking, matched exactly as written in the comment. An
+# ignored URL is never fetched and no checks run against it. An entry that
+# matches no URL in the comments fails the run, so removing the comment's URL
+# also means removing its entry here. Each entry carries the reason it is
+# excused and the condition for removing it.
+ignored-urls:
+  # The repository is not yet public, so anonymous requests - like the ones
+  # this tool and pkg.go.dev readers make - receive HTTP 404. Remove once the
+  # repository is public.
+  - https://github.com/supabase/supabase-go/tree/main/examples

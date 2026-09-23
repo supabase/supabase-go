@@ -7,9 +7,9 @@
 # its own job so a failure stays clearly attributable to one concern.
 #
 # This is the fast tier: everything here needs only the repository's own
-# toolchains (Go, plus Node for the spell check). The second tier,
-# ./scripts/integration-test.sh, needs Docker and is run separately - see
-# DEVELOPMENT.md for when to run each.
+# toolchains (Go, plus Node for the spell check). Two checks run separately:
+# ./scripts/integration-test.sh needs Docker, and ./scripts/comment-check.sh
+# probes live websites - see DEVELOPMENT.md for when to run each.
 set -euo pipefail
 
 ./scripts/build-and-test.sh

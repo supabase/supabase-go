@@ -2,6 +2,7 @@ apidiff
 apikey
 bytea
 codegen
+commentchecker
 contravariance
 cyclop
 dyld
@@ -24,6 +25,7 @@ gofumpt
 goimports
 golangci
 GOPATH
+gopkg
 gopls
 gorelease
 goroutines
@@ -78,6 +80,7 @@ tsvector
 typestate
 unrepresentable
 upsert
+urls
 vulncheck
 websearch
 weltschmerz
