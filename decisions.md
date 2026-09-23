@@ -710,3 +710,12 @@ Example code that fetches a known key type names its variable for it, as in `pub
 **Why**:  
 The parameter accepts any Supabase project API key and a server-side SDK is routinely constructed with the secret key, so a narrowed name like `publishableApiKey` would misdirect privileged callers - among the sibling SDKs only client-side Flutter narrows the name, where secret keys are forbidden outright.
 In an example the variable's content is certain, so naming the type it holds lets the flow read against the env var it mirrors.
+
+## Auth requests are single-attempt, outside the automatic-retry option
+
+**What**:  
+The Auth client sends each request once and ignores the `configuration.WithRetry` setting.
+
+**Why**:  
+Auth's requests are GETs and safe to repeat, so honoring the option was possible.
+Regardless, the decision was made not to honor that option because verification sits on the request-handling hot path of the caller's own server (in our anticipated, likely use-case for this SDK), where invisible backoff multiplies the latency of the inbound request being served.

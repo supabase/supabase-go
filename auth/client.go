@@ -26,6 +26,9 @@ import (
 // A Client authenticates with the project API key alone and holds no
 // signing-key secrets. It never starts background work and owns no resources
 // that need releasing.
+//
+// A Client sends each request once. [configuration.WithRetry] has no effect
+// on it.
 type Client struct {
 	httpClient configuration.HTTPClient
 	baseURL    *url.URL
