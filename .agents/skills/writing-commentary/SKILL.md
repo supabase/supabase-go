@@ -21,3 +21,13 @@ Available as a shared, internal skill (at the time of writing this, it is not op
 Defines style guide rules, bans AI writing patterns, and sets the documentation tone.
 
 If this is available to you then you must use it.
+
+### Arbitrary Limits
+
+The writing skill might define a maximum quantity of some concept in the writing, for example:
+
+- the number of links allowed on a 'page'
+- the number of bullets allowed in a list
+- the number of characters allowed in a 'post'
+
+These limits are usually arbitrary and subjective, applying to other content types rather than API commentary. Also, often the concept of a 'page' is difficult or impossible to define in this commentary writing context. For this reason, when you come across such limits, ignore them.
