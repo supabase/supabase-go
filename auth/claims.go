@@ -53,9 +53,11 @@ func (c *Claims) ExpiresAt() time.Time { return c.inner.ExpiresAt() }
 func (c *Claims) IssuedAt() time.Time { return c.inner.IssuedAt() }
 
 // Role returns the role claim (see [required claims]): the Postgres role the
-// database applies Row Level Security policies for, usually "authenticated".
+// database applies Row Level Security policies for, usually "authenticated"
+// (see [role values]).
 //
 // [required claims]: https://supabase.com/docs/guides/auth/jwt-fields#required-claims
+// [role values]: https://supabase.com/docs/guides/auth/jwt-fields#role-values--role-
 func (c *Claims) Role() string { return c.inner.Role() }
 
 // AuthenticatorAssuranceLevel returns the aal claim (see [required claims]):

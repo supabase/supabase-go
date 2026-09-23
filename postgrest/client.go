@@ -130,9 +130,11 @@ func tokenResolver(provider configuration.AccessTokenProvider) http.TokenResolve
 // connection pool, so one base client serves several schemas through
 // independent derived copies, each safe for concurrent use by multiple
 // goroutines. The schema is sent verbatim and never validated client-side:
-// the server accepts only a schema exposed to the API, failing the call with
+// the server accepts only a schema [exposed to the API], failing the call with
 // an [*Error] carrying code "PGRST106" otherwise. An empty schema restores the
 // default, sending no profile header.
+//
+// [exposed to the API]: https://supabase.com/docs/guides/api/using-custom-schemas
 func (c *Client) WithSchema(schema string) *Client {
 	return &Client{httpClient: c.httpClient.WithSchema(schema)}
 }

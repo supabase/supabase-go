@@ -1,5 +1,5 @@
 // Package postgrest is the Supabase Database client: a chained query builder
-// over PostgREST. A context-taking free generic function such as [Collect]
+// over [PostgREST]. A context-taking free generic function such as [Collect]
 // executes the finished query through a [Client].
 //
 // A query names the row type it decodes into at [From], chains through an
@@ -14,7 +14,7 @@
 //	        Select("id, name"))
 //
 // Between [From] and execution the chain narrows and shapes the read: filter
-// methods named for PostgREST's operators - [FilterBuilder.Eq],
+// methods named for PostgREST's [operators] - [FilterBuilder.Eq],
 // [FilterBuilder.In], [FilterBuilder.TextSearch] and their kin - choose the
 // rows, combining with AND, while [FilterBuilder.Order], [FilterBuilder.Limit]
 // and [FilterBuilder.Range] shape the result.
@@ -34,13 +34,13 @@
 // [Collect] instead of [Execute]: the server returns the rows, and the write
 // builder's Returning method narrows which columns they carry.
 //
-// Beyond tables and views, [RPC] calls a Postgres function. You declare what
+// Beyond tables and views, [RPC] calls a [Postgres function]. You declare what
 // the function returns - [RPCBuilder.Rows] for a set of rows, decoded like a
 // table read, or [RPCBuilder.Value] for one JSON value, decoded whole by
 // [CollectRaw] - and [RPCBuilder.Arguments] passes its inputs. A function that
 // only reads may be declared [RPCRowsCall.ReadOnly], sending it as a GET that
-// qualifies for automatic retries and Supabase read replicas. A function that
-// returns nothing is called through [RPCVoid] and [Execute]:
+// qualifies for automatic retries and Supabase [read replicas]. A function
+// that returns nothing is called through [RPCVoid] and [Execute]:
 //
 //	response, err := postgrest.Execute(
 //	    ctx,
@@ -48,8 +48,8 @@
 //	    postgrest.RPCVoid("refresh_reporting_view"))
 //
 // Every request authenticates with the project API key. To act for a
-// signed-in end user instead - so the database applies that user's Row
-// Level Security policies - attach an access-token provider:
+// signed-in end user instead - so the database applies that user's
+// [Row Level Security] policies - attach an access-token provider:
 // [Client.WithAccessTokenProvider] derives a per-user client and the
 // [WithAccessTokenProvider] option scopes one call. A token already in hand
 // rides a constant provider:
@@ -73,4 +73,10 @@
 // proxies, migration utilities - instantiate Collect with a dynamic
 // container instead: Collect[map[string]any] decodes rows into generic
 // maps, and Collect[json.RawMessage] defers per-row decoding entirely.
+//
+// [PostgREST]: https://docs.postgrest.org/en/stable/
+// [operators]: https://docs.postgrest.org/en/stable/references/api/tables_views.html#operators
+// [Postgres function]: https://supabase.com/docs/guides/database/functions
+// [read replicas]: https://supabase.com/docs/guides/platform/read-replicas
+// [Row Level Security]: https://supabase.com/docs/guides/database/postgres/row-level-security
 package postgrest

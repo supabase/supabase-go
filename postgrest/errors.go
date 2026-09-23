@@ -41,8 +41,12 @@ const ErrTooManyRows = postgrestError("query matched more than one row")
 // non-2xx status.
 //
 // Field usefulness typically runs Hint (the database's suggested fix, when it
-// knows one), then Code (a stable PostgREST or Postgres code such as "42P01" -
-// branch on this), then Details, then Message.
+// knows one), then Code (a stable [PostgREST error code] or
+// [Postgres error code] such as "42P01" - branch on this), then Details, then
+// Message.
+//
+// [PostgREST error code]: https://docs.postgrest.org/en/stable/references/errors.html
+// [Postgres error code]: https://www.postgresql.org/docs/current/errcodes-appendix.html
 type Error struct {
 	responses.HTTPError
 

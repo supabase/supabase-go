@@ -85,11 +85,14 @@ type OrderedDescendingFilterBuilder[T any] struct {
 
 // Select performs a SELECT-style read of the given columns, returning a
 // [FilterBuilder] ready to execute. Columns are comma-separated and may use
-// PostgREST's renaming and embedding syntax. Whitespace is removed except
+// PostgREST's [renaming] and [embedding] syntax. Whitespace is removed except
 // inside double-quoted identifiers. An empty columns string selects all
 // columns, exactly as "*" does - though a query reading every column needs
 // no Select at all, since [From] alone is already that query (implicit
 // default of the PostgREST service).
+//
+// [renaming]: https://docs.postgrest.org/en/stable/references/api/tables_views.html#renaming-columns
+// [embedding]: https://docs.postgrest.org/en/stable/references/api/resource_embedding.html
 func (q QueryBuilder[T]) Select(columns string) FilterBuilder[T] {
 	return FilterBuilder[T]{request: q.request.WithParameter("select", cleanSelectColumns(columns))}
 }
