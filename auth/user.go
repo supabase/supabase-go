@@ -14,13 +14,18 @@ type User struct {
 	inner profile.User
 }
 
-// ID returns the user's unique ID, the value a token's sub claim carries.
+// ID returns the user's unique ID, the value a token's sub claim carries
+// (see [Claims.Subject]).
 func (u *User) ID() string { return u.inner.ID() }
 
 // Audience returns the user's aud value.
 func (u *User) Audience() string { return u.inner.Audience() }
 
-// Role returns the user's Postgres role, usually "authenticated".
+// Role returns the user's Postgres role, usually "authenticated". Database
+// access runs under a token's role claim rather than this value, and a
+// [Custom Access Token hook] can make the two differ (see [Claims.Role]).
+//
+// [Custom Access Token hook]: https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook
 func (u *User) Role() string { return u.inner.Role() }
 
 // Email returns the user's email address, or the empty string when none is set.

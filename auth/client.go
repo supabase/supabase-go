@@ -113,6 +113,10 @@ func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.F
 // legitimately per deployment: the audience is configurable and third-party
 // auth providers change the issuer, so no fixed check here fits every project.
 //
+// Local verification does not consult the token's session, so a locally
+// verified token passes until it expires, even after the user signs out. Where
+// a decision must reflect the session still being live, use [Client.GetUser].
+//
 // Returned sentinel errors:
 //   - [ErrMissingJWT] when jwt is empty.
 //   - [ErrMalformedJWT] when jwt is not a three-part base64url JWT carrying a
@@ -175,6 +179,9 @@ func (c *Client) GetClaims(ctx context.Context, jwt string) (*Claims, JWTHeader,
 // is a server round trip: prefer [Client.GetClaims] on request paths that only
 // need verified claims. An empty jwt returns [ErrMissingJWT], and a token the
 // server rejects surfaces as [*Error] with the server's response.
+//
+// The server also rejects an unexpired token whose session no longer exists,
+// after sign-out for example, or whose user no longer exists or is banned.
 func (c *Client) GetUser(ctx context.Context, jwt string) (*User, error) {
 	if jwt == "" {
 		return nil, ErrMissingJWT

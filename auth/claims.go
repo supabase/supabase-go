@@ -10,6 +10,10 @@ import (
 // which authentication circumstances the token was issued. A Claims is
 // immutable, reporting the token exactly as verified, and is safe for
 // concurrent use by multiple goroutines.
+//
+// Values describing the user, such as the email and phone, are fixed when the
+// token is issued and do not track changes made to the user since. For the
+// user's profile as it stands now, use [Client.GetUser].
 type Claims struct {
 	inner token.Claims
 }
