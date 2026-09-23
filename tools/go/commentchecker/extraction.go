@@ -21,6 +21,17 @@ type urlOccurrence struct {
 	line int
 }
 
+// compareOccurrences orders occurrences by file path, then line, then URL.
+func compareOccurrences(left, right urlOccurrence) int {
+	if byFile := strings.Compare(left.file, right.file); byFile != 0 {
+		return byFile
+	}
+	if byLine := left.line - right.line; byLine != 0 {
+		return byLine
+	}
+	return strings.Compare(left.url, right.url)
+}
+
 // publicSourceFiles returns, in lexical walk order, the Go files under
 // moduleDirectory that carry the module's public API surface: every .go file
 // except test files, files under internal or testdata directories, files
@@ -169,12 +180,7 @@ func locateInGroup(fileSet *token.FileSet, group *ast.CommentGroup, urls map[str
 			})
 		}
 	}
-	slices.SortFunc(occurrences, func(left, right urlOccurrence) int {
-		if byLine := left.line - right.line; byLine != 0 {
-			return byLine
-		}
-		return strings.Compare(left.url, right.url)
-	})
+	slices.SortFunc(occurrences, compareOccurrences)
 	return occurrences
 }
 

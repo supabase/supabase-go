@@ -21,28 +21,31 @@ const maximumRedirectHops = 2
 const probeUserAgent = "supabase-go-commentchecker (+https://github.com/supabase/supabase-go)"
 
 // probeOutcome is the shared result of fetching one URL (query and fragment
-// stripped): either the failure that applies to every occurrence of that URL,
-// or the set of id attribute values in the resolved HTML document against
-// which each occurrence's fragment is checked.
+// stripped): a failure that applies to every occurrence of that URL, a rate
+// limiting that leaves the URL unverified or the set of id attribute values
+// in the resolved HTML document against which each occurrence's fragment is
+// checked.
 type probeOutcome struct {
 	failure     string
+	rateLimited bool
 	documentIDs map[string]struct{}
 }
 
 // prober fetches URLs sequentially and remembers every outcome, so a URL is
 // fetched at most once per run however many comments mention it.
 type prober struct {
-	client         *http.Client
-	allowedDomains map[string]struct{}
-	outcomes       map[string]probeOutcome
+	client      *http.Client
+	checkPolicy policy
+	outcomes    map[string]probeOutcome
 }
 
-// newProber returns a prober that GETs only HTTPS URLs on the allowed
-// domains, following at most maximumRedirectHops permanent redirects.
-func newProber(allowedDomains map[string]struct{}) *prober {
+// newProber returns a prober enforcing the given policy: it GETs only HTTPS
+// URLs on the allowed domains, follows at most maximumRedirectHops permanent
+// redirects and tolerates HTTP 429 from the rate limited domains.
+func newProber(checkPolicy policy) *prober {
 	p := &prober{
-		allowedDomains: allowedDomains,
-		outcomes:       make(map[string]probeOutcome),
+		checkPolicy: checkPolicy,
+		outcomes:    make(map[string]probeOutcome),
 	}
 	p.client = &http.Client{
 		Timeout:       30 * time.Second,
@@ -51,34 +54,51 @@ func newProber(allowedDomains map[string]struct{}) *prober {
 	return p
 }
 
-// check validates one URL, returning the empty string when every check passes
-// and otherwise the reason it fails. Checks run in order - HTTPS, allowed
-// domain, fetch reaching HTTP 200, HTML document, fragment id - and the first
-// failing check ends the run for that URL. The fetch is shared across
-// occurrences through the outcome cache; the fragment check runs per URL.
-func (p *prober) check(rawURL string) string {
+// check validates one URL. It returns a failure reason when a check fails, or
+// rateLimited true when the fetch answered HTTP 429 from a domain listed as
+// rate limited, leaving the URL unverified with its fragment unchecked.
+// Checks run in order - HTTPS, allowed domain, fetch reaching HTTP 200, HTML
+// document, fragment id - and the first failing check ends the run for that
+// URL. The fetch is shared across occurrences through the outcome cache,
+// while the fragment check runs per URL.
+func (p *prober) check(rawURL string) (failureReason string, rateLimited bool) {
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
-		return fmt.Sprintf("not a valid URL: %v", err)
+		return fmt.Sprintf("not a valid URL: %v", err), false
 	}
 	if err := p.validateTarget(parsedURL); err != nil {
-		return err.Error()
+		return err.Error(), false
 	}
 	outcome := p.fetchOnce(parsedURL)
 	if outcome.failure != "" {
-		return outcome.failure
+		return outcome.failure, false
+	}
+	if outcome.rateLimited {
+		return "", true
 	}
 	if parsedURL.Fragment != "" {
 		if _, found := outcome.documentIDs[parsedURL.Fragment]; !found {
-			return fmt.Sprintf("fragment %q does not match any id in the document", "#"+parsedURL.Fragment)
+			return fmt.Sprintf("fragment %q does not match any id in the document", "#"+parsedURL.Fragment), false
 		}
 	}
-	return ""
+	return "", false
 }
 
 // fetchCount reports how many distinct URLs have been fetched.
 func (p *prober) fetchCount() int {
 	return len(p.outcomes)
+}
+
+// rateLimitedCount reports how many fetched URLs answered HTTP 429 and were
+// left unverified.
+func (p *prober) rateLimitedCount() int {
+	count := 0
+	for _, outcome := range p.outcomes {
+		if outcome.rateLimited {
+			count++
+		}
+	}
+	return count
 }
 
 // validateTarget applies the checks that need no request: the URL must use
@@ -88,7 +108,7 @@ func (p *prober) validateTarget(target *url.URL) error {
 		return fmt.Errorf("URL scheme is %q, not https", target.Scheme)
 	}
 	domain := strings.ToLower(target.Hostname())
-	if _, allowed := p.allowedDomains[domain]; !allowed {
+	if _, allowed := p.checkPolicy.allowedDomains[domain]; !allowed {
 		return fmt.Errorf("domain %q is not in the allowed domains", domain)
 	}
 	return nil
@@ -111,7 +131,8 @@ func (p *prober) checkRedirect(request *http.Request, via []*http.Request) error
 
 // fetchOnce returns the cached outcome for the URL with its query and
 // fragment stripped, fetching only on first sight of that stripped URL and
-// announcing each fetch on standard output as progress.
+// announcing each fetch, and any tolerated rate limiting, on standard output
+// as progress.
 func (p *prober) fetchOnce(parsedURL *url.URL) probeOutcome {
 	strippedURL := *parsedURL
 	strippedURL.RawQuery = ""
@@ -122,15 +143,21 @@ func (p *prober) fetchOnce(parsedURL *url.URL) probeOutcome {
 	if outcome, seen := p.outcomes[fetchURL]; seen {
 		return outcome
 	}
+	_, rateLimitTolerated := p.checkPolicy.rateLimitedDomains[strings.ToLower(parsedURL.Hostname())]
 	fmt.Printf("fetching %s\n", fetchURL)
-	outcome := p.fetch(fetchURL)
+	outcome := p.fetch(fetchURL, rateLimitTolerated)
+	if outcome.rateLimited {
+		fmt.Printf("tolerated %s: HTTP status 429 (rate limited), not verified\n", fetchURL)
+	}
 	p.outcomes[fetchURL] = outcome
 	return outcome
 }
 
-// fetch GETs the URL and returns either the failure reason or the id
-// attribute values of the HTML document it resolves to.
-func (p *prober) fetch(fetchURL string) probeOutcome {
+// fetch GETs the URL and returns one of: the failure reason, a rate limited
+// marker (HTTP 429 with rateLimitTolerated true, the one tolerated non-200
+// status) or the id attribute values of the HTML document the URL resolves
+// to.
+func (p *prober) fetch(fetchURL string, rateLimitTolerated bool) probeOutcome {
 	request, err := http.NewRequest(http.MethodGet, fetchURL, nil)
 	if err != nil {
 		return probeOutcome{failure: fmt.Sprintf("building request: %v", err)}
@@ -148,6 +175,12 @@ func (p *prober) fetch(fetchURL string) probeOutcome {
 		_, _ = io.Copy(io.Discard, response.Body)
 		_ = response.Body.Close()
 	}()
+	if response.StatusCode == http.StatusTooManyRequests {
+		if rateLimitTolerated {
+			return probeOutcome{rateLimited: true}
+		}
+		return probeOutcome{failure: "HTTP status 429, and the domain is not listed under rate-limited-domains"}
+	}
 	if response.StatusCode != http.StatusOK {
 		return probeOutcome{failure: fmt.Sprintf("HTTP status %d, not 200", response.StatusCode)}
 	}

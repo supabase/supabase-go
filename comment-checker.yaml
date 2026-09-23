@@ -9,6 +9,15 @@ allowed-domains:
   - supabase.com
   - www.postgresql.org
 
+# Domains whose HTTP 429 responses are tolerated: the URL is announced as not
+# verified - and surfaced as a warning annotation on GitHub Actions runs -
+# instead of failing the run. Every entry must also be in allowed-domains.
+# Each entry carries the reason it is listed.
+rate-limited-domains:
+  # Served by Read the Docs, which throttles by requester reputation and
+  # routinely answers 429 to the shared egress IPs of GitHub-hosted runners.
+  - docs.postgrest.org
+
 # URLs excused from checking, matched exactly as written in the comment. An
 # ignored URL is never fetched and no checks run against it. An entry that
 # matches no URL in the comments fails the run, so removing the comment's URL
