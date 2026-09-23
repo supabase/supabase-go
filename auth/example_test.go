@@ -84,7 +84,7 @@ func Example_middleware() {
 		return
 	}
 
-	// authenticate is a middleware that deals with just authentication, the
+	// authenticate is a middleware that deals only with authentication, the
 	// "who are you, and is this token genuine?" question that is identical for
 	// every protected endpoint, thus exists as reusable middleware. May also be
 	// referred to as the layer that performs universal identity checks.

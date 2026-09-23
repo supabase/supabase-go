@@ -18,10 +18,10 @@ import (
 
 // Client verifies end-user JWTs and fetches user profiles for one Supabase
 // project. Construct a standalone client with [New], or build one on a shared
-// [configuration.Configuration] with [NewFromConfiguration], as the root
-// supabase client does. A Client caches the project's signing keys internally,
-// so construct one Client per project and reuse it rather than constructing per
-// request. A Client is safe for concurrent use by multiple goroutines.
+// [configuration.Configuration] with [NewFromConfiguration]. A Client caches
+// the project's signing keys internally, so construct one Client per project
+// and reuse it rather than constructing per request. A Client is safe for
+// concurrent use by multiple goroutines.
 //
 // A Client authenticates with the project API key alone and holds no
 // signing-key secrets. It never starts background work and owns no resources

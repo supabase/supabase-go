@@ -16,7 +16,7 @@ type Response struct {
 	// Count is the total number of rows matching the query when the server
 	// reported one, and -1 when it did not, following the convention of
 	// [net/http.Response.ContentLength]. The total counts every matching row,
-	// not just those returned, so it can exceed the number of decoded rows
+	// not only those returned, so it can exceed the number of decoded rows
 	// when the response carries only a window of the result.
 	Count int64
 }

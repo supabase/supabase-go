@@ -13,8 +13,8 @@ import (
 // client and project base URL that every request shares. Build queries with
 // [From] and execute them with a generic read function such as [Collect].
 // Construct a standalone client with [New], or build one on a shared
-// [configuration.Configuration] with [NewFromConfiguration], as the root supabase
-// client does. A Client is safe for concurrent use by multiple goroutines.
+// [configuration.Configuration] with [NewFromConfiguration]. A Client is safe
+// for concurrent use by multiple goroutines.
 //
 // When automatic retries are enabled - the default, controlled by
 // [configuration.WithRetry] and overridable per read with [WithRetry] - the

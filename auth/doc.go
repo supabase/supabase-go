@@ -38,8 +38,9 @@
 // identity from the token itself, a snapshot taken when the token was minted.
 // GetUser reads the authoritative profile as it stands now at the remote Auth
 // server. Reach for GetUser when a decision turns on data that may have changed
-// since the token was minted (e.g. a fresh email-confirmation state or updated
-// metadata) or on the session still being live, and for GetClaims otherwise.
+// since the token was minted (for example a fresh email-confirmation state or
+// updated metadata) or on the session still being live, and for GetClaims
+// otherwise.
 //
 // To act on the database as the verified user afterwards, so that Row Level
 // Security policies apply, attach the same token to a Database client through

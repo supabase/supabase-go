@@ -349,7 +349,7 @@ func renderFilterValue(value any) string {
 
 // renderFilterFloat renders value as the shortest decimal text that parses
 // back to the same floating-point number of bitSize bits, with the two
-// infinities spelled Infinity and -Infinity as PostgreSQL canonically does.
+// infinities spelled Infinity and -Infinity as Postgres canonically does.
 func renderFilterFloat(value float64, bitSize int) string {
 	switch {
 	case math.IsInf(value, 1):
