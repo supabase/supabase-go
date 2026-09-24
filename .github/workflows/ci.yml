@@ -79,6 +79,20 @@ jobs:
       - run: npm ci --prefix tools/node
       - run: ./scripts/spell-check.sh
 
+  # Validates the external URLs in the published modules' comments by probing
+  # the live websites they point at, via the same script developers run on
+  # demand (it is deliberately not part of the local check-fast aggregate -
+  # see DEVELOPMENT.md). Reaching those sites is the check itself, so a
+  # third-party outage can fail this job with no repository change.
+  comment-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: stable
+      - run: ./scripts/comment-check.sh
+
   repository-structure:
     runs-on: ubuntu-latest
     steps:

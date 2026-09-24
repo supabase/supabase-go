@@ -59,6 +59,16 @@ To run the whole fast tier before pushing - build and unit test plus the module-
 ./scripts/check-fast.sh
 ```
 
+### Checking doc-comment URLs
+
+Doc comments across the published modules link out to external documentation, and those links rot silently. The comment check validates every URL that `go/doc/comment` recognizes in the published packages' comments (internal packages, test files and non-published modules are out of scope): each must use HTTPS, sit on a domain listed in [`comment-checker.yaml`](comment-checker.yaml) and resolve to an HTTP 200 HTML document within two permanent-redirect (301/308) hops, and a URL fragment must match an `id` in the resolved document. An HTTP 429 response from a domain listed under `rate-limited-domains` is tolerated and announced rather than failed - rate limiting of shared CI egress IPs says nothing about link health - and each tolerated URL surfaces as a warning annotation on the GitHub Actions run. A 429 from a domain not so listed fails the run. A URL that cannot pass yet can be excused under `ignored-urls` in the same file: entries are matched exactly and never fetched, and an entry that matches no URL in the comments fails the run so the list cannot outlive its reasons. Each distinct URL (query and fragment aside) is fetched once per run - each fetch is echoed as progress - and every failing URL is reported with its file path and line number:
+
+```bash
+./scripts/comment-check.sh
+```
+
+It probes live websites, so it is deliberately not part of `./scripts/check-fast.sh`. CI runs it as its own `comment-check` job; locally, run it on demand - typically after editing doc comments that carry URLs, or to reproduce a failure of that CI job.
+
 ### Running checks at the consumer floor
 
 [CI](.github/workflows/ci.yml) proves consumer-facing behavior on two toolchains: the published floor (the oldest Go a consumer may hold us to - see [Supported Go versions](README.md#supported-go-versions)) and current stable. A local run uses whatever Go is installed, so to reproduce the floor legs name the toolchain for that run:
