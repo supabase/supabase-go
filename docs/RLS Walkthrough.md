@@ -6,6 +6,43 @@ Imagine a practice-tracking app for musicians. Musicians sign in to the app with
 
 This walkthrough builds that API. The API verifies each token with Auth before acting on it, so a forged or expired token never reaches the Database. It then queries the Database as the verified user, so [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security) returns only that user's rows. The Database enforces the isolation itself, so even a query the API gets wrong cannot return another musician's rows. In step 4, `curl` stands in for the app.
 
+Step 4 runs the whole flow, once for Maria and once for Wei:
+
+```mermaid
+sequenceDiagram
+    participant App as curl<br/>(stands in for the app)
+    participant API as Go API<br/>(your main.go)
+    box Supabase
+        participant Gateway as Project URL
+        participant Auth
+        participant Database
+    end
+    participant CLI as Supabase CLI
+
+    loop Maria, then Wei
+        App->>Gateway: POST /auth/v1/signup
+        Gateway->>Auth: forward
+        Auth-->>App: access token
+        opt Maria only
+            CLI->>Database: insert a practice log as postgres<br/>(bypasses Row Level Security)
+        end
+        App->>API: GET /practice-logs<br/>Authorization: Bearer token
+        opt Signing keys not cached
+            API->>Gateway: GET /auth/v1/.well-known/jwks.json
+            Gateway->>Auth: forward
+            Auth-->>API: public signing keys, cached by the client
+        end
+        API->>API: GetClaims verifies the token
+        API->>Gateway: GET /rest/v1/practice_logs<br/>apikey: publishable key<br/>Authorization: Bearer token
+        Gateway->>Database: select as the verified user
+        Note over Database: Row Level Security keeps<br/>rows where user_id = auth.uid()
+        Database-->>API: Maria's row for Maria, none for Wei
+        API-->>App: JSON list of practice logs
+    end
+```
+
+Only the API is written in Go, and it holds only the code the demonstration needs. Sign-up goes straight to Auth, as it would from the app on a musician's device. Signing users up is the app's job rather than the API's, and the SDK's `auth` module has no sign-up call anyway. It verifies tokens on the server. Maria's practice log goes in through `supabase db query`, which connects straight to Postgres as the `postgres` admin role. So the API needs only its one read, and the table needs only a read policy.
+
 ## Prerequisites
 
 - A [supported Go version](../README.md#supported-go-versions).
