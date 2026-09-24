@@ -312,6 +312,111 @@ func TestSelectRenamesColumns(t *testing.T) {
 	}
 }
 
+// TestSelectEmbedsToOneRelationship proves PostgREST's embedding syntax passes
+// through Select: embedding along the players.section foreign key nests each
+// player's section as one object, under the alias the item names.
+func TestSelectEmbedsToOneRelationship(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	type playerWithSection struct {
+		ID      int `json:"id"`
+		Section struct {
+			Name string `json:"name"`
+		} `json:"section"`
+	}
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[playerWithSection]("players").
+			Select("id, section:orchestral_sections(name)"),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	testkit.AssertOKResponse(t, response)
+	want := map[int]string{1: "woodwinds", 2: "strings", 3: "woodwinds", 4: "strings", 5: "brass", 6: "brass"}
+	if len(rows) != len(want) {
+		t.Fatalf("row count = %d, want %d (seed drifted?)", len(rows), len(want))
+	}
+	for _, row := range rows {
+		if got := row.Section.Name; got != want[row.ID] {
+			t.Errorf("player %d section = %q, want %q", row.ID, got, want[row.ID])
+		}
+	}
+}
+
+// sectionWithPlayers is an orchestral section with its players embedded.
+type sectionWithPlayers struct {
+	Name    string         `json:"name"`
+	Players []seededEntity `json:"players"`
+}
+
+// TestSelectEmbedsToManyRelationship proves the reverse direction: embedding
+// players from orchestral_sections nests every player of a section as an
+// array.
+func TestSelectEmbedsToManyRelationship(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[sectionWithPlayers]("orchestral_sections").
+			Select("name, players(id)"),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	testkit.AssertOKResponse(t, response)
+	want := map[string][]int{"strings": {2, 4}, "woodwinds": {1, 3}, "brass": {5, 6}}
+	if len(rows) != len(want) {
+		t.Fatalf("row count = %d, want %d (seed drifted?)", len(rows), len(want))
+	}
+	for _, row := range rows {
+		playerIDs := make([]int, 0, len(row.Players))
+		for _, player := range row.Players {
+			playerIDs = append(playerIDs, player.ID)
+		}
+		slices.Sort(playerIDs) // embedded rows arrive in no guaranteed order
+		if !slices.Equal(playerIDs, want[row.Name]) {
+			t.Errorf("%s players = %v, want %v", row.Name, playerIDs, want[row.Name])
+		}
+	}
+}
+
+// TestSelectEmbedsWithInnerJoinAndEmbeddedFilter proves the embedded filter
+// route: a filter method given the embed's dotted column path filters the
+// embedded rows, and an !inner embed drops the parent rows left without any.
+func TestSelectEmbedsWithInnerJoinAndEmbeddedFilter(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	rows, response, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.
+			From[sectionWithPlayers]("orchestral_sections").
+			Select("name, players!inner(id)").
+			Gt("players.seat", 40),
+	)
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	testkit.AssertOKResponse(t, response)
+	if len(rows) != 1 || rows[0].Name != "brass" {
+		t.Fatalf("rows = %+v, want brass alone (seed drifted?)", rows)
+	}
+	playerIDs := make([]int, 0, len(rows[0].Players))
+	for _, player := range rows[0].Players {
+		playerIDs = append(playerIDs, player.ID)
+	}
+	slices.Sort(playerIDs) // embedded rows arrive in no guaranteed order
+	if !slices.Equal(playerIDs, []int{5, 6}) {
+		t.Errorf("brass players = %v, want [5 6]", playerIDs)
+	}
+}
+
 // TestCollectAppliesLimit proves that the [postgrest.Limit] method applies the
 // specified limit when that limit is more than one and that limit is less than
 // the number of rows in the seeded data.

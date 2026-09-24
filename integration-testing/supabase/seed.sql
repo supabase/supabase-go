@@ -4,6 +4,9 @@
 insert into public.instruments (name, acquired_year)
 values ('violin', 2015), ('viola', 2020), ('cello', null);
 
+insert into public.orchestral_sections (id, name)
+values (1, 'strings'), (2, 'woodwinds'), (3, 'brass');
+
 insert into public.players (id, section, seat, rating, tenure)
 values
     (1, 2, 10, 90, null),

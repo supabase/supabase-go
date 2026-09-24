@@ -12,9 +12,20 @@ alter table public.instruments enable row level security;
 create policy "anonymous can read instruments" on public.instruments for select to anon using (true);
 grant select on table public.instruments to anon;
 
+-- Orchestral sections for the resource-embedding integration tests: the
+-- foreign key from players.section is the relationship PostgREST embeds,
+-- to-one from players and to-many from orchestral_sections.
+create table public.orchestral_sections (
+    id integer not null primary key,
+    name text not null
+);
+alter table public.orchestral_sections enable row level security;
+create policy "anonymous can read orchestral sections" on public.orchestral_sections for select to anon using (true);
+grant select on table public.orchestral_sections to anon;
+
 create table public.players (
     id integer not null primary key,
-    section integer not null,
+    section integer not null references public.orchestral_sections (id),
     seat integer not null,
     rating integer,
     tenure integer
