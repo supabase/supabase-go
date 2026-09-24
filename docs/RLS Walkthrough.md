@@ -127,11 +127,14 @@ func main() {
 		log.Printf("serving practice logs to user %s", claims.Subject())
 
 		// Query as the verified user, so Row Level Security returns only their rows.
-		userDatabase := client.Database().WithAccessTokenProvider(
-			func(context.Context) (string, error) { return token, nil },
+		practiceLogs, _, err := postgrest.Collect(
+			request.Context(),
+			client.Database(),
+			postgrest.From[practiceLog]("practice_logs").Select("piece, minutes"),
+			postgrest.WithAccessTokenProvider(
+				func(context.Context) (string, error) { return token, nil },
+			),
 		)
-		practiceLogs, _, err := postgrest.Collect(request.Context(), userDatabase,
-			postgrest.From[practiceLog]("practice_logs").Select("piece, minutes"))
 		if err != nil {
 			log.Printf("querying practice logs: %v", err)
 			http.Error(writer, "query failed", http.StatusBadGateway)
