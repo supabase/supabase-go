@@ -270,3 +270,4 @@ The same backend runs against a hosted Supabase project. Export the project's UR
 
 - The package documentation on pkg.go.dev has runnable examples throughout. Start with [`postgrest`](https://pkg.go.dev/github.com/supabase/supabase-go/postgrest) for filters, ordering, writes and Postgres function calls, then [`auth`](https://pkg.go.dev/github.com/supabase/supabase-go/auth) for each way token verification can fail.
 - [`examples/`](../examples/) holds complete programs, including one that queries through the `postgrest` module alone and one that traces requests with OpenTelemetry.
+- The [Premium Access Walkthrough](Premium%20Access%20Walkthrough.md) shows the other way to verify a token, checking the user with Auth on every request.

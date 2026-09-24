@@ -28,7 +28,12 @@ Construct a client with your project URL and API key:
 client, err := supabase.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 ```
 
-The [RLS Walkthrough](docs/RLS%20Walkthrough.md) is a complete example: a Go API that verifies each user's access token, then serves only that user's rows under Row Level Security, running against a local Supabase stack. The package documentation on [pkg.go.dev](https://pkg.go.dev/github.com/supabase/supabase-go/supabase) covers the rest of the API.
+Two walkthroughs build complete Go APIs against a local Supabase stack:
+
+- The [RLS Walkthrough](docs/RLS%20Walkthrough.md) verifies each user's access token, then serves only that user's rows under Row Level Security.
+- The [Premium Access Walkthrough](docs/Premium%20Access%20Walkthrough.md) checks each user with Auth on every request, so a plan change or a sign-out takes effect straight away. It uses the `auth` module on its own.
+
+The package documentation on [pkg.go.dev](https://pkg.go.dev/github.com/supabase/supabase-go/supabase) covers the rest of the API.
 
 ## Supported Go versions
 
