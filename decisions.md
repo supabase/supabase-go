@@ -144,6 +144,16 @@ Actions have no lockfile and version tags are mutable git pointers - re-pointing
 On-demand refreshes keep "pinned" and "latest" close without scheduled churn, and Dependabot security updates still catch advisories with a reviewable diff, so pinning trades off against neither freshness nor safety.
 This follows Supabase's org-wide policy ([Git & GitHub](https://app.notion.com/p/c4922b923c544a2ea0377d60a0f21aec), Linear [PRODSEC-21](https://linear.app/supabase/issue/PRODSEC-21/) and [PRODSEC-67](https://linear.app/supabase/issue/PRODSEC-67/)) and extends the same discipline to our Go tooling.
 
+## `setup-go`'s implicit cache is disabled
+
+**What**:  
+Every `actions/setup-go` step sets `cache: false`.
+Caching that earns its place is an explicit `actions/cache` step with a reasoned key, as the integration-test job does for the Supabase CLI binaries.
+
+**Why**:  
+The implicit cache keys on a root `go.mod`, which this `go.work`-rooted repository does not have, so its restore has never succeeded here.
+The published modules are dependency-free, leaving a module cache little to restore, and the action's job-agnostic cache key would hand heterogeneous jobs one shared, first-save-wins entry.
+
 ## Regular dependency update cadence is manual, not driven by dependabot
 
 **What**:  

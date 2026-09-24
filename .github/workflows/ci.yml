@@ -21,6 +21,10 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: ${{ matrix.go-version }}
+          # The action's implicit cache expects a root go.mod, which this
+          # go.work-rooted repository does not have, so it never restored
+          # anything here. Off on every setup-go step (see decisions.md).
+          cache: false
       # No `go mod tidy` gate yet: with zero external dependencies the go.mod
       # files only carry the sibling `require` lines (set via `go mod edit`), and
       # `go mod tidy` does not use the workspace, so it would try to resolve the
@@ -42,6 +46,7 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: ${{ matrix.go-version }}
+          cache: false
       # Restores the pinned Supabase CLI binaries that the script below
       # otherwise fetches from its GitHub release. The pinned version and its
       # checksums live in that script, so hashing it keys the cache: any bump
@@ -66,6 +71,7 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: stable
+          cache: false
       - run: ./scripts/lint.sh
 
   # cSpell runs on Node, which the ubuntu-latest image already provides, so this
@@ -91,6 +97,7 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: stable
+          cache: false
       - run: ./scripts/comment-check.sh
 
   repository-structure:
@@ -104,6 +111,7 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: stable
+          cache: false
 
       # CONTRIBUTING and SECURITY are delegated to the org-level supabase/.github
       # repository; a repo-local copy would silently override the org default, so
