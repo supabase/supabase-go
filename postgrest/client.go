@@ -13,8 +13,8 @@ import (
 // client and project base URL that every request shares. Build queries with
 // [From] and execute them with a generic read function such as [Collect].
 // Construct a standalone client with [New], or build one on a shared
-// [configuration.Configuration] with [NewFromConfiguration], as the root supabase
-// client does. A Client is safe for concurrent use by multiple goroutines.
+// [configuration.Configuration] with [NewFromConfiguration]. A Client is safe
+// for concurrent use by multiple goroutines.
 //
 // When automatic retries are enabled - the default, controlled by
 // [configuration.WithRetry] and overridable per read with [WithRetry] - the
@@ -50,7 +50,7 @@ type Client struct {
 // for access governed by Row Level Security, attaching end-user tokens via
 // [Client.WithAccessTokenProvider] so queries run as that user, or the
 // secret key for privileged access that bypasses Row Level Security. See
-// https://supabase.com/docs/guides/api/api-keys for the key types.
+// https://supabase.com/docs/guides/getting-started/api-keys for the key types.
 //
 // It returns the sentinel errors documented by [configuration.New] when
 // projectURL or apiKey are unusable. See [configuration.WithHTTPClient],
@@ -130,9 +130,11 @@ func tokenResolver(provider configuration.AccessTokenProvider) http.TokenResolve
 // connection pool, so one base client serves several schemas through
 // independent derived copies, each safe for concurrent use by multiple
 // goroutines. The schema is sent verbatim and never validated client-side:
-// the server accepts only a schema exposed to the API, failing the call with
+// the server accepts only a schema [exposed to the API], failing the call with
 // an [*Error] carrying code "PGRST106" otherwise. An empty schema restores the
 // default, sending no profile header.
+//
+// [exposed to the API]: https://supabase.com/docs/guides/api/using-custom-schemas
 func (c *Client) WithSchema(schema string) *Client {
 	return &Client{httpClient: c.httpClient.WithSchema(schema)}
 }

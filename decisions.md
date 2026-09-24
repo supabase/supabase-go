@@ -699,6 +699,7 @@ Runnable example programs carry no credential literals, reading `SUPABASE_URL` a
 `sb_publishable_...` mirrors the prefix-plus-ellipsis form the official API keys guide prints, so a reader pastes the right one of the platform's four key types, which a generic `API_KEY` or the `your-publishable-key` style in the JS and Swift READMEs leaves ambiguous, while the truncated body carries no entropy to read as a leaked credential.
 The legacy `anon` and `service_role` vocabulary is deprecated by the platform and appears on no consumer-facing surface.
 SCREAMING placeholders cannot pass for live values, where the docs-site style `your-project.supabase.co` reads as a plausible real subdomain.
+This deliberately diverges from the generic `YOUR_API_KEY` placeholder in the Supabase Writing Style Guide, which names no key type.
 
 ## Constructor key parameters stay apiKey while example variables name the key type they hold
 
@@ -709,3 +710,12 @@ Example code that fetches a known key type names its variable for it, as in `pub
 **Why**:  
 The parameter accepts any Supabase project API key and a server-side SDK is routinely constructed with the secret key, so a narrowed name like `publishableApiKey` would misdirect privileged callers - among the sibling SDKs only client-side Flutter narrows the name, where secret keys are forbidden outright.
 In an example the variable's content is certain, so naming the type it holds lets the flow read against the env var it mirrors.
+
+## Auth requests are single-attempt, outside the automatic-retry option
+
+**What**:  
+The Auth client sends each request once and ignores the `configuration.WithRetry` setting.
+
+**Why**:  
+Auth's requests are GETs and safe to repeat, so honoring the option was possible.
+Regardless, the decision was made not to honor that option because verification sits on the request-handling hot path of the caller's own server (in our anticipated, likely use-case for this SDK), where invisible backoff multiplies the latency of the inbound request being served.

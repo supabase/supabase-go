@@ -13,7 +13,7 @@ import (
 // cSpell:ignore ilike imatch isdistinct phraseto phfts plainto plfts tsquery websearch wfts
 
 // listGrammar instances must only contain characters mapping to the ASCII set
-// (byte values 0 thru 127), for the way they're used in this implementation.
+// (byte values 0 through 127), for the way they are used in this implementation.
 // The first character (index 0) must be the opener and the second character
 // (index 1) must be the closer.
 type listGrammar string
@@ -300,7 +300,7 @@ func (f FilterBuilder[T]) Not(column, operator, value string) FilterBuilder[T] {
 // RawLiteralCondition matches only rows satisfying one verbatim PostgREST
 // condition, sent as the query-string pair key=value with no rendering,
 // quoting or validation. The key is either a column, optionally carrying a
-// JSON path or embedded-resource path, or a logical operator (or, and,
+// JSON path or embedded-resource path, or a [logical operator] (or, and,
 // not.or, not.and), and the value is everything after the pair's =
 // separator, for example
 // RawLiteralCondition("or", "(age.eq.14,not.and(age.gte.11,age.lte.17))").
@@ -309,6 +309,8 @@ func (f FilterBuilder[T]) Not(column, operator, value string) FilterBuilder[T] {
 // must conform with PostgREST requirements - a malformed condition renders
 // the whole query invalid. This method should only be used sparingly and
 // very carefully!
+//
+// [logical operator]: https://docs.postgrest.org/en/stable/references/api/tables_views.html#logical-operators
 func (f FilterBuilder[T]) RawLiteralCondition(key, value string) FilterBuilder[T] {
 	return FilterBuilder[T]{request: f.request.WithParameter(key, value)}
 }
@@ -347,7 +349,7 @@ func renderFilterValue(value any) string {
 
 // renderFilterFloat renders value as the shortest decimal text that parses
 // back to the same floating-point number of bitSize bits, with the two
-// infinities spelled Infinity and -Infinity as PostgreSQL canonically does.
+// infinities spelled Infinity and -Infinity as Postgres canonically does.
 func renderFilterFloat(value float64, bitSize int) string {
 	switch {
 	case math.IsInf(value, 1):

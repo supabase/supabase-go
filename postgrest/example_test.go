@@ -104,6 +104,33 @@ func ExampleFrom_packageLevel() {
 	fmt.Println(len(instruments), response.HTTPStatus)
 }
 
+// ExampleFilterBuilder_Eq reads a filtered, ordered page of rows: scalar
+// filters chain with AND, Order sorts the result and Range bounds it to the
+// first 10 rows. A filter may use a column the Select projection leaves out.
+func ExampleFilterBuilder_Eq() {
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	instruments, _, err := postgrest.Collect(
+		context.Background(),
+		client,
+		postgrest.
+			From[Instrument]("instruments").
+			Select("id, name").
+			Eq("family", "strings").
+			Order("name").
+			Range(0, 9),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(len(instruments))
+}
+
 // ExampleCollect_requestTimeout demonstrates a construction-time request
 // timeout influencing a read: the client abandons any request still in
 // flight when its http.Client's Timeout elapses - connecting, awaiting
@@ -171,6 +198,35 @@ func ExampleWithRetry() {
 		return
 	}
 	fmt.Println(len(instruments))
+}
+
+// ExampleCollectSingle reads exactly one row, with the server enforcing the
+// cardinality: a query matching zero rows or more than one is refused, and
+// the failure carries code PGRST116.
+func ExampleCollectSingle() {
+	client, err := postgrest.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	instrument, _, err := postgrest.CollectSingle(
+		context.Background(),
+		client,
+		postgrest.
+			From[Instrument]("instruments").
+			Eq("id", 1),
+	)
+	if err != nil {
+		var postgrestError *postgrest.Error
+		if errors.As(err, &postgrestError) && postgrestError.Code == "PGRST116" {
+			fmt.Println("expected exactly one instrument")
+			return
+		}
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(instrument.Name)
 }
 
 // ExampleCollectSingleMaybe reads a row that may legitimately be absent: the

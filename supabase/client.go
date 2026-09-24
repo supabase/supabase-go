@@ -22,7 +22,7 @@ type Client struct {
 // for access governed by Row Level Security, attaching per-request user
 // tokens so queries run as the end user, or the secret key for privileged
 // access that bypasses Row Level Security. See
-// https://supabase.com/docs/guides/api/api-keys for the key types.
+// https://supabase.com/docs/guides/getting-started/api-keys for the key types.
 //
 // Returned sentinel errors relate to misconfiguration:
 //   - [configuration.ErrMissingURL] when projectURL is empty.

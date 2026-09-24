@@ -17,7 +17,7 @@ import (
 // request timeout against real PostgREST: reading the slow_instruments view
 // (a two-second server-side sleep) with a 250ms http.Client.Timeout fails
 // fast with a timeout error. The elapsed bound is what shows the request was
-// cancelled in flight rather than run to completion. Automatic retries are
+// canceled in flight rather than run to completion. Automatic retries are
 // disabled because a per-attempt timeout is a retryable transport failure -
 // left on, the read would lawfully take four attempts plus backoff.
 func TestRequestTimeoutCancelsInFlightRequest(t *testing.T) {
@@ -45,7 +45,7 @@ func TestRequestTimeoutCancelsInFlightRequest(t *testing.T) {
 	}
 	testkit.AssertNoResults(t, rows, response)
 	if elapsed >= time.Second {
-		t.Errorf("Collect returned after %v, want well under the view's 2s sleep (cancelled in flight)", elapsed)
+		t.Errorf("Collect returned after %v, want well under the view's 2s sleep (canceled in flight)", elapsed)
 	}
 }
 

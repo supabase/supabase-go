@@ -18,14 +18,17 @@ import (
 
 // Client verifies end-user JWTs and fetches user profiles for one Supabase
 // project. Construct a standalone client with [New], or build one on a shared
-// [configuration.Configuration] with [NewFromConfiguration], as the root
-// supabase client does. A Client caches the project's signing keys internally,
-// so construct one Client per project and reuse it rather than constructing per
-// request. A Client is safe for concurrent use by multiple goroutines.
+// [configuration.Configuration] with [NewFromConfiguration]. A Client caches
+// the project's signing keys internally, so construct one Client per project
+// and reuse it rather than constructing per request. A Client is safe for
+// concurrent use by multiple goroutines.
 //
 // A Client authenticates with the project API key alone and holds no
 // signing-key secrets. It never starts background work and owns no resources
 // that need releasing.
+//
+// A Client sends each request once. [configuration.WithRetry] has no effect
+// on it.
 type Client struct {
 	httpClient configuration.HTTPClient
 	baseURL    *url.URL
@@ -49,10 +52,7 @@ func New(projectURL, apiKey string, options ...configuration.Option) (*Client, e
 }
 
 // NewFromConfiguration constructs an Auth [Client] from the shared
-// [configuration.Configuration]. The Auth endpoints live under the project's
-// /auth/v1 path, derived from [configuration.Configuration.BaseURL], and
-// requests carry the authentication and global headers configured on
-// [configuration.Configuration.HTTPClient].
+// [configuration.Configuration].
 func NewFromConfiguration(projectConfiguration *configuration.Configuration) *Client {
 	httpClient := projectConfiguration.HTTPClient()
 	baseURL := projectConfiguration.BaseURL().JoinPath("auth", "v1")
@@ -116,6 +116,10 @@ func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.F
 // legitimately per deployment: the audience is configurable and third-party
 // auth providers change the issuer, so no fixed check here fits every project.
 //
+// Local verification does not consult the token's session, so a locally
+// verified token passes until it expires, even after the user signs out. Where
+// a decision must reflect the session still being live, use [Client.GetUser].
+//
 // Returned sentinel errors:
 //   - [ErrMissingJWT] when jwt is empty.
 //   - [ErrMalformedJWT] when jwt is not a three-part base64url JWT carrying a
@@ -178,6 +182,9 @@ func (c *Client) GetClaims(ctx context.Context, jwt string) (*Claims, JWTHeader,
 // is a server round trip: prefer [Client.GetClaims] on request paths that only
 // need verified claims. An empty jwt returns [ErrMissingJWT], and a token the
 // server rejects surfaces as [*Error] with the server's response.
+//
+// The server also rejects an unexpired token whose session no longer exists,
+// after sign-out for example, or whose user no longer exists or is banned.
 func (c *Client) GetUser(ctx context.Context, jwt string) (*User, error) {
 	if jwt == "" {
 		return nil, ErrMissingJWT

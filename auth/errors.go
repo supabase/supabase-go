@@ -30,10 +30,12 @@ const ErrExpiredJWT = authError("JWT has expired")
 const ErrInvalidSignature = authError("JWT signature is invalid")
 
 // Error is the typed failure returned when the Auth server answers a request
-// with a non-2xx status, carrying the server's reported code and message
+// with a non-2xx status, carrying the server's reported [error code] and message
 // alongside the HTTP status. [Client.GetUser] returns it directly, and
 // [Client.GetClaims] returns it when a token routes to server verification and
 // the server rejects it.
+//
+// [error code]: https://supabase.com/docs/guides/auth/debugging/error-codes
 type Error struct {
 	responses.HTTPError
 }

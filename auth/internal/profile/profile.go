@@ -12,9 +12,9 @@ import (
 	"time"
 )
 
-// User is the opaque state of one user profile. Instances come only from
-// [Parse]. Timestamp accessors return the zero [time.Time] when the server
-// supplied no value.
+// User is the opaque state of one user profile.
+// Timestamp accessors return the zero [time.Time] when the server supplied no
+// value.
 type User struct {
 	id               string
 	audience         string

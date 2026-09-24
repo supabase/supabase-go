@@ -199,7 +199,7 @@ func (c RPCVoidCall) mutation() {}
 
 // rpcPostRequest builds the POST form of a function call: the arguments as the
 // JSON request body, or the empty object when none were given so the function
-// runs on its parameter defaults. A marshalling failure is parked as a deferred
+// runs on its parameter defaults. A marshaling failure is parked as a deferred
 // build error, surfacing at the executing function rather than on the wire.
 func rpcPostRequest(function string, arguments any) request.Request {
 	post := request.New(http.MethodPost, rpcPathSegment, function)
@@ -254,7 +254,7 @@ func rpcArgumentsObject(arguments any) (map[string]json.RawMessage, error) {
 }
 
 // rpcQueryValue renders one argument value as its query-parameter text: a JSON
-// string bare, a JSON array in PostgreSQL's {1,2,3} array-literal form
+// string bare, a JSON array in Postgres's {1,2,3} array-literal form
 // (supabase-js parity) and anything else as its JSON text.
 func rpcQueryValue(raw json.RawMessage) string {
 	trimmed := bytes.TrimSpace(raw)
@@ -276,7 +276,7 @@ func rpcQueryValue(raw json.RawMessage) string {
 	return string(trimmed)
 }
 
-// rpcArrayLiteral renders a JSON array as PostgreSQL's {a,b,c} array literal,
+// rpcArrayLiteral renders a JSON array as Postgres's {a,b,c} array literal,
 // each element rendered as rpcQueryValue renders it.
 func rpcArrayLiteral(elements []json.RawMessage) string {
 	var builder strings.Builder

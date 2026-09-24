@@ -300,7 +300,7 @@ func TestCollectPerReadRetryOverridesClient(t *testing.T) {
 }
 
 // TestCollectAbandonsRetryWhenContextEnds proves the caller's context is the
-// stop authority: once it is cancelled no retry begins. The cancellation
+// stop authority: once it is canceled no retry begins. The cancellation
 // races the in-flight response, so the first attempt may fail as a transport
 // error or deliver its 520 - both paths must stop retrying and surface the
 // cancellation.

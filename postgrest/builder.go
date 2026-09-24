@@ -46,11 +46,11 @@ type QueryBuilder[T any] struct {
 //   - bool: true or false
 //   - integer types: decimal digits
 //   - float32 and float64: the shortest decimal text that round-trips,
-//     with the special values as PostgreSQL's canonical Infinity,
+//     with the special values as Postgres's canonical Infinity,
 //     -Infinity and NaN
 //   - [time.Time]: RFC 3339 with up to nanosecond precision
 //   - nil: null
-//   - [Range]: its PostgreSQL range literal, such as [2,7) or empty
+//   - [Range]: its Postgres range literal, such as [2,7) or empty
 //   - [fmt.Stringer]: what String returns
 //   - anything else: the fmt package's %v rendering
 //
@@ -85,18 +85,21 @@ type OrderedDescendingFilterBuilder[T any] struct {
 
 // Select performs a SELECT-style read of the given columns, returning a
 // [FilterBuilder] ready to execute. Columns are comma-separated and may use
-// PostgREST's renaming and embedding syntax. Whitespace is removed except
+// PostgREST's [renaming] and [embedding] syntax. Whitespace is removed except
 // inside double-quoted identifiers. An empty columns string selects all
 // columns, exactly as "*" does - though a query reading every column needs
 // no Select at all, since [From] alone is already that query (implicit
 // default of the PostgREST service).
+//
+// [renaming]: https://docs.postgrest.org/en/stable/references/api/tables_views.html#renaming-columns
+// [embedding]: https://docs.postgrest.org/en/stable/references/api/resource_embedding.html
 func (q QueryBuilder[T]) Select(columns string) FilterBuilder[T] {
 	return FilterBuilder[T]{request: q.request.WithParameter("select", cleanSelectColumns(columns))}
 }
 
 // Range narrows the query result to the rows at zero-based positions from
 // through to, inclusive at both ends: Range(0, 9) requests the first ten
-// rows and Range(2, 2) just the third. Positions are counted over the
+// rows and Range(2, 2) only the third. Positions are counted over the
 // query's ordering, so chain Range after [FilterBuilder.Order] when the
 // window must be deterministic. The window is sent as a start offset of
 // from and a row cap of to-from+1, computed verbatim: Range(2, 1) requests

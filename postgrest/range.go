@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Range is a PostgreSQL range value accepted by the range filter methods, such
+// Range is a Postgres range value accepted by the range filter methods, such
 // as [FilterBuilder.Contains], and by any filter method whose value is typed
 // any, such as [FilterBuilder.Eq], which sends it as its range literal. Build
 // one with [NewRange], setting either bound through the returned builder and
@@ -14,7 +14,7 @@ import (
 // one or both ends unbounded is itself a Range. String hands the same literal
 // to the verbatim escape hatches, such as [FilterBuilder.Not].
 type Range interface {
-	// String returns the PostgreSQL range literal for the value, for
+	// String returns the Postgres range literal for the value, for
 	// example [2,7) or empty.
 	fmt.Stringer
 
@@ -27,7 +27,7 @@ type Range interface {
 	isRange()
 }
 
-// NewRange begins a PostgreSQL range whose bounds hold values of type T, for a
+// NewRange begins a Postgres range whose bounds hold values of type T, for a
 // range filter method such as [FilterBuilder.Contains]. The returned builder is
 // already a complete Range, unbounded at both ends, and its methods fix either
 // bound.
@@ -35,7 +35,7 @@ func NewRange[T any]() RangeBuilder[T] {
 	return RangeBuilder[T]{}
 }
 
-// EmptyRange returns the PostgreSQL empty range, the range containing no points,
+// EmptyRange returns the Postgres empty range, the range containing no points,
 // for a range filter method such as [FilterBuilder.Contains]. It is distinct
 // from the unbounded range that [NewRange] alone produces, which contains every
 // point.
@@ -43,7 +43,7 @@ func EmptyRange() Range {
 	return emptyRange{}
 }
 
-// RangeBuilder builds a PostgreSQL [Range] whose bounds hold values of type T.
+// RangeBuilder builds a Postgres [Range] whose bounds hold values of type T.
 // FromInclusive and FromExclusive fix the lower bound and return a
 // [RangeFromBuilder] for the upper. Every other method is that of the embedded
 // RangeFromBuilder and fixes the upper bound, leaving the lower unbounded. A
@@ -53,7 +53,7 @@ type RangeBuilder[T any] struct {
 	RangeFromBuilder[T]
 }
 
-// RangeFromBuilder builds a PostgreSQL [Range] whose lower bound is fixed and
+// RangeFromBuilder builds a Postgres [Range] whose lower bound is fixed and
 // whose upper bound is not. ToInclusive and ToExclusive fix the upper bound and
 // return the finished [Range]. A RangeFromBuilder is an immutable value and,
 // before its upper bound is fixed, is the range unbounded above that satisfies
@@ -102,11 +102,11 @@ type rangeValue struct {
 	upper rangeEndpoint
 }
 
-// rangeBoundGrammar holds the characters PostgreSQL reads as range syntax when
+// rangeBoundGrammar holds the characters Postgres reads as range syntax when
 // they appear in a bound value of a range literal.
 const rangeBoundGrammar = `()[],"\`
 
-// String renders the range as one PostgreSQL range literal, for example
+// String renders the range as one Postgres range literal, for example
 // [2,7) or (,2026-01-01T00:00:00Z]. Each bound value is rendered by
 // renderFilterValue and quoted by quoteIfNeeded, and an unbounded end renders as
 // no bound at all.
@@ -135,7 +135,7 @@ func (r rangeValue) String() string {
 // isRange has no behavior. See [Range] for the compile-time job it does.
 func (rangeValue) isRange() {}
 
-// emptyRange is the PostgreSQL empty range, a field-less singleton that renders
+// emptyRange is the Postgres empty range, a field-less singleton that renders
 // as the bare literal empty rather than through the bracket grammar.
 type emptyRange struct{}
 
