@@ -163,11 +163,16 @@ go run .
 Open a second terminal in the same folder and export the same two variables. Then sign up a user. The local stack does not ask new users to confirm their email address, so the response carries an access token right away:
 
 ```bash
-ACCESS_TOKEN=$(curl -s "$SUPABASE_PROJECT_URL/auth/v1/signup" \
+SIGNUP_RESPONSE=$(curl -sS --fail-with-body "$SUPABASE_PROJECT_URL/auth/v1/signup" \
   -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"email": "maria@example.com", "password": "example-password"}' \
-  | jq -r .access_token)
+  -d '{"email": "maria@example.com", "password": "example-password"}')
+```
+
+Extract Maria's access token from the response:
+
+```bash
+ACCESS_TOKEN=$(echo "$SIGNUP_RESPONSE" | jq -r '.access_token // error(.msg // "no access token in the response")')
 ```
 
 Add a practice log for Maria. `supabase db query` runs SQL as the `postgres` admin role, which bypasses Row Level Security:
@@ -180,7 +185,7 @@ select id, 'Prelude in C', 30 from auth.users where email = 'maria@example.com'"
 Call the backend with Maria's token:
 
 ```bash
-curl -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:8080/practice-logs
+curl -sS --fail-with-body -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:8080/practice-logs
 ```
 
 The response holds Maria's practice log, and the backend logs the user ID it verified:
@@ -189,20 +194,27 @@ The response holds Maria's practice log, and the backend logs the user ID it ver
 [{"piece":"Prelude in C","minutes":30}]
 ```
 
+If the backend rejects the call, `curl` prints the backend's reason, such as "invalid token", followed by the HTTP error status.
+
 Now sign up a second user, Wei:
 
 ```bash
-OTHER_TOKEN=$(curl -s "$SUPABASE_PROJECT_URL/auth/v1/signup" \
+SIGNUP_RESPONSE=$(curl -sS --fail-with-body "$SUPABASE_PROJECT_URL/auth/v1/signup" \
   -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"email": "wei@example.com", "password": "example-password"}' \
-  | jq -r .access_token)
+  -d '{"email": "wei@example.com", "password": "example-password"}')
+```
+
+Extract Wei's access token from the response:
+
+```bash
+OTHER_TOKEN=$(echo "$SIGNUP_RESPONSE" | jq -r '.access_token // error(.msg // "no access token in the response")')
 ```
 
 And call the backend with their token:
 
 ```bash
-curl -H "Authorization: Bearer $OTHER_TOKEN" http://localhost:8080/practice-logs
+curl -sS --fail-with-body -H "Authorization: Bearer $OTHER_TOKEN" http://localhost:8080/practice-logs
 ```
 
 The policy hides Maria's row from Wei, so the list is empty:
@@ -211,7 +223,7 @@ The policy hides Maria's row from Wei, so the list is empty:
 []
 ```
 
-Access tokens expire after an hour. For a fresh one, send the same request body to `$SUPABASE_PROJECT_URL/auth/v1/token?grant_type=password` instead of the sign-up URL. When you are done, stop the backend with Ctrl+C and the stack with `supabase stop`.
+Access tokens expire after an hour. For a fresh one, send the same request body to `$SUPABASE_PROJECT_URL/auth/v1/token?grant_type=password` instead of the sign-up URL, then take the token from the response the same way. Signing in also recovers a token for a user who is already signed up. When you are done, stop the backend with Ctrl+C and the stack with `supabase stop`.
 
 ## Use a hosted project
 
