@@ -165,6 +165,16 @@ Everything we execute from outside the repository is pinned to an immutable dige
 - **Companion control:** do not use `pull_request_target` in any workflow with access to secrets (see the [pwn-requests advisory](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/)).
 - **Node tooling:** the spell checker (cspell) is pinned the same way, one ecosystem over. Its entire dependency tree is locked by SHA-512 integrity hash in [`tools/node/package-lock.json`](tools/node/package-lock.json), the npm-native equivalent of `go.sum`, strictly used by `npm ci`.
 
+## Degraded Dependabot "Dependency Graph" runs on GitHub
+
+The Actions tab lists a "Dependency Graph" workflow that this repository does not define. It is a [Dependabot graph job](https://docs.github.com/en/code-security/concepts/supply-chain-security/dependency-graph-data#dependabot-graph-jobs), run when a push to `main` changes a `go.mod`, and it feeds Dependabot alerts.
+
+A Degraded result naming one of our modules at the zero pseudo-version (`unknown revision 000000000000`) is expected while any published module requires an untagged sibling. The job runs `go mod graph` under the root [`go.work`](go.work), where every published module's requirements apply, and that version exists nowhere.
+
+It is safe to ignore. The dependency list survives, so alerts still cover everything and only the edges between dependencies are lost. Only tags fix it, and disabling the graph would lose the alerts too. [`tools/go`](tools/go/) has its own `go.work`, but the examples have none, because their `go` line is the consumer floor and a `go.work` would add a second line to raise each time.
+
+A Degraded message naming anything else, such as a third-party module, is worth investigating.
+
 ## Naming
 
 We spell identifiers out in full. Clarity for every reader - including those newer to Go or to English - outweighs brevity. Concretely:
