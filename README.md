@@ -14,6 +14,22 @@ The official Supabase SDK for Go. This is a multi-module monorepo, currently in 
 | [`postgrest`](postgrest/) | Database (PostgREST) client |
 | [`supabase`](supabase/) | Convenience root client composing the domains |
 
+## Quick start
+
+Add the SDK to your module:
+
+```bash
+go get github.com/supabase/supabase-go/supabase
+```
+
+Construct a client with your project URL and API key:
+
+```go
+client, err := supabase.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
+```
+
+The [RLS Walkthrough](docs/RLS%20Walkthrough.md) is a complete example: a Go API that verifies each user's access token, then serves only that user's rows under Row Level Security, running against a local Supabase stack. The package documentation on [pkg.go.dev](https://pkg.go.dev/github.com/supabase/supabase-go/supabase) covers the rest of the API.
+
 ## Supported Go versions
 
 We support the two most recent major versions of Go, aligning with the Go project's [Release Policy](https://go.dev/doc/devel/release#policy).
