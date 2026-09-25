@@ -1,0 +1,6 @@
+go 1.26.0
+
+// This use set is the tools module alone, so go commands run from this directory never resolve through the repository root go.work.
+// Dependabot's "Dependency Graph" job runs `go mod graph` here and cannot be told GOWORK=off.
+// Under the root go.work that command would graph the published modules rather than this one, and would fail outright while they require their siblings at the zero pseudo-version, leaving this module's graph degraded.
+use .
