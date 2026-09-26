@@ -292,11 +292,10 @@ GitHub falls back to the organization's `supabase/.github` files for any reposit
 A repo-local copy would silently shadow the org default and drift from it, so asserting absence beats maintaining a duplicate.
 The one posture that does not belong at org level - that external code contributions are not accepted before the first GA release - lives in `DEVELOPMENT.md` instead.
 
-## Merge strategy and commit conventions during incubation
+## Merge strategy and commit conventions
 
-Both decisions below deliberately diverge from apparent Supabase house defaults (squash-only merging, Conventional Commit PR titles).
+Both decisions below deliberately diverge from the approach taken by other Supabase repositories - the "house defaults" (squash-only merging, Conventional Commit PR titles) - including those in the SDK domain.
 Those defaults serve downstream release automation, which wants exactly one conventional commit per PR from which to infer changelogs and version bumps.
-This repository is incubating - private, unreleased, no consumers, no release pipeline - so the constraint that motivates the defaults does not yet apply, and both decisions are revisited as a pair alongside the release-tooling choice ahead of the first release.
 
 ### PRs land as merge commits, not squashes
 
@@ -318,11 +317,8 @@ When the repo opens to external contributions that guarantee weakens, so this is
 Commit messages and PR titles are ordinary well-formed Git messages - an imperative summary line, with a body explaining why where needed - carrying no `type(scope):` grammar and no `BREAKING CHANGE` footers.
 
 **Why**:  
-Conventional Commits is a machine-facing grammar whose purpose is to let release tooling infer version bumps and generate changelogs; with nothing released, no consumers and no release automation, no machine reads the prefixes and the grammar is pure ceremony.
-Its vocabulary is also semantically empty pre-release: a `BREAKING CHANGE` marker on a library nobody has ever depended on breaks no one, and SemVer itself defines major version zero as initial development in which anything may change at any time.
-Adopting the grammar now would also quietly pre-commit the release-tooling decision, which is deliberately open: progressive changelog updates curated as part of each PR remain on the table alongside commit-parsing tools like release-please, and the curated-changelog path needs no commit grammar at all.
-Commit-parsing tools read history forward from a configurable starting point, so the convention can be adopted the moment it gains a consumer without the pre-adoption history ever needing to conform.
-If the house squash style is adopted at the same time, the convention collapses to well-formed PR titles alone.
+Conventional Commits is a machine-facing grammar whose purpose is to let release tooling infer version bumps and generate changelogs.
+This SDK is taking a progressive changelog update approach, where changelog-worthy updates to the codebase are required to atomically submit a changelog entry under the 'Unreleased' heading for relevant modules.
 
 ## Agent guidance lives in `.agents/skills`, and a root `.gitignore` keeps other agent surfaces out
 
