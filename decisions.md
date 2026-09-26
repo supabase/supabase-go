@@ -528,7 +528,7 @@ The floor leg exists because only a live-stack run exercises the consumer floor 
 ## `X-Client-Info` resolution is verified by an out-of-tree consumer program
 
 **What**:  
-The `telemetrytest/` module is a stand-in consumer: it requires the SDK modules at fabricated, self-labeled versions (`v0.999.1-fabricated` supabase, `v0.999.2-fabricated` postgrest), `replace`s them to the local working tree and its main program asserts the exact `X-Client-Info` value each entry point sends to a local HTTP server.
+The `telemetrytest/` module is a stand-in consumer: it requires the SDK modules at fabricated, self-labeled versions (`v1.999.1-fabricated` supabase, `v1.999.2-fabricated` postgrest), `replace`s them to the local working tree and its main program asserts the exact `X-Client-Info` value each entry point sends to a local HTTP server.
 `scripts/telemetry-test.sh` runs it with `GOWORK=off` and the module is not listed in `go.work`.
 A second leg rebuilds the same program in GOPATH mode (`GO111MODULE=off`), where binaries carry build information without module records, and asserts the version-unknowable `0.0.0` fallback in every header.
 The `TELEMETRY_TEST_MODE` environment variable tells the program which expectations to hold.
@@ -541,7 +541,7 @@ The branch every published-module consumer exercises - reading client versions f
 It must be a plain program because `go build` and `go run` stamp dependency records into binaries while `go test` binaries record the main module and no dependencies (observed on go1.26), which rules out expressing the probe as a test suite.
 Workspace membership would defeat the vantage from the other side - a workspace build supplies the SDK modules as local source with no resolvable versions - so the module stays out of `go.work` and the script forces `GOWORK=off`.
 The fabricated versions are distinct from every sentinel the header can otherwise carry (`(devel)` in-tree, `0.0.0` without build information), so a pass is unambiguous provenance, and their `-fabricated` prerelease label keeps the header values in check output from reading as release claims.
-Each must outrank every other require of the same module path in this build so minimal version selection keeps it as the selected, recorded version: `0.999.x` outranks the entire real `v0` series and deliberately loses to the first real `v1` require, so the fixture fails loudly at GA instead of surviving it silently.
+Each must outrank every other require of the same module path in this build so minimal version selection keeps it as the selected, recorded version: `1.999.x` outranks every real `v1` version, pre-releases included, and a `v2` would live at a new module path.
 The floor leg exists because the header is consumer-facing behavior, so it must hold at the consumer floor.
 The GOPATH leg exists because module-record-free binaries are otherwise not exercised at all - every matrix toolchain is now 1.24 or later, so even test binaries carry module records - while GOPATH mode produces them deterministically on every toolchain.
 The expected versions come from the environment rather than from the binary's own build information, which would assert whatever branch actually ran and pass even when a leg lands in the wrong branch.
