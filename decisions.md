@@ -296,6 +296,8 @@ The one posture that does not belong at org level - that external code contribut
 
 Both decisions below deliberately diverge from the approach taken by other Supabase repositories - the "house defaults" (squash-only merging, Conventional Commit PR titles) - including those in the SDK domain.
 Those defaults serve downstream release automation, which wants exactly one conventional commit per PR from which to infer changelogs and version bumps.
+This SDK is taking a progressive changelog update approach, where changelog-worthy updates to the codebase are required to atomically submit a changelog entry under the 'Unreleased' heading for relevant modules.
+Each module's next version is then chosen by hand at release time, from the entries under its 'Unreleased' heading.
 
 ### PRs land as merge commits, not squashes
 
@@ -318,7 +320,7 @@ Commit messages and PR titles are ordinary well-formed Git messages - an imperat
 
 **Why**:  
 Conventional Commits is a machine-facing grammar whose purpose is to let release tooling infer version bumps and generate changelogs.
-This SDK is taking a progressive changelog update approach, where changelog-worthy updates to the codebase are required to atomically submit a changelog entry under the 'Unreleased' heading for relevant modules.
+In this SDK both are done by hand, so no machine would read the grammar.
 
 ## Agent guidance lives in `.agents/skills`, and a root `.gitignore` keeps other agent surfaces out
 
