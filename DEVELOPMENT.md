@@ -165,6 +165,16 @@ Everything we execute from outside the repository is pinned to an immutable dige
 - **Companion control:** do not use `pull_request_target` in any workflow with access to secrets (see the [pwn-requests advisory](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/)).
 - **Node tooling:** the spell checker (cspell) is pinned the same way, one ecosystem over. Its entire dependency tree is locked by SHA-512 integrity hash in [`tools/node/package-lock.json`](tools/node/package-lock.json), the npm-native equivalent of `go.sum`, strictly used by `npm ci`.
 
+## Degraded Dependabot "Dependency Graph" runs on GitHub
+
+The Actions tab lists a "Dependency Graph" workflow that this repository does not define. It is a [Dependabot graph job](https://docs.github.com/en/code-security/concepts/supply-chain-security/dependency-graph-data#dependabot-graph-jobs), run when a push to `main` changes a `go.mod`, and it feeds Dependabot alerts.
+
+A Degraded result naming one of our modules at the zero pseudo-version (`unknown revision 000000000000`) is expected while any published module requires an untagged sibling. The job runs `go mod graph` under the root [`go.work`](go.work), where every published module's requirements apply, and that version exists nowhere.
+
+It is safe to ignore. The dependency list survives, so alerts still cover everything and only the edges between dependencies are lost. Only tags fix it, and disabling the graph would lose the alerts too. [`tools/go`](tools/go/) has its own `go.work`, but the examples have none, because their `go` line is the consumer floor and a `go.work` would add a second line to raise each time.
+
+A Degraded message naming anything else, such as a third-party module, is worth investigating.
+
 ## Naming
 
 We spell identifiers out in full. Clarity for every reader - including those newer to Go or to English - outweighs brevity. Concretely:
@@ -189,7 +199,10 @@ Every comment is read by a consumer of the boundary it sits on, so it describes 
 
 Concretely:
 
-- **Contract, not rationale ("what", not "why").** A comment states behavior, inputs, outputs, guarantees and caller obligations. The reasoning behind a design belongs in [`decisions.md`](decisions.md) and working procedures belong here in DEVELOPMENT.md. A comment that argues for its own design has leaked.
+- **Contract, not rationale ("what", not "why").** A comment states behavior, inputs, outputs, guarantees and caller obligations. When considering the modification or refactoring of a comment, consider that:
+    - The reasoning behind a design often belongs in [`decisions.md`](decisions.md), but check the advice at the top of that file for when to use it and when not to use
+    - Working procedures belong here in [`DEVELOPMENT.md`](DEVELOPMENT.md)
+    - A comment that argues for its own design has leaked
 - **Self-contained at the boundary.** Never document an identifier by pointing at its neighbors: no "mirrors the reference implementation", no "same pattern as package X", no "the Y job relies on this", nor any other note about what upstream or downstream code happens to do. When a collaborator's behavior constrains this interface, state the resulting obligation as this interface's own ("the path is not escaped here, so it must be escaped on query assembly") without touring the collaborator.
 - **No provenance notes on received values.** A type whose values a caller receives rather than constructs states what a value is and guarantees, never which function returns it: no "instances come only from [X]". The producer's own signature and doc carry that fact, and unexported fields already enforce exclusive construction at compile time. Pointing a type the caller must build at its constructor states an obligation, not provenance ("the zero value is not usable, so build it with [New]"), and an error naming the operations that report it states the condition under which it arises ("reported by [X] when ...").
 - **No language tutoring.** State what is returned or accepted, as types and sentinels. Do not teach `errors.Is` / `errors.As` mechanics, struct tag semantics or any other standard craft - the reader, human or AI, knows their tools.

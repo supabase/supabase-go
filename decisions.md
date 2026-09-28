@@ -18,6 +18,8 @@ When a decision changes, rewrite its entry to describe the new present, or delet
 While the entries in this document are presented as a series of lightweight Architectural Decisions Records (ADRs), this document is not append-only.
 Deleting a stale entry is correct maintenance and therefore encouraged.
 
+When the reason for something concerns only the file it sits in (a configuration file that exists to satisfy one tool, for example), state it in a comment in that file rather than as an entry here in [`decisions.md`](decisions.md), naming the tool that needs it when you write that comment.
+
 ## No `Makefile` or task runner
 
 **What**:  

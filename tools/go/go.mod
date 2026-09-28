@@ -1,5 +1,6 @@
 module github.com/supabase/supabase-go/tools/go
 
+// The go line in this directory's go.work must be at least this version.
 go 1.26.0
 
 tool (
