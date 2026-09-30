@@ -20,6 +20,8 @@ Keeping the surface under tight first-party control through the hardening window
 
 The repository is a multi-module monorepo. Intra-repo dependencies are resolved by the committed `go.work` workspace, so each module builds against the local sources of the others without any published tags.
 
+If you're working from a new machine or perhaps inside a minimal sandbox, then you might want to first look at [Build Prerequisites](#build-prerequisites).
+
 There is no task runner or aggregate linter. Build and test with the standard toolchain in each module directory
 ([`auth`](auth/), [`core`](core/), [`postgrest`](postgrest/), [`supabase`](supabase), etc..):
 
@@ -156,6 +158,23 @@ If you don't want to modify your `PATH` then you can launch it directly with:
 ```
 
 `pkgsite` is a personal, read-only previewer, not project tooling: nothing in the repo or CI invokes it and it never ships. So it sits outside the supply-chain pinning below, which covers what our build, test and release pipeline executes. Install the latest when you want to preview.
+
+### Build Prerequisites
+
+Our scripts require a few things of your local environment:
+
+- [Go](https://go.dev/doc/install) - a recent version, we suggest the latest available
+- Ability to run [cgo](https://go.dev/wiki/MinimumRequirements#cgo)
+- [The `jq` command](https://jqlang.org/) must be available
+
+For the cgo requirement on a minimal Ubuntu install, the following should be enough:
+
+```bash
+sudo apt update
+sudo apt-get install --no-install-recommends gcc libc6-dev
+```
+
+This avoids the heavier weight `build-essential` meta-package, as well as optional dependencies like man pages and extra tooling (what `--no-install-recommends` strips away).
 
 ## Supply-chain pinning
 
