@@ -1,6 +1,6 @@
 # Developing the Supabase Go SDK
 
-<!-- cSpell:ignore darwin linux mvdan startswith -->
+<!-- cSpell:ignore darwin libc linux mvdan startswith -->
 
 This file holds the Go/SDK-specific guidance for working in this repository.
 General, organization-wide contribution policy lives in our [shared `.github` repository](https://github.com/supabase/.github)'s CONTRIBUTING.md file.
