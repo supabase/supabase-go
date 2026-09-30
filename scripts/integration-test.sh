@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the integration tests and example programs against a local Supabase
-# stack, exactly as CI does.
+# stack, exactly as CI does. Always stops the stack on exit, including on failure.
 # Requires Docker (the stack's services are containers) and curl. Run from the
 # repository root.
 #
