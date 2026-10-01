@@ -13,7 +13,7 @@ set -euo pipefail
 source "$(dirname "$0")/common.sh"
 workspace_modules="$(enumerate_workspace_modules)"
 
-module_base="github.com/supabase/supabase-go"
+module_base="$(module_path_base)"
 
 echo "Push Release Tags..."
 
@@ -101,5 +101,5 @@ note ""
 if [ -z "${tagged_any}" ]; then
   note "**No release detected**: every declared version is already tagged, so this run pushed nothing."
 else
-  note "**Release tags pushed.** Verify each module resolves, per RELEASING.md."
+  note "**Release tags pushed.** Run scripts/verify-release.sh next, per RELEASING.md."
 fi

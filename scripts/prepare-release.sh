@@ -11,7 +11,7 @@ set -euo pipefail
 source "$(dirname "$0")/common.sh"
 workspace_modules="$(enumerate_workspace_modules)"
 
-module_base="github.com/supabase/supabase-go"
+module_base="$(module_path_base)"
 
 if [ "$#" -lt 2 ]; then
   echo "usage: $0 <module> <version> [dep=version ...]" >&2
@@ -41,8 +41,7 @@ if ! is_workspace_module "${module_dir}"; then
   exit 1
 fi
 
-semver_tag_pattern='^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'
-if ! printf '%s' "${version}" | grep -Eq "${semver_tag_pattern}"; then
+if ! printf '%s' "${version}" | grep -Eq "$(semver_version_pattern)"; then
   echo "'${version}' is not a SemVer tag version (want vX.Y.Z or vX.Y.Z-pre)." >&2
   exit 1
 fi
@@ -71,7 +70,7 @@ for pair in "$@"; do
     echo "'${dep}' is not a sibling published module of '${module_dir}'." >&2
     exit 1
   fi
-  if ! printf '%s' "${dep_version}" | grep -Eq "${semver_tag_pattern}"; then
+  if ! printf '%s' "${dep_version}" | grep -Eq "$(semver_version_pattern)"; then
     echo "'${dep_version}' (pinning ${dep}) is not a SemVer tag version." >&2
     exit 1
   fi
