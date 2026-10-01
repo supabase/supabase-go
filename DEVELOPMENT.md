@@ -1,6 +1,6 @@
 # Developing the Supabase Go SDK
 
-<!-- cSpell:ignore darwin linux mvdan startswith -->
+<!-- cSpell:ignore darwin libc linux mvdan startswith -->
 
 This file holds the Go/SDK-specific guidance for working in this repository.
 General, organization-wide contribution policy lives in our [shared `.github` repository](https://github.com/supabase/.github)'s CONTRIBUTING.md file.
@@ -20,14 +20,17 @@ Keeping the surface under tight first-party control through the hardening window
 
 The repository is a multi-module monorepo. Intra-repo dependencies are resolved by the committed `go.work` workspace, so each module builds against the local sources of the others without any published tags.
 
-There is no task runner or aggregate linter. Build and test with the standard toolchain in each module directory (`core`, `postgrest`, `supabase`):
+If you're working from a new machine or perhaps inside a minimal sandbox, then you might want to first look at [Build Prerequisites](#build-prerequisites).
+
+There is no task runner or aggregate linter. Build and test with the standard toolchain in each module directory
+([`auth`](auth/), [`core`](core/), [`postgrest`](postgrest/), [`supabase`](supabase), etc..):
 
 ```bash
 go build ./...
 go test -race -shuffle=on ./...
 ```
 
-Or, for all:
+Or, for all, from repository root:
 
 ```bash
 ./scripts/build-and-test.sh
@@ -114,7 +117,7 @@ The fast tier above needs only the repository's own toolchains (Go, plus Node fo
 ./scripts/integration-test.sh
 ```
 
-The script starts the stack against a disposable copy of [`integration-testing/`](integration-testing/), seeds it, runs each `integrationtest` module's tests under `-race` and always stops the stack on exit, including on failure. A plain `go test ./...` in a published module never runs these tests - each `integrationtest` directory is its own non-published module outside its parent's package pattern, and the tests are environment-gated besides - so the fast tier stays Docker-free by construction.
+The script starts the stack against a disposable copy of [`integration-testing/`](integration-testing/), running each `integrationtest` module's tests under `-race`. A plain `go test ./...` in a published module never runs these tests - each `integrationtest` directory is its own non-published module outside its parent's package pattern, and the tests are environment-gated besides - so the fast tier stays Docker-free by construction.
 
 Integration tests live in adjacent `integrationtest` modules - one beside each module with integration coverage, sharing fixtures (stack credentials, end-user signup) through the non-published [`integration-testing/testkit` module](integration-testing/testkit/) - and are selected by the module boundary alone: the script runs `./...` in each with no `-run` name filter, so a test there can never be silently skipped by its name. These modules sit outside the [`go.work`](go.work) workspace, which lists exactly the published set, so the script enters them with `GOWORK=off` and their `replace` directives resolve the SDK modules from the local tree; `./scripts/build-and-test.sh` gives the same modules a compile-only `go vet` pass, so integration code gets fast signal without Docker. Their sources are ordinary untagged Go, so editors need no build-tag configuration; running an integration test from the editor's test lens fails fast with the env guidance unless the stack is up and its variables are exported in the editor's environment.
 
@@ -155,6 +158,23 @@ If you don't want to modify your `PATH` then you can launch it directly with:
 ```
 
 `pkgsite` is a personal, read-only previewer, not project tooling: nothing in the repo or CI invokes it and it never ships. So it sits outside the supply-chain pinning below, which covers what our build, test and release pipeline executes. Install the latest when you want to preview.
+
+### Build Prerequisites
+
+Our scripts require a few things of your local environment:
+
+- [Go](https://go.dev/doc/install) - a recent version, we suggest the latest available
+- Ability to run [cgo](https://go.dev/wiki/MinimumRequirements#cgo)
+- [The `jq` command](https://jqlang.org/) must be available
+
+For the cgo requirement on a minimal Ubuntu install, the following should be enough:
+
+```bash
+sudo apt update
+sudo apt-get install --no-install-recommends gcc libc6-dev
+```
+
+This avoids the heavier weight `build-essential` meta-package, as well as optional dependencies like man pages and extra tooling (what `--no-install-recommends` strips away).
 
 ## Supply-chain pinning
 
