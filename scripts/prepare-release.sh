@@ -84,7 +84,7 @@ fi
 
 changelog="${module_dir}/CHANGELOG.md"
 release_date="$(date -u +%F)"
-version_heading="## ${version} - ${release_date}"
+version_heading="## \`${version}\` (${release_date})"
 
 if [ "$(grep -cx '## Unreleased' "${changelog}")" -ne 1 ]; then
   echo "${changelog} needs exactly one '## Unreleased' section, holding the entries to release." >&2

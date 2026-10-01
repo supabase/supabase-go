@@ -55,13 +55,21 @@ enumerate_consumer_shaped_modules() {
   printf '%s\n' telemetrytest
 }
 
+# Print the pattern matching a well-formed changelog version heading,
+# '## `vX.Y.Z` (YYYY-MM-DD)' as scripts/prepare-release.sh stamps it, in the
+# extended regular expression syntax of grep -E and sed -E, capturing the
+# version as its first group.
+version_heading_pattern() {
+  printf '%s\n' '^## `(v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?)` \([0-9]{4}-[0-9]{2}-[0-9]{2}\)$'
+}
+
 # Print the versions a published module's changelog declares, one per
-# well-formed '## vX.Y.Z - YYYY-MM-DD' heading, newest first (headings are
-# prepended by scripts/prepare-release.sh, whose stamp is the declaration of
-# a release). $1 is the module directory. Malformed headings print nothing
-# here and are caught by scripts/check-release-consistency.sh.
+# well-formed version heading, newest first (headings are prepended by
+# scripts/prepare-release.sh, whose stamp is the declaration of a release).
+# $1 is the module directory. Malformed headings print nothing here and are
+# caught by scripts/check-release-consistency.sh.
 declared_module_versions() {
-  sed -En 's/^## (v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?) - [0-9]{4}-[0-9]{2}-[0-9]{2}$/\1/p' "$1/CHANGELOG.md"
+  sed -En "s/$(version_heading_pattern)/\\1/p" "$1/CHANGELOG.md"
 }
 
 # Print how many entry lines sit under a published module's '## Unreleased'

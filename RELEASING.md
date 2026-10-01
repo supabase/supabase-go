@@ -44,7 +44,7 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
    ./scripts/prepare-release.sh supabase v0.1.0-alpha.1 core=v0.1.0-alpha.1 auth=v0.1.0-alpha.1 postgrest=v0.1.0-alpha.1
    ```
 
-   For each module the script refuses to run unless the tree is clean and the module's changelog has entries under `## Unreleased`, pins the sibling `require` lines to the given `dep=version` arguments (aborting if any sibling is left at the zero pseudo-version, the mark of a forgotten pin), stamps the changelog - the `## Unreleased` heading becomes `## <version> - <date>` - and re-tidies the non-published modules (the integration tests, the examples and `telemetrytest`) with `GOWORK=off`, so every module's recorded versions stay consistent with the new graph and CI stays green.
+   For each module the script refuses to run unless the tree is clean and the module's changelog has entries under `## Unreleased`, pins the sibling `require` lines to the given `dep=version` arguments (aborting if any sibling is left at the zero pseudo-version, the mark of a forgotten pin), stamps the changelog - the `## Unreleased` heading becomes ``## `<version>` (<date>)`` - and re-tidies the non-published modules (the integration tests, the examples and `telemetrytest`) with `GOWORK=off`, so every module's recorded versions stay consistent with the new graph and CI stays green.
    It never commits, tags or pushes.
 
 3. Run the pre-flight check, which joins the dots across everything the session prepared:

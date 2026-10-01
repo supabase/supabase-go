@@ -18,7 +18,6 @@ workspace_modules="$(enumerate_workspace_modules)"
 
 module_base="github.com/supabase/supabase-go"
 zero_pseudo_version="v0.0.0-00010101000000-000000000000"
-version_heading_pattern='^## v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)? - [0-9]{4}-[0-9]{2}-[0-9]{2}$'
 
 echo "Check Release Consistency..."
 
@@ -55,7 +54,7 @@ for module in ${workspace_modules}; do
 
   # A level-two heading that is neither Unreleased nor a well-formed version
   # stamp would be skipped by the release automation, silently.
-  malformed="$(grep -E '^## ' "${changelog}" | grep -vx '## Unreleased' | grep -Ev "${version_heading_pattern}" || true)"
+  malformed="$(grep -E '^## ' "${changelog}" | grep -vx '## Unreleased' | grep -Ev "$(version_heading_pattern)" || true)"
   if [ -n "${malformed}" ]; then
     fail "${changelog} carries malformed version headings: ${malformed}"
   fi
