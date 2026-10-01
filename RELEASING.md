@@ -54,6 +54,7 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
    ```
 
    It works from committed files alone - no network and no Go module resolution, because pinned versions cannot resolve until their tags exist - and catches the anticipated failure modes: malformed or duplicate version headings, a forgotten pin, a pin naming a version its module never declared and a release prepared out of dependency order.
+   Between the prepare commits of a multi-module release it fails on the pins not yet made - expected, and [explained in Troubleshooting](#the-consistency-check-failed-part-way-through-preparing-a-release).
    CI runs the same script on every push, and the release-tags workflow runs it once more before pushing tags.
 
 4. Push the branch and open the PR.
@@ -72,11 +73,24 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
 
 ## Troubleshooting
 
-A merged release PR puts `main` into a state that cannot regress: its landing commit permanently declares the release, through each released module's newest changelog heading and pinned `require` lines.
+The first entry below is the one expected failure, met part-way through cutting a release, and needs no recovery.
+Every other entry concerns a merged release PR, which puts `main` into a state that cannot regress: its landing commit permanently declares the release, through each released module's newest changelog heading and pinned `require` lines.
+
 Tags are the only artifact that can be missing.
 Every recovery below therefore drives at one end state: for each released module, a tag `<module>/<version>` exists on the GitHub remote, pointing at the landing commit.
 No recovery path modifies `main`, none touches an existing tag and the tag script skips whatever already exists, so each path is safe to attempt and safe to repeat.
 A consumer who fetches while only some of the tags exist sees a transient resolution failure, healed the moment the remaining tags land.
+
+### The consistency check failed part-way through preparing a release
+
+State: between the per-module commits of a multi-module release, `check-release-consistency.sh` - run directly or through `check-fast.sh` - fails with "a forgotten dep=version pin" complaints against the modules not yet prepared.
+The check joins the dots across the whole repository, and mid-sequence the dots genuinely do not join: a prepared module's changelog already declares the new version while a dependent yet to be prepared still carries the zero pseudo-version placeholder.
+At that moment a forgotten pin and a pin not yet made are indistinguishable, and stopping a half-released state from reaching `main` unnoticed is this check's whole purpose.
+
+Fix: nothing needs recovering - finish the sequence.
+Prepare and commit the remaining modules, and the last pin written turns the check green, which is why [Cut a release](#cut-a-release) places the pre-flight after every module is prepared.
+CI never sees the intermediate states: the branch is pushed once carrying all its commits, CI checks its tip and the release-tags workflow checks the landing commit on `main`.
+The intermediate commits stay inconsistent in history, visible only to a `git bisect` that runs the check across the release PR's commits, an inherent and accepted cost of preparing each module in its own commit.
 
 ### Establish the state
 
