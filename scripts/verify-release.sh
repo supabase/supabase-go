@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# Verify the release tagged at HEAD serves consumers the intended content:
-# learn the released '<module> <version>' pairs from origin's tags pointing
-# at HEAD, download each one straight from GitHub into a throwaway module
-# cache under /tmp, confirm a LICENSE sits at each module zip's root and
-# print the go.sum-shaped content hashes. Keep the hash lines: a later
+# Verify a release serves consumers the intended content: learn the released
+# '<module> <version>' pairs from origin's tags pointing at the landing
+# commit - named by the optional argument, HEAD when omitted - download each
+# one straight from GitHub into a throwaway module cache under /tmp, confirm
+# a LICENSE sits at each module zip's root and print the go.sum-shaped
+# content hashes. The tags carry everything the downloads need, so any
+# release stays verifiable from the current checkout, including one whose
+# landing commit predates this script.
+#
+# Usage: scripts/verify-release.sh [<landing-commit>] Keep the hash lines: a later
 # scripts/seed-module-proxy.sh run for the same release must print them byte
 # for byte, proving the public module proxy serves what GitHub serves.
 #
@@ -21,11 +26,11 @@ source "$(dirname "$0")/common.sh"
 
 echo "Verify Release..."
 
-head_sha="$(git rev-parse HEAD)"
-released="$(released_versions_at_head)"
+commit_sha="$(resolve_release_commit "${1:-}")"
+released="$(released_versions_at "${commit_sha}")"
 if [ -z "${released}" ]; then
-  echo "No release tags on origin point at HEAD (${head_sha})." >&2
-  echo "Run this from the release PR's landing commit, after the release-tags workflow has pushed its tags." >&2
+  echo "No release tags on origin point at ${commit_sha}." >&2
+  echo "Name a release PR's landing commit as the argument (HEAD when omitted), once the release-tags workflow has pushed its tags." >&2
   exit 1
 fi
 
@@ -57,4 +62,4 @@ echo "Content hashes as served by GitHub, which scripts/seed-module-proxy.sh mus
 echo ""
 module_hash_lines "${scratch}"/*.json
 echo ""
-echo "✅ Verified ${count} module release(s) at ${head_sha}. Nothing was seeded."
+echo "✅ Verified ${count} module release(s) at ${commit_sha}. Nothing was seeded."

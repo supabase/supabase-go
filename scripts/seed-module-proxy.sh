@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Seed the public Go module ecosystem with the release tagged at HEAD: learn
-# the released '<module> <version>' pairs from origin's tags pointing at HEAD
-# and pull each one through proxy.golang.org into a throwaway module cache
-# under /tmp. The first request makes the proxy fetch the version from GitHub
+# Seed the public Go module ecosystem with a release: learn the released
+# '<module> <version>' pairs from origin's tags pointing at the landing
+# commit - named by the optional argument, HEAD when omitted - and pull each
+# one through proxy.golang.org into a throwaway module cache under /tmp.
+#
+# Usage: scripts/seed-module-proxy.sh [<landing-commit>] The first request makes the proxy fetch the version from GitHub
 # and cache it immutably - the point of no return for a release - records its
 # hashes in the sum.golang.org checksum database and leads pkg.go.dev to
 # build the documentation pages minutes later. Run scripts/verify-release.sh
@@ -15,8 +17,8 @@
 # a consumer's would be. GOPRIVATE and its siblings are cleared so an
 # operator shell still configured for the repository's private phase cannot
 # sidestep the proxy. Requires the repository to be public - a release cut
-# while it was private is seeded the day it goes public, by running this at
-# that release's landing commit. Safe to re-run: the proxy answers from its
+# while it was private is seeded the day it goes public, by passing that
+# release's landing commit. Safe to re-run: the proxy answers from its
 # immutable cache.
 set -euo pipefail
 
@@ -24,11 +26,11 @@ source "$(dirname "$0")/common.sh"
 
 echo "Seed Module Proxy..."
 
-head_sha="$(git rev-parse HEAD)"
-released="$(released_versions_at_head)"
+commit_sha="$(resolve_release_commit "${1:-}")"
+released="$(released_versions_at "${commit_sha}")"
 if [ -z "${released}" ]; then
-  echo "No release tags on origin point at HEAD (${head_sha})." >&2
-  echo "Run this from a release PR's landing commit, after the release-tags workflow has pushed its tags." >&2
+  echo "No release tags on origin point at ${commit_sha}." >&2
+  echo "Name a release PR's landing commit as the argument (HEAD when omitted), once the release-tags workflow has pushed its tags." >&2
   exit 1
 fi
 
@@ -56,4 +58,4 @@ echo "Content hashes as served by the proxy, which must match scripts/verify-rel
 echo ""
 module_hash_lines "${scratch}"/*.json
 echo ""
-echo "✅ Seeded ${count} module release(s) at ${head_sha} into the public module ecosystem."
+echo "✅ Seeded ${count} module release(s) at ${commit_sha} into the public module ecosystem."

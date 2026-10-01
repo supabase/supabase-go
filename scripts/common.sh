@@ -101,18 +101,31 @@ unreleased_entry_lines() {
   ' "$1/CHANGELOG.md"
 }
 
-# Print the releases the remote's tags declare at HEAD, one 'module version'
-# line per workspace module whose '<module>/<version>' tag on origin points
-# at HEAD's commit, in go.work order. Reads origin rather than local tags, so
-# the result reflects what the release-tags workflow actually pushed, and
-# prints nothing when no release tag points at HEAD - callers decide whether
+# Resolve a commit reference to its full SHA, HEAD when the reference is
+# empty, failing with guidance when it names nothing in this clone. $1 is
+# the reference, typically a script's optional argument naming a release
+# PR's landing commit.
+resolve_release_commit() {
+  local reference="${1:-HEAD}"
+  if ! git rev-parse --verify --quiet "${reference}^{commit}"; then
+    echo "'${reference}' does not name a commit in this clone. Fetch first, or check the reference." >&2
+    return 1
+  fi
+}
+
+# Print the releases the remote's tags declare at a commit, one
+# 'module version' line per workspace module (per the current checkout's
+# go.work) whose '<module>/<version>' tag on origin points at that commit,
+# in go.work order. Reads origin rather than local tags, so the result
+# reflects what the release-tags workflow actually pushed, and prints
+# nothing when no release tag points at the commit - callers decide whether
 # that is an error. Returns non-zero when a module carries several tags at
-# HEAD or a tag's version half is not SemVer.
-released_versions_at_head() {
-  local head_sha remote_tags module version
-  head_sha="$(git rev-parse HEAD)"
+# the commit or a tag's version half is not SemVer. $1 is the full commit
+# SHA.
+released_versions_at() {
+  local commit_sha="$1" remote_tags module version
   remote_tags="$(git ls-remote --tags origin \
-    | awk -v sha="${head_sha}" '
+    | awk -v sha="${commit_sha}" '
         $1 == sha { tag = $2; sub(/^refs\/tags\//, "", tag); sub(/\^\{\}$/, "", tag); print tag }
       ' \
     | sort -u)"
@@ -121,11 +134,11 @@ released_versions_at_head() {
     version="$(printf '%s\n' "${remote_tags}" | sed -n "s|^${module}/||p")"
     [ -n "${version}" ] || continue
     if [ "$(printf '%s\n' "${version}" | wc -l)" -ne 1 ]; then
-      echo "Several ${module}/ tags on origin point at HEAD: $(printf '%s\n' "${version}" | tr '\n' ' ')" >&2
+      echo "Several ${module}/ tags on origin point at ${commit_sha}: $(printf '%s\n' "${version}" | tr '\n' ' ')" >&2
       return 1
     fi
     if ! printf '%s' "${version}" | grep -Eq "$(semver_version_pattern)"; then
-      echo "Tag ${module}/${version} on origin points at HEAD but does not carry a SemVer version." >&2
+      echo "Tag ${module}/${version} on origin points at ${commit_sha} but does not carry a SemVer version." >&2
       return 1
     fi
     printf '%s %s\n' "${module}" "${version}"
