@@ -16,7 +16,7 @@ set -euo pipefail
 source "$(dirname "$0")/common.sh"
 workspace_modules="$(enumerate_workspace_modules)"
 
-module_base="github.com/supabase/supabase-go"
+module_base="$(module_path_base)"
 zero_pseudo_version="v0.0.0-00010101000000-000000000000"
 
 echo "Check Release Consistency..."

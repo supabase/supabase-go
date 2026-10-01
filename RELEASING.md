@@ -65,11 +65,30 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
    Its run summary lists what it tagged - or states plainly that it detected no release, which is what every ordinary merge to `main` shows.
    If the run fails or its summary surprises you, see [Troubleshooting](#troubleshooting).
 
-6. Verify each released module resolves, which on a public repository also seeds the [module proxy](https://proxy.golang.org/), and [pkg.go.dev](https://pkg.go.dev/github.com/supabase/supabase-go/supabase) builds the documentation pages minutes later:
+6. Verify the tagged content:
 
    ```bash
-   GOWORK=off go list -m github.com/supabase/supabase-go/<module>@<version>
+   ./scripts/verify-release.sh [<landing-commit>]
    ```
+
+   It learns what was released from origin's tags pointing at the landing commit - HEAD when the argument is omitted, for the common case of running from a checkout of it - then downloads each version into a throwaway module cache under `/tmp` - straight from GitHub, touching neither the public module proxy nor the checksum database, so nothing is cached anywhere ahead of the next step - confirms a `LICENSE` sits in each module zip and prints the content hashes.
+
+   Keep the hash lines.
+
+   This release verification script also works while the repository is private, provided git can authenticate to GitHub without prompting ([go.dev FAQ](https://go.dev/doc/faq#git_https)).
+
+7. Seed the public Go module ecosystem, once the repository is public:
+
+   ```bash
+   ./scripts/seed-module-proxy.sh [<landing-commit>]
+   ```
+
+   It pulls the same tag-derived versions through [proxy.golang.org](https://proxy.golang.org/), which fetches each one from GitHub and caches it immutably - **the point of no return** - records its hashes in the [sum.golang.org](https://sum.golang.org) checksum database and leads [pkg.go.dev](https://pkg.go.dev/github.com/supabase/supabase-go/supabase) to build the documentation pages minutes later.
+
+   Its hash lines must match step 6's byte for byte, proving the proxy serves exactly what GitHub serves.
+
+   A release cut while the repository was private is seeded the day the repository goes public, by passing that release's landing commit.
+   The tags carry everything both scripts need, so any release stays reachable from the current checkout - including one whose landing commit predates the scripts themselves, which no checkout requirement could ever serve.
 
 ## Troubleshooting
 
@@ -179,10 +198,11 @@ The workflow run for that fix's landing commit pushes the release tags, which th
 
 ### After any recovery
 
-Confirm the end state: every declared version has its tag on the GitHub remote (fact 3 above) and every released module resolves, exactly as in step 6 of [Cut a release](#cut-a-release):
+Confirm the end state: every declared version has its tag on the GitHub remote (fact 3 above) and the tagged content verifies, exactly as in step 6 of [Cut a release](#cut-a-release).
+The argument is step 6's optional one, filled with the landing commit (fact 1) because recovery work seldom ends with HEAD checked out at it:
 
 ```bash
-GOWORK=off go list -m github.com/supabase/supabase-go/<module>@<version>
+./scripts/verify-release.sh <landing-commit>
 ```
 
 ## After a release

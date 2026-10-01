@@ -55,6 +55,22 @@ enumerate_consumer_shaped_modules() {
   printf '%s\n' telemetrytest
 }
 
+# Print the module path prefix every published module shares: a module
+# directory's full module path is this base, a slash, then the directory
+# name.
+module_path_base() {
+  printf '%s\n' 'github.com/supabase/supabase-go'
+}
+
+# Print the pattern matching a SemVer version with the leading 'v' Go module
+# versions require and an optional pre-release suffix (vX.Y.Z or vX.Y.Z-pre):
+# the form versions take in changelog headings, dep=version pin arguments and
+# the version half of a '<module>/<version>' tag. Extended regular expression
+# syntax, anchored at both ends.
+semver_version_pattern() {
+  printf '%s\n' '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'
+}
+
 # Print the pattern matching a well-formed changelog version heading,
 # '## `vX.Y.Z` (YYYY-MM-DD)' as scripts/prepare-release.sh stamps it, in the
 # extended regular expression syntax of grep -E and sed -E, capturing the
@@ -83,4 +99,71 @@ unreleased_entry_lines() {
     in_unreleased && /[^[:space:]]/ { entry_lines++ }
     END { print entry_lines + 0 }
   ' "$1/CHANGELOG.md"
+}
+
+# Resolve a commit reference to its full SHA, HEAD when the reference is
+# empty, failing with guidance when it names nothing in this clone. $1 is
+# the reference, typically a script's optional argument naming a release
+# PR's landing commit.
+resolve_release_commit() {
+  local reference="${1:-HEAD}"
+  if ! git rev-parse --verify --quiet "${reference}^{commit}"; then
+    echo "'${reference}' does not name a commit in this clone. Fetch first, or check the reference." >&2
+    return 1
+  fi
+}
+
+# Print the releases the remote's tags declare at a commit, one
+# 'module version' line per workspace module (per the current checkout's
+# go.work) whose '<module>/<version>' tag on origin points at that commit,
+# in go.work order. Reads origin rather than local tags, so the result
+# reflects what the release-tags workflow actually pushed, and prints
+# nothing when no release tag points at the commit - callers decide whether
+# that is an error. Returns non-zero when a module carries several tags at
+# the commit or a tag's version half is not SemVer. $1 is the full commit
+# SHA.
+released_versions_at() {
+  local commit_sha="$1" remote_tags module version
+  remote_tags="$(git ls-remote --tags origin \
+    | awk -v sha="${commit_sha}" '
+        $1 == sha { tag = $2; sub(/^refs\/tags\//, "", tag); sub(/\^\{\}$/, "", tag); print tag }
+      ' \
+    | sort -u)"
+  for module in $(enumerate_workspace_modules); do
+    module="${module#./}"
+    version="$(printf '%s\n' "${remote_tags}" | sed -n "s|^${module}/||p")"
+    [ -n "${version}" ] || continue
+    if [ "$(printf '%s\n' "${version}" | wc -l)" -ne 1 ]; then
+      echo "Several ${module}/ tags on origin point at ${commit_sha}: $(printf '%s\n' "${version}" | tr '\n' ' ')" >&2
+      return 1
+    fi
+    if ! printf '%s' "${version}" | grep -Eq "$(semver_version_pattern)"; then
+      echo "Tag ${module}/${version} on origin points at ${commit_sha} but does not carry a SemVer version." >&2
+      return 1
+    fi
+    printf '%s %s\n' "${module}" "${version}"
+  done
+}
+
+# Download one module version into the caller's GOMODCACHE with
+# 'go mod download -json', writing the JSON report to $2 and surfacing the
+# report's Error field as a failure. The caller's environment picks the
+# route: GOPROXY=direct fetches from the VCS origin, a proxy URL fetches
+# through that proxy. $1 is a 'modulepath@version' reference.
+download_module_json() {
+  go mod download -json "$1" > "$2" || true
+  local error
+  error="$(jq -r '.Error // empty' "$2")"
+  if [ -n "${error}" ]; then
+    echo "${error}" >&2
+    return 1
+  fi
+}
+
+# Print go.sum-shaped hash lines (the zip hash line, then the go.mod hash
+# line, per module) from the given 'go mod download -json' reports, in
+# argument order. Two runs that downloaded the same versions by different
+# routes must print identical lines, or the routes served different content.
+module_hash_lines() {
+  jq -r '"\(.Path) \(.Version) \(.Sum)", "\(.Path) \(.Version)/go.mod \(.GoModSum)"' "$@"
 }

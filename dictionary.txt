@@ -17,6 +17,11 @@ GOBIN
 GOENV
 GOEXPERIMENT
 GOFLAGS
+GOMODCACHE
+GONOPROXY
+GONOSUMDB
+GOPRIVATE
+GOPROXY
 GOTOOLCHAIN
 gobuildid
 godoc
@@ -40,6 +45,7 @@ jwks
 ldflags
 mistargeted
 mockability
+modcache
 multimap
 nativeness
 nullable
