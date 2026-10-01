@@ -3,7 +3,7 @@
 The official Supabase SDK for Go. This is a multi-module monorepo, currently in early pre-release development.
 
 > [!CAUTION]
-> Status: pre-Alpha. The public surface is being established and is not yet tagged for general use.
+> Status: Alpha. Modules are tagged for use, and their public surfaces may change in breaking ways between releases until `v1.0.0`.
 
 ## Modules
 

@@ -14,7 +14,7 @@ Keeping the surface under tight first-party control through the hardening window
 ## What is welcome now
 
 - Bug reports and reproductions via GitHub issues.
-- Feedback on the API surface and developer experience via GitHub Discussions.
+- Feedback on the API surface and developer experience via GitHub issues.
 
 ## Building locally
 
