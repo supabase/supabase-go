@@ -6,7 +6,7 @@
 # before a release PR and in the release-tags workflow before it pushes tags.
 #
 # It catches the anticipated release failure modes: a malformed or duplicate
-# changelog version heading, a missing or misplaced Unreleased heading, a
+# changelog version heading, a misplaced or empty Unreleased section, a
 # sibling require left at the zero pseudo-version once the sibling has
 # releases (a forgotten pin), a require naming a version the sibling never
 # declared (a typo'd pin, or a release prepared out of dependency order) and
@@ -37,11 +37,20 @@ for module in ${workspace_modules}; do
     continue
   fi
 
-  if [ "$(grep -cx '## Unreleased' "${changelog}")" -ne 1 ]; then
-    fail "${changelog} must carry exactly one '## Unreleased' heading."
-  fi
-  if [ "$(grep -E '^## ' "${changelog}" | head -n 1)" != "## Unreleased" ]; then
-    fail "${changelog} must open its sections with '## Unreleased'."
+  # The Unreleased section is optional, but when present it opens the
+  # changelog and holds entries (see the root CHANGELOG.md).
+  unreleased_headings="$(grep -cx '## Unreleased' "${changelog}" || true)"
+  if [ "${unreleased_headings}" -gt 1 ]; then
+    fail "${changelog} carries more than one '## Unreleased' heading."
+  elif [ "${unreleased_headings}" -eq 1 ]; then
+    if [ "$(grep -E '^## ' "${changelog}" | head -n 1)" != "## Unreleased" ]; then
+      fail "${changelog} must open its sections with '## Unreleased'."
+    fi
+    if [ "$(unreleased_entry_lines "${module}")" -eq 0 ]; then
+      fail "${changelog} carries an empty '## Unreleased' section - add the heading only alongside an entry."
+    fi
+  elif [ -z "$(declared_module_versions "${module}")" ]; then
+    fail "${changelog} has neither an '## Unreleased' section nor a release."
   fi
 
   # A level-two heading that is neither Unreleased nor a well-formed version

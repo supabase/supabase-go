@@ -22,6 +22,7 @@ Our changelog files **DO NOT**:
   ```markdown
   ## Unreleased
   ```
+- include an empty unreleased section at the top, because an empty section above the newest release draws the eye away from it. The heading exists only once there are entries to document, added by the first future iteration with user-facing change the follows a release.
 - embed links into any headings, as this is confusing in the GitHub viewing context, prompting the reader to wonder if a click would link to that heading or the underlying diff view.
 - include links to GitHub-rendered diffs, and thus do not embed reliance on GitHub's `org/repo/compare/X...Y` endpoints.
 

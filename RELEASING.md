@@ -21,7 +21,7 @@ Tags for a module in a subdirectory [are path-prefixed](https://go.dev/ref/mod#v
 
 In the tree, the newest version heading in a module's [changelog](CHANGELOG.md) declares that module's current version: `scripts/prepare-release.sh` writes it and [the Release Tags workflow](.github/workflows/release-tags.yml) reads it to know what to tag.
 Choose each module's next version by hand from the entries under the `## Unreleased` heading of its changelog, which accumulate as changes merge.
-A module with an empty `## Unreleased` section has nothing to release, and the prepare script refuses to prepare it.
+A module whose changelog has no `## Unreleased` section has nothing to release, and the prepare script refuses to prepare it.
 
 We treat `v1` as a long-term commitment to backward compatibility, in line with Go's own module versioning philosophy. Because Go enforces [Semantic Import Versioning](https://go.dev/doc/modules/major-version), bumping a module to `v2` requires changing its import path (appending `/v2`). This requires changes to all downstream consumers, forcing them to manually rewrite their imports, reflecting the breaking nature of the major release. To avoid this friction and ecosystem fragmentation, our goal is to evolve the SDK's APIs backward-compatibly indefinitely and never require a `v2` release.
 
@@ -44,7 +44,7 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
    ./scripts/prepare-release.sh supabase v0.1.0-alpha.1 core=v0.1.0-alpha.1 auth=v0.1.0-alpha.1 postgrest=v0.1.0-alpha.1
    ```
 
-   For each module the script refuses to run unless the tree is clean and the module's changelog has entries under `## Unreleased`, pins the sibling `require` lines to the given `dep=version` arguments (aborting if any sibling is left at the zero pseudo-version, the mark of a forgotten pin), stamps the changelog - the `## Unreleased` heading becomes `## <version> - <date>` with a fresh, empty `## Unreleased` inserted above it - and re-tidies the non-published modules (the integration tests, the examples and `telemetrytest`) with `GOWORK=off`, so every module's recorded versions stay consistent with the new graph and CI stays green.
+   For each module the script refuses to run unless the tree is clean and the module's changelog has entries under `## Unreleased`, pins the sibling `require` lines to the given `dep=version` arguments (aborting if any sibling is left at the zero pseudo-version, the mark of a forgotten pin), stamps the changelog - the `## Unreleased` heading becomes `## <version> - <date>` - and re-tidies the non-published modules (the integration tests, the examples and `telemetrytest`) with `GOWORK=off`, so every module's recorded versions stay consistent with the new graph and CI stays green.
    It never commits, tags or pushes.
 
 3. Run the pre-flight check, which joins the dots across everything the session prepared:

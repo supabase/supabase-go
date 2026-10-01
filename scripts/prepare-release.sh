@@ -87,7 +87,7 @@ release_date="$(date -u +%F)"
 version_heading="## ${version} - ${release_date}"
 
 if [ "$(grep -cx '## Unreleased' "${changelog}")" -ne 1 ]; then
-  echo "${changelog} must carry exactly one '## Unreleased' heading." >&2
+  echo "${changelog} needs exactly one '## Unreleased' section, holding the entries to release." >&2
   exit 1
 fi
 if declared_module_versions "${module_dir}" | grep -qx "${version}"; then
@@ -95,16 +95,7 @@ if declared_module_versions "${module_dir}" | grep -qx "${version}"; then
   exit 1
 fi
 
-# Any non-blank line between the Unreleased heading and the next section
-# counts as an entry: initial-release entries are plain paragraphs, later
-# ones grouped bullets.
-unreleased_entry_lines="$(awk '
-  $0 == "## Unreleased" { in_unreleased = 1; next }
-  /^## / { in_unreleased = 0 }
-  in_unreleased && NF { entry_lines++ }
-  END { print entry_lines + 0 }
-' "${changelog}")"
-if [ "${unreleased_entry_lines}" -eq 0 ]; then
+if [ "$(unreleased_entry_lines "${module_dir}")" -eq 0 ]; then
   echo "${changelog} has nothing under '## Unreleased', and a release must have something to say." >&2
   exit 1
 fi
@@ -124,9 +115,9 @@ if grep -q 'v0.0.0-00010101000000-000000000000' "${module_dir}/go.mod"; then
   exit 1
 fi
 
-echo "==> stamp ${changelog}: '${version_heading}'"
+echo "==> stamp ${changelog}: '## Unreleased' becomes '${version_heading}'"
 awk -v version_heading="${version_heading}" '
-  $0 == "## Unreleased" { print; print ""; print version_heading; next }
+  $0 == "## Unreleased" { print version_heading; next }
   { print }
 ' "${changelog}" > "${changelog}.tmp"
 mv "${changelog}.tmp" "${changelog}"
