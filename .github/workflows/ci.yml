@@ -151,3 +151,8 @@ jobs:
       # via check-fast.sh.
       - name: Assert published module requires resolve and respect the DAG
         run: ./scripts/check-module-paths.sh
+
+      # Release bookkeeping invariants that hold true on every commit, release or not.
+      # See RELEASING.md for more details.
+      - name: Assert release bookkeeping is consistent
+        run: ./scripts/check-release-consistency.sh

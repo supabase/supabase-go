@@ -41,3 +41,25 @@ enumerate_example_modules() {
     examples/database-standalone \
     examples/tracing-otel
 }
+
+# Enumerate every non-published consumer-shaped module: the adjacent test
+# modules, the example programs and the telemetrytest consumer probe. All but
+# integration-testing/testkit require SDK modules and resolve them from the
+# local tree through replace directives, so scripts/prepare-release.sh
+# re-tidies each one after pinning a published module's sibling requires,
+# keeping their recorded versions consistent with the new module graph
+# (testkit rides along from the adjacent set; its tidy is a no-op).
+enumerate_consumer_shaped_modules() {
+  enumerate_adjacent_test_modules
+  enumerate_example_modules
+  printf '%s\n' telemetrytest
+}
+
+# Print the versions a published module's changelog declares, one per
+# well-formed '## vX.Y.Z - YYYY-MM-DD' heading, newest first (headings are
+# prepended by scripts/prepare-release.sh, whose stamp is the declaration of
+# a release). $1 is the module directory. Malformed headings print nothing
+# here and are caught by scripts/check-release-consistency.sh.
+declared_module_versions() {
+  sed -En 's/^## (v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?) - [0-9]{4}-[0-9]{2}-[0-9]{2}$/\1/p' "$1/CHANGELOG.md"
+}

@@ -1,0 +1,38 @@
+name: Release Tags
+
+# Runs on every push to main and is a no-op unless the pushed commit declares
+# a release: a merged release PR leaves each released module's changelog with
+# a newest version heading that has no corresponding '<module>/<version>' tag
+# yet, and this workflow pushes exactly those missing tags at the pushed
+# commit. Existing tags are never touched, so re-running a failed run (which
+# executes at the original commit) completes a partial tag push. See
+# RELEASING.md for the procedure and the fallbacks.
+on:
+  push:
+    branches: [main]
+
+# Pushing tags needs write access to repository contents. The checkout
+# action's persisted GITHUB_TOKEN credentials carry it into git push.
+permissions:
+  contents: write
+
+jobs:
+  release-tags:
+
+    # Versioned runner label rather than the ubuntu-latest alias, as in
+    # ci.yml: bumped deliberately, like every other pin (see decisions.md).
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # The scripts call `go work edit` / `go mod edit` (jq is part of the
+      # runner image). Tagging is our own environment, so it tracks stable.
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: stable
+          cache: false
+
+      # The same pre-flight the release PR already passed, re-run at the
+      # landing commit itself before anything irreversible happens.
+      - run: ./scripts/check-release-consistency.sh
+      - run: ./scripts/push-release-tags.sh

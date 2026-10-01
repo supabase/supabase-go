@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run every fast local check in sequence, from the repository root: build and
-# test, telemetry header test, module-path check, lint, vulnerability scan and
-# spell check.
+# test, telemetry header test, module-path check, release-consistency check,
+# lint, vulnerability scan and spell check.
 # A convenience for a pre-push sweep that invokes each sibling exactly as CI does
 # (./scripts/<name>.sh). CI does NOT call this aggregate - it runs each script as
 # its own job so a failure stays clearly attributable to one concern.
@@ -15,6 +15,7 @@ set -euo pipefail
 ./scripts/build-and-test.sh
 ./scripts/telemetry-test.sh
 ./scripts/check-module-paths.sh
+./scripts/check-release-consistency.sh
 ./scripts/lint.sh
 ./scripts/vulncheck.sh
 ./scripts/spell-check.sh

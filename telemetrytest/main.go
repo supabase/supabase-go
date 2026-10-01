@@ -24,8 +24,8 @@ import (
 // requiredRootVersion and requiredPostgrestVersion mirror the require
 // directives in go.mod, stripped of their "v" prefix.
 const (
-	requiredRootVersion      = "0.999.1-fabricated"
-	requiredPostgrestVersion = "0.999.2-fabricated"
+	requiredRootVersion      = "1.999.1-fabricated"
+	requiredPostgrestVersion = "1.999.2-fabricated"
 )
 
 func main() {

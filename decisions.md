@@ -292,11 +292,12 @@ GitHub falls back to the organization's `supabase/.github` files for any reposit
 A repo-local copy would silently shadow the org default and drift from it, so asserting absence beats maintaining a duplicate.
 The one posture that does not belong at org level - that external code contributions are not accepted before the first GA release - lives in `DEVELOPMENT.md` instead.
 
-## Merge strategy and commit conventions during incubation
+## Merge strategy and commit conventions
 
-Both decisions below deliberately diverge from apparent Supabase house defaults (squash-only merging, Conventional Commit PR titles).
+Both decisions below deliberately diverge from the approach taken by other Supabase repositories - the "house defaults" (squash-only merging, Conventional Commit PR titles) - including those in the SDK domain.
 Those defaults serve downstream release automation, which wants exactly one conventional commit per PR from which to infer changelogs and version bumps.
-This repository is incubating - private, unreleased, no consumers, no release pipeline - so the constraint that motivates the defaults does not yet apply, and both decisions are revisited as a pair alongside the release-tooling choice ahead of the first release.
+This SDK is taking a progressive changelog update approach, where changelog-worthy updates to the codebase are required to atomically submit a changelog entry under the 'Unreleased' heading for relevant modules.
+Each module's next version is then chosen by hand at release time, from the entries under its 'Unreleased' heading.
 
 ### PRs land as merge commits, not squashes
 
@@ -318,11 +319,8 @@ When the repo opens to external contributions that guarantee weakens, so this is
 Commit messages and PR titles are ordinary well-formed Git messages - an imperative summary line, with a body explaining why where needed - carrying no `type(scope):` grammar and no `BREAKING CHANGE` footers.
 
 **Why**:  
-Conventional Commits is a machine-facing grammar whose purpose is to let release tooling infer version bumps and generate changelogs; with nothing released, no consumers and no release automation, no machine reads the prefixes and the grammar is pure ceremony.
-Its vocabulary is also semantically empty pre-release: a `BREAKING CHANGE` marker on a library nobody has ever depended on breaks no one, and SemVer itself defines major version zero as initial development in which anything may change at any time.
-Adopting the grammar now would also quietly pre-commit the release-tooling decision, which is deliberately open: progressive changelog updates curated as part of each PR remain on the table alongside commit-parsing tools like release-please, and the curated-changelog path needs no commit grammar at all.
-Commit-parsing tools read history forward from a configurable starting point, so the convention can be adopted the moment it gains a consumer without the pre-adoption history ever needing to conform.
-If the house squash style is adopted at the same time, the convention collapses to well-formed PR titles alone.
+Conventional Commits is a machine-facing grammar whose purpose is to let release tooling infer version bumps and generate changelogs.
+In this SDK both are done by hand, so no machine would read the grammar.
 
 ## Agent guidance lives in `.agents/skills`, and a root `.gitignore` keeps other agent surfaces out
 
@@ -530,7 +528,7 @@ The floor leg exists because only a live-stack run exercises the consumer floor 
 ## `X-Client-Info` resolution is verified by an out-of-tree consumer program
 
 **What**:  
-The `telemetrytest/` module is a stand-in consumer: it requires the SDK modules at fabricated, self-labeled versions (`v0.999.1-fabricated` supabase, `v0.999.2-fabricated` postgrest), `replace`s them to the local working tree and its main program asserts the exact `X-Client-Info` value each entry point sends to a local HTTP server.
+The `telemetrytest/` module is a stand-in consumer: it requires the SDK modules at fabricated, self-labeled versions (`v1.999.1-fabricated` supabase, `v1.999.2-fabricated` postgrest), `replace`s them to the local working tree and its main program asserts the exact `X-Client-Info` value each entry point sends to a local HTTP server.
 `scripts/telemetry-test.sh` runs it with `GOWORK=off` and the module is not listed in `go.work`.
 A second leg rebuilds the same program in GOPATH mode (`GO111MODULE=off`), where binaries carry build information without module records, and asserts the version-unknowable `0.0.0` fallback in every header.
 The `TELEMETRY_TEST_MODE` environment variable tells the program which expectations to hold.
@@ -543,7 +541,7 @@ The branch every published-module consumer exercises - reading client versions f
 It must be a plain program because `go build` and `go run` stamp dependency records into binaries while `go test` binaries record the main module and no dependencies (observed on go1.26), which rules out expressing the probe as a test suite.
 Workspace membership would defeat the vantage from the other side - a workspace build supplies the SDK modules as local source with no resolvable versions - so the module stays out of `go.work` and the script forces `GOWORK=off`.
 The fabricated versions are distinct from every sentinel the header can otherwise carry (`(devel)` in-tree, `0.0.0` without build information), so a pass is unambiguous provenance, and their `-fabricated` prerelease label keeps the header values in check output from reading as release claims.
-Each must outrank every other require of the same module path in this build so minimal version selection keeps it as the selected, recorded version: `0.999.x` outranks the entire real `v0` series and deliberately loses to the first real `v1` require, so the fixture fails loudly at GA instead of surviving it silently.
+Each must outrank every other require of the same module path in this build so minimal version selection keeps it as the selected, recorded version: `1.999.x` outranks every real `v1` version, pre-releases included, and a `v2` would live at a new module path.
 The floor leg exists because the header is consumer-facing behavior, so it must hold at the consumer floor.
 The GOPATH leg exists because module-record-free binaries are otherwise not exercised at all - every matrix toolchain is now 1.24 or later, so even test binaries carry module records - while GOPATH mode produces them deterministically on every toolchain.
 The expected versions come from the environment rather than from the binary's own build information, which would assert whatever branch actually ran and pass even when a leg lands in the wrong branch.
