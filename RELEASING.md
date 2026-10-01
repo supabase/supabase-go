@@ -21,7 +21,7 @@ Tags for a module in a subdirectory [are path-prefixed](https://go.dev/ref/mod#v
 
 In the tree, the newest version heading in a module's [changelog](CHANGELOG.md) declares that module's current version: `scripts/prepare-release.sh` writes it and [the Release Tags workflow](.github/workflows/release-tags.yml) reads it to know what to tag.
 Choose each module's next version by hand from the entries under the `## Unreleased` heading of its changelog, which accumulate as changes merge.
-A module with an empty `## Unreleased` section has nothing to release, and the prepare script refuses to prepare it.
+A module whose changelog has no `## Unreleased` section has nothing to release, and the prepare script refuses to prepare it.
 
 We treat `v1` as a long-term commitment to backward compatibility, in line with Go's own module versioning philosophy. Because Go enforces [Semantic Import Versioning](https://go.dev/doc/modules/major-version), bumping a module to `v2` requires changing its import path (appending `/v2`). This requires changes to all downstream consumers, forcing them to manually rewrite their imports, reflecting the breaking nature of the major release. To avoid this friction and ecosystem fragmentation, our goal is to evolve the SDK's APIs backward-compatibly indefinitely and never require a `v2` release.
 
@@ -44,7 +44,7 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
    ./scripts/prepare-release.sh supabase v0.1.0-alpha.1 core=v0.1.0-alpha.1 auth=v0.1.0-alpha.1 postgrest=v0.1.0-alpha.1
    ```
 
-   For each module the script refuses to run unless the tree is clean and the module's changelog has entries under `## Unreleased`, pins the sibling `require` lines to the given `dep=version` arguments (aborting if any sibling is left at the zero pseudo-version, the mark of a forgotten pin), stamps the changelog - the `## Unreleased` heading becomes `## <version> - <date>` with a fresh, empty `## Unreleased` inserted above it - and re-tidies the non-published modules (the integration tests, the examples and `telemetrytest`) with `GOWORK=off`, so every module's recorded versions stay consistent with the new graph and CI stays green.
+   For each module the script refuses to run unless the tree is clean and the module's changelog has entries under `## Unreleased`, pins the sibling `require` lines to the given `dep=version` arguments (aborting if any sibling is left at the zero pseudo-version, the mark of a forgotten pin), stamps the changelog - the `## Unreleased` heading becomes ``## `<version>` (<date>)`` - and re-tidies the non-published modules (the integration tests, the examples and `telemetrytest`) with `GOWORK=off`, so every module's recorded versions stay consistent with the new graph and CI stays green.
    It never commits, tags or pushes.
 
 3. Run the pre-flight check, which joins the dots across everything the session prepared:
@@ -54,6 +54,7 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
    ```
 
    It works from committed files alone - no network and no Go module resolution, because pinned versions cannot resolve until their tags exist - and catches the anticipated failure modes: malformed or duplicate version headings, a forgotten pin, a pin naming a version its module never declared and a release prepared out of dependency order.
+   Between the prepare commits of a multi-module release it fails on the pins not yet made - expected, and [explained in Troubleshooting](#the-consistency-check-failed-part-way-through-preparing-a-release).
    CI runs the same script on every push, and the release-tags workflow runs it once more before pushing tags.
 
 4. Push the branch and open the PR.
@@ -72,11 +73,24 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
 
 ## Troubleshooting
 
-A merged release PR puts `main` into a state that cannot regress: its landing commit permanently declares the release, through each released module's newest changelog heading and pinned `require` lines.
+The first entry below is the one expected failure, met part-way through cutting a release, and needs no recovery.
+Every other entry concerns a merged release PR, which puts `main` into a state that cannot regress: its landing commit permanently declares the release, through each released module's newest changelog heading and pinned `require` lines.
+
 Tags are the only artifact that can be missing.
 Every recovery below therefore drives at one end state: for each released module, a tag `<module>/<version>` exists on the GitHub remote, pointing at the landing commit.
 No recovery path modifies `main`, none touches an existing tag and the tag script skips whatever already exists, so each path is safe to attempt and safe to repeat.
 A consumer who fetches while only some of the tags exist sees a transient resolution failure, healed the moment the remaining tags land.
+
+### The consistency check failed part-way through preparing a release
+
+State: between the per-module commits of a multi-module release, `check-release-consistency.sh` - run directly or through `check-fast.sh` - fails with "a forgotten dep=version pin" complaints against the modules not yet prepared.
+The check joins the dots across the whole repository, and mid-sequence the dots genuinely do not join: a prepared module's changelog already declares the new version while a dependent yet to be prepared still carries the zero pseudo-version placeholder.
+At that moment a forgotten pin and a pin not yet made are indistinguishable, and stopping a half-released state from reaching `main` unnoticed is this check's whole purpose.
+
+Fix: nothing needs recovering - finish the sequence.
+Prepare and commit the remaining modules, and the last pin written turns the check green, which is why [Cut a release](#cut-a-release) places the pre-flight after every module is prepared.
+CI never sees the intermediate states: the branch is pushed once carrying all its commits, CI checks its tip and the release-tags workflow checks the landing commit on `main`.
+The intermediate commits stay inconsistent in history, visible only to a `git bisect` that runs the check across the release PR's commits, an inherent and accepted cost of preparing each module in its own commit.
 
 ### Establish the state
 

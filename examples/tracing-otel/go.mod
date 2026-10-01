@@ -16,8 +16,8 @@ replace (
 )
 
 require (
-	github.com/supabase/supabase-go/core v0.0.0-00010101000000-000000000000
-	github.com/supabase/supabase-go/postgrest v0.0.0-00010101000000-000000000000
+	github.com/supabase/supabase-go/core v0.1.0-alpha.1
+	github.com/supabase/supabase-go/postgrest v0.1.0-alpha.1
 	github.com/supabase/supabase-go/supabase v0.0.0-00010101000000-000000000000
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0
 	go.opentelemetry.io/otel v1.46.0
@@ -34,7 +34,7 @@ require (
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/supabase/supabase-go/auth v0.0.0-00010101000000-000000000000 // indirect
+	github.com/supabase/supabase-go/auth v0.1.0-alpha.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/metric v1.46.0 // indirect
 	go.opentelemetry.io/otel/trace v1.46.0 // indirect
