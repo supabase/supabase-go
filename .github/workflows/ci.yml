@@ -21,8 +21,8 @@ jobs:
       matrix:
         go-version: ["1.26", "stable"]
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ matrix.go-version }}
           # The action's implicit cache expects a root go.mod, which this
@@ -46,8 +46,8 @@ jobs:
       matrix:
         go-version: ["1.26", "stable"]
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ matrix.go-version }}
           cache: false
@@ -66,13 +66,13 @@ jobs:
 
   # Lint calls a single script that is also what developers run locally
   # (identical command in both places). Tool versions are checksum-pinned in
-  # tools/go/go.mod + tools/go/go.sum. The vulnerability scan runs from its
+  # the tool modules under tools/go. The vulnerability scan runs from its
   # own workflow, vulnerability-scan.yml, on a superset of these triggers.
   lint:
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
           cache: false
@@ -84,8 +84,8 @@ jobs:
   spell-check:
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - run: npm ci --prefix tools/node
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: (cd tools/node && npm ci)
       - run: ./scripts/spell-check.sh
 
   # Validates the external URLs in the published modules' comments by probing
@@ -96,8 +96,8 @@ jobs:
   comment-check:
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
           cache: false
@@ -106,12 +106,12 @@ jobs:
   repository-structure:
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # check-module-paths.sh calls `go work edit` / `go mod edit`, so this job
       # needs the toolchain (jq is part of the runner image). Structural
       # checks are our own environment, so it tracks stable like lint and vuln.
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
           cache: false
