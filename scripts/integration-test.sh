@@ -42,7 +42,7 @@ case "$(uname -m)" in
 esac
 case "${cli_os}_${cli_arch}" in
   linux_arm64) cli_sha256="3f552f0a3af30fe577c2820df09506a0e1233256441246b0850ed60806ff319d" ;;
-  linux_amd64) cli_sha256="9983f1c15bbba98693542a654f13e8e09899689c3806559478e7fc1f8eed9a36" ;;
+  linux_amd64) cli_sha256="bf1c3ae93be98533eb8a3105dbf4564bd0b2d9dc24690d8a920f980ef975c1b4" ;;
   darwin_arm64) cli_sha256="cc80ee3a681a2ae735e6d494d9defc56aa6746b487980f6eed39fed8a98f0760" ;;
   darwin_amd64) cli_sha256="9983f1c15bbba98693542a654f13e8e09899689c3806559478e7fc1f8eed9a36" ;;
   *) echo "No pinned checksum for ${cli_os}_${cli_arch}" >&2; exit 1 ;;
