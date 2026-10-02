@@ -28,7 +28,7 @@ set -euo pipefail
 
 source "$(dirname "$0")/common.sh"
 
-SUPABASE_CLI_VERSION="2.114.0"
+SUPABASE_CLI_VERSION="2.119.0"
 
 case "$(uname -s)" in
   Linux) cli_os="linux" ;;
@@ -41,10 +41,10 @@ case "$(uname -m)" in
   *) echo "Unsupported architecture for the Supabase CLI: $(uname -m)" >&2; exit 1 ;;
 esac
 case "${cli_os}_${cli_arch}" in
-  linux_arm64) cli_sha256="7bf55ea89c8ae48a101a9856c1cef22da8e2019ddcd451499249033652cacefa" ;;
-  linux_amd64) cli_sha256="f36a33ca867f1cce9ba5efa705863fdc545d1465d3719a721793ea67eb692c5a" ;;
-  darwin_arm64) cli_sha256="bdd67161af7c7e537e15ec72db2f2c59bca569b41d959bcaaec7004ba400e653" ;;
-  darwin_amd64) cli_sha256="e03bf7cf5c49ba777ff4d65fd77e786a295fd7db4f1d6c6658b1505e7b15d512" ;;
+  linux_arm64) cli_sha256="3f552f0a3af30fe577c2820df09506a0e1233256441246b0850ed60806ff319d" ;;
+  linux_amd64) cli_sha256="9983f1c15bbba98693542a654f13e8e09899689c3806559478e7fc1f8eed9a36" ;;
+  darwin_arm64) cli_sha256="cc80ee3a681a2ae735e6d494d9defc56aa6746b487980f6eed39fed8a98f0760" ;;
+  darwin_amd64) cli_sha256="9983f1c15bbba98693542a654f13e8e09899689c3806559478e7fc1f8eed9a36" ;;
   *) echo "No pinned checksum for ${cli_os}_${cli_arch}" >&2; exit 1 ;;
 esac
 
