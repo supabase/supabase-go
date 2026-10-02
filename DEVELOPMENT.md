@@ -338,7 +338,7 @@ For example, upgrading from `2.109.1` to `2.114.0`:
 ```bash
 export VERSION=2.114.0
 curl -fsSL "https://github.com/supabase/cli/releases/download/v${VERSION}/checksums.txt" \
-  | grep -E "supabase_${VERSION}_(linux|darwin)_(amd64|arm64)\.tar\.gz$"
+  | grep -E "supabase_${VERSION}_(linux|darwin)_(amd64|arm64)\.tar\.gz$" | sort
 ```
 
 Copy each of the four SHA-256 values printed by that command into the matching `cli_sha256=` line of the `case "${cli_os}_${cli_arch}"` block in `scripts/integration-test.sh`, and set `SUPABASE_CLI_VERSION` to the new version (without the `v` prefix). Then run the integration tests to prove the pin fetches, verifies and starts the stack:
