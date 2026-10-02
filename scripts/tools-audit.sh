@@ -95,6 +95,7 @@ else
   tool_packages="$(GOWORK=off go -C tools/go mod edit -json | jq -r '.Tool[].Path')"
   tool_modules="$(GOWORK=off go -C tools/go list -f '{{with .Module}}{{.Path}}{{end}}' ${tool_packages} | sort -u)"
   direct_modules="$(GOWORK=off go -C tools/go mod edit -json | jq -r '.Require[] | select(.Indirect != true) | .Path')"
+  declared_updates=0
   transitive_updates=0
   while read -r module_path current_version latest_version; do
     if printf '%s\n' "${tool_modules}" | grep -qxF "${module_path}"; then
@@ -105,15 +106,23 @@ else
       transitive_updates=$((transitive_updates + 1))
       continue
     fi
+    declared_updates=$((declared_updates + 1))
     echo "  ${module_path} (${label}) ${current_version}: ${highlight}${latest_version} available${reset}"
     echo "    release notes: https://pkg.go.dev/${module_path}@${latest_version}"
   done <<< "${module_updates}"
-  if [ "${transitive_updates}" -gt 0 ]; then
-    echo "  plus ${transitive_updates} transitive module update(s), carried along by the commands below"
+  # Transitive-only updates still conclude current: minimum version selection
+  # holds undeclared modules where the declared requirements put them, so they
+  # move when a declared bump requires newer.
+  if [ "${declared_updates}" -eq 0 ]; then
+    echo "  ✅ all current (${transitive_updates} transitive module update(s) exist deeper in the graph)"
+  else
+    if [ "${transitive_updates}" -gt 0 ]; then
+      echo "  plus ${transitive_updates} transitive module update(s), raised only as far as the declared modules require"
+    fi
+    echo "  bump every tool: GOWORK=off go -C tools/go get tool && GOWORK=off go -C tools/go mod tidy"
+    echo "  bump one module: GOWORK=off go -C tools/go get <module>@latest && GOWORK=off go -C tools/go mod tidy"
+    echo "  afterwards run: ./scripts/lint.sh && ./scripts/vulncheck.sh"
   fi
-  echo "  bump every tool: GOWORK=off go -C tools/go get tool && GOWORK=off go -C tools/go mod tidy"
-  echo "  bump one module: GOWORK=off go -C tools/go get <module>@latest && GOWORK=off go -C tools/go mod tidy"
-  echo "  afterwards run: ./scripts/lint.sh && ./scripts/vulncheck.sh"
 fi
 
 echo
