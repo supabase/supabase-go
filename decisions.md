@@ -169,6 +169,7 @@ The published modules are dependency-free, leaving a module cache little to rest
 
 **What**:  
 Versions are resolved to latest at setup and refreshed on demand by the maintainer while the repo is under solo active development.
+Discovery is scripted while application stays manual: read-only [`scripts/tools-audit.sh`](scripts/tools-audit.sh) reports where every pin sits against its canonical origin and the bump route for each, and never applies anything.
 Dependabot security updates stay enabled via repo settings so advisories still raise a PR, but scheduled version-update PRs are deferred until the repo opens to broader contribution.
 
 **Why**:  

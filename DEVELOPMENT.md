@@ -185,6 +185,18 @@ Everything we execute from outside the repository is pinned to an immutable dige
 - **Companion control:** do not use `pull_request_target` in any workflow with access to secrets (see the [pwn-requests advisory](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/)).
 - **Node tooling:** the spell checker (cspell) is pinned the same way, one ecosystem over. Its entire dependency tree is locked by SHA-512 integrity hash in [`tools/node/package-lock.json`](tools/node/package-lock.json), the npm-native equivalent of `go.sum`, strictly used by `npm ci`.
 
+## Auditing tool currency
+
+Everything pinned above goes stale by design - refreshing a pin is a deliberate, reviewed act (see [`decisions.md`](decisions.md) on the manual update cadence). To report where every pin sits against its canonical origin, with the exact bump route for each:
+
+```bash
+./scripts/tools-audit.sh
+```
+
+It covers the GitHub Actions pins, the Go tool module ([`tools/go`](tools/go/)), the npm tool module ([`tools/node`](tools/node/)), the pinned Supabase CLI and the Go consumer floor. It is read-only and report-only: an available update is information rather than a failure, so the script sits outside `check-fast.sh` and CI, and it probes live origins (GitHub tags, the Go module proxy, the npm registry, go.dev) so it needs network access.
+
+Two pins sit outside its reach and are checked by eye when touched: the versioned runner image labels in the workflows (`runs-on: ubuntu-26.04` - compare against [GitHub's available images](https://github.com/actions/runner-images?tab=readme-ov-file#available-images)) and the Postgres `major_version` in [`integration-testing/supabase/config.toml`](integration-testing/supabase/config.toml), which follows the pinned CLI's default image rather than any independent origin.
+
 ## Degraded Dependabot "Dependency Graph" runs on GitHub
 
 The Actions tab lists a "Dependency Graph" workflow that this repository does not define. It is a [Dependabot graph job](https://docs.github.com/en/code-security/concepts/supply-chain-security/dependency-graph-data#dependabot-graph-jobs), run when a push to `main` changes a `go.mod`, and it feeds Dependabot alerts.
