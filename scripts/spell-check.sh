@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # Spell-check the repository's Go and Markdown sources with the pinned
 # cspell in tools/node. Run by CI and locally, identically, from the repository
-# root. Installing the tooling is a separate one-time step (`npm ci --prefix
-# tools/node`), deliberately NOT done here: this check runs repeatedly, so it must
-# not reinstall each time.
+# root. Installing the tooling is a separate one-time step (npm ci from
+# tools/node), deliberately NOT done here: this check runs repeatedly, so it
+# must not reinstall each time.
 set -euo pipefail
 
 echo "Spell Check..."
 
 if [ ! -d tools/node/node_modules ]; then
   echo "tools/node dependencies are not installed. Run this once, then retry:" >&2
-  echo "  npm ci --prefix tools/node" >&2
+  echo "  (cd tools/node && npm ci)" >&2
   exit 1
 fi
 

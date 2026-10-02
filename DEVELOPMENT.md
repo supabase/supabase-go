@@ -46,7 +46,7 @@ Lint and vulnerability scanning run via two scripts that are *exactly* what CI r
 Spell-checking uses [cSpell](https://cspell.org), via Node/npm:
 
 ```bash
-npm ci --prefix tools/node   # one-time setup (re-run only when the tools/node/package-lock.json lockfile changes)
+(cd tools/node && npm ci)    # one-time setup (re-run only when the tools/node/package-lock.json lockfile changes)
 ./scripts/spell-check.sh     # cspell - Go and Markdown sources
 ```
 
