@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Static-analysis suite across every module. Run by CI and locally, identically.
-# Tool versions are checksum-pinned in tools/go/go.mod + tools/go/go.sum; we build those
-# pinned tools once, then run the binaries against each module.
+# Tool versions are checksum-pinned in the tool modules under tools/go; we build
+# those pinned tools once, then run the binaries against each module.
 set -euo pipefail
 
 source "$(dirname "$0")/common.sh"
@@ -11,7 +11,7 @@ echo "Lint..."
 
 # Build the pinned tools standalone into a throwaway bin directory.
 # We build/install with GOWORK=off so the workspace Go version (this SDK's
-# consumer floor) does not interfere with the tools/go module's Go version.
+# consumer floor) does not interfere with the tool modules' own Go versions.
 toolbin="$(mktemp -d)"
 trap 'rm -rf "${toolbin}"' EXIT
 (
@@ -20,8 +20,13 @@ trap 'rm -rf "${toolbin}"' EXIT
     mvdan.cc/gofumpt \
     honnef.co/go/tools/cmd/staticcheck \
     github.com/kisielk/errcheck \
-    github.com/mgechev/revive \
-    golang.org/x/tools/gopls
+    github.com/mgechev/revive
+)
+# gopls builds from its own tool module, which holds golang.org/x/tools at the
+# exact commit its release requires (see decisions.md).
+(
+  cd tools/go/gopls
+  GOWORK=off GOBIN="${toolbin}" go install golang.org/x/tools/gopls
 )
 
 for module in ${workspace_modules}; do

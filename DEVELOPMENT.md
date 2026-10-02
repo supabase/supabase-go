@@ -36,7 +36,7 @@ Or, for all, from repository root:
 ./scripts/build-and-test.sh
 ```
 
-Lint and vulnerability scanning run via two scripts that are *exactly* what CI runs - same commands, same checksum-pinned tool versions (from `tools/go/go.mod` + `tools/go/go.sum`):
+Lint and vulnerability scanning run via two scripts that are *exactly* what CI runs - same commands, same checksum-pinned tool versions (from the `go.mod` + `go.sum` of each tool module under [`tools/go/`](tools/go/)):
 
 ```bash
 ./scripts/lint.sh       # gofumpt, go vet, staticcheck, errcheck, revive - all modules; then gopls check workspace-wide
@@ -181,7 +181,7 @@ This avoids the heavier weight `build-essential` meta-package, as well as option
 Everything we execute from outside the repository is pinned to an immutable digest, and that applies to **both** GitHub Actions and our Go tooling - first-party included, with no exemption.
 
 - **GitHub Actions:** every `uses:` is pinned to a full-length 40-character commit SHA, with the human-readable version in a trailing comment - for example `uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0`. A version tag like `@v7` is a *movable* git pointer: whoever controls it (or compromises the publisher) can re-point it at malicious code that then runs with the workflow's token and secrets. Actions have no lockfile, so the SHA is the only immutable reference. This is GitHub's own [security-hardening guidance](https://docs.github.com/en/actions/security-for-github-actions/security-guidance/security-hardening-for-github-actions) and is now enforceable as a [repository policy](https://github.blog/changelog/2025-08-15-github-actions-policy-now-supports-blocking-and-sha-pinning-actions/) (which this repo has enabled); it aligns with [SLSA](https://slsa.dev/spec/). Tools like [`pinact`](https://github.com/suzuki-shunsuke/pinact) can help you resolve tags to SHAs.
-- **Go tooling:** the linters and vuln scanner live in a separate, non-published [`tools` module](tools/go/) and are pinned by checksum in [that module's `go.sum`](tools/go/go.sum) - the Go-native equivalent of a commit-SHA pin. The scripts build those exact, verified versions; nothing floats.
+- **Go tooling:** the linters and vuln scanner live in separate, non-published tool modules under [`tools/go/`](tools/go/), gopls in a module of its own (see [`decisions.md`](decisions.md)), each pinned by checksum in its committed `go.sum` - the Go-native equivalent of a commit-SHA pin. The scripts build those exact, verified versions; nothing floats.
 - **Companion control:** do not use `pull_request_target` in any workflow with access to secrets (see the [pwn-requests advisory](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/)).
 - **Node tooling:** the spell checker (cspell) is pinned the same way, one ecosystem over. Its entire dependency tree is locked by SHA-512 integrity hash in [`tools/node/package-lock.json`](tools/node/package-lock.json), the npm-native equivalent of `go.sum`, strictly used by `npm ci`.
 
@@ -193,7 +193,7 @@ Everything pinned above goes stale by design - refreshing a pin is a deliberate,
 ./scripts/tools-audit.sh
 ```
 
-It covers the GitHub Actions pins, the Go tool module ([`tools/go`](tools/go/)), the npm tool module ([`tools/node`](tools/node/)), the pinned Supabase CLI and the Go consumer floor. It is read-only and report-only: an available update is information rather than a failure, so the script sits outside `check-fast.sh` and CI, and it probes live origins (GitHub tags, the Go module proxy, the npm registry, go.dev) so it needs network access.
+It covers the GitHub Actions pins, the Go tool modules (under [`tools/go`](tools/go/)), the npm tool module ([`tools/node`](tools/node/)), the pinned Supabase CLI and the Go consumer floor. It is read-only and report-only: an available update is information rather than a failure, so the script sits outside `check-fast.sh` and CI, and it probes live origins (GitHub tags, the Go module proxy, the npm registry, go.dev) so it needs network access.
 
 Two pins sit outside its reach and are checked by eye when touched: the versioned runner image labels in the workflows (`runs-on: ubuntu-26.04` - compare against [GitHub's available images](https://github.com/actions/runner-images?tab=readme-ov-file#available-images)) and the Postgres `major_version` in [`integration-testing/supabase/config.toml`](integration-testing/supabase/config.toml), which follows the pinned CLI's default image rather than any independent origin.
 
@@ -203,7 +203,7 @@ The Actions tab lists a "Dependency Graph" workflow that this repository does no
 
 A Degraded result naming one of our modules at the zero pseudo-version (`unknown revision 000000000000`) is expected while any published module requires an untagged sibling. The job runs `go mod graph` under the root [`go.work`](go.work), where every published module's requirements apply, and that version exists nowhere.
 
-It is safe to ignore. The dependency list survives, so alerts still cover everything and only the edges between dependencies are lost. Only tags fix it, and disabling the graph would lose the alerts too. [`tools/go`](tools/go/) has its own `go.work`, but the examples have none, because their `go` line is the consumer floor and a `go.work` would add a second line to raise each time.
+It is safe to ignore. The dependency list survives, so alerts still cover everything and only the edges between dependencies are lost. Only tags fix it, and disabling the graph would lose the alerts too. [`tools/go`](tools/go/) and [`tools/go/gopls`](tools/go/gopls/) have their own `go.work`, but the examples have none, because their `go` line is the consumer floor and a `go.work` would add a second line to raise each time.
 
 A Degraded message naming anything else, such as a third-party module, is worth investigating.
 

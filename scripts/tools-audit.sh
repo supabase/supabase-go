@@ -79,22 +79,27 @@ grep -hoE 'uses: [A-Za-z0-9._/-]+@[0-9a-f]{40} # [^ ]+' .github/workflows/*.yml 
       fi
     done
 
-echo
-echo "==> Go tooling (tools/go, pinned by go.mod + go.sum)"
-# GOWORK=off go -C tools/go is the established form for this module. go list
-# prints a line per module even when the template yields nothing, so blank
-# lines are dropped. The report groups what go.mod declares - tool directives
-# and direct requires - and reduces transitive dependencies to a count, since
-# the go get forms below carry those along.
-module_updates="$(GOWORK=off go -C tools/go list -m -u -f '{{if .Update}}{{.Path}} {{.Version}} {{.Update.Version}}{{end}}' all | sed '/^$/d')"
-if [ -z "${module_updates}" ]; then
-  echo "  ✅ all current"
-else
+# Audit one Go tool module directory, reporting each go.mod-declared module
+# (tool directive providers and direct requires) that is behind and reducing
+# transitive updates to a count. GOWORK=off go -C is the established form for
+# the tool modules. go list prints a line per module even when the template
+# yields nothing, so blank lines are dropped. $1 is the module directory.
+audit_go_tool_module() {
+  local module_directory="$1"
+  local module_updates tool_packages tool_modules direct_modules
+  local declared_updates transitive_updates module_path current_version latest_version label
+  echo
+  echo "==> Go tooling (${module_directory}, pinned by go.mod + go.sum)"
+  module_updates="$(GOWORK=off go -C "${module_directory}" list -m -u -f '{{if .Update}}{{.Path}} {{.Version}} {{.Update.Version}}{{end}}' all | sed '/^$/d')"
+  if [ -z "${module_updates}" ]; then
+    echo "  ✅ all current"
+    return 0
+  fi
   # A tool directive names a package path; the toolchain resolves the module
   # providing it (gopls, say, is its own module beneath golang.org/x/tools).
-  tool_packages="$(GOWORK=off go -C tools/go mod edit -json | jq -r '.Tool[].Path')"
-  tool_modules="$(GOWORK=off go -C tools/go list -f '{{with .Module}}{{.Path}}{{end}}' ${tool_packages} | sort -u)"
-  direct_modules="$(GOWORK=off go -C tools/go mod edit -json | jq -r '.Require[] | select(.Indirect != true) | .Path')"
+  tool_packages="$(GOWORK=off go -C "${module_directory}" mod edit -json | jq -r '.Tool[].Path')"
+  tool_modules="$(GOWORK=off go -C "${module_directory}" list -f '{{with .Module}}{{.Path}}{{end}}' ${tool_packages} | sort -u)"
+  direct_modules="$(GOWORK=off go -C "${module_directory}" mod edit -json | jq -r '.Require[] | select(.Indirect != true) | .Path')"
   declared_updates=0
   transitive_updates=0
   while read -r module_path current_version latest_version; do
@@ -119,11 +124,14 @@ else
     if [ "${transitive_updates}" -gt 0 ]; then
       echo "  plus ${transitive_updates} transitive module update(s), raised only as far as the declared modules require"
     fi
-    echo "  bump every tool: GOWORK=off go -C tools/go get tool && GOWORK=off go -C tools/go mod tidy"
-    echo "  bump one module: GOWORK=off go -C tools/go get <module>@latest && GOWORK=off go -C tools/go mod tidy"
+    echo "  bump every tool: GOWORK=off go -C ${module_directory} get tool && GOWORK=off go -C ${module_directory} mod tidy"
+    echo "  bump one module: GOWORK=off go -C ${module_directory} get <module>@latest && GOWORK=off go -C ${module_directory} mod tidy"
     echo "  afterwards run: ./scripts/lint.sh && ./scripts/vulncheck.sh"
   fi
-fi
+}
+
+audit_go_tool_module tools/go
+audit_go_tool_module tools/go/gopls
 
 echo
 echo "==> Node tooling (tools/node, pinned by package.json + package-lock.json)"

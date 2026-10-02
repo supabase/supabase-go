@@ -137,7 +137,7 @@ The rendered prefix does not affect `errors.Is`, which compares the underlying s
 
 **What**:  
 Every GitHub Actions `uses:` is pinned to a full 40-character commit SHA with a trailing version comment - first-party `actions/*` included, no exemption.
-The Go tooling (linters, govulncheck) is pinned by checksum in a dedicated `tools/go/go.mod` + committed `tools/go/go.sum`.
+The Go tooling (linters, govulncheck) is pinned by checksum in dedicated tool modules under `tools/go/`, each with a committed `go.sum`.
 The spell checker (cspell) is pinned the same way one ecosystem over: its full dependency tree is locked by integrity hash in a committed [`tools/node/package-lock.json`](tools/node/package-lock.json), installed via `npm ci`.
 GitHub's "require SHA-pinned actions" setting is enabled for this repository.
 
@@ -145,6 +145,16 @@ GitHub's "require SHA-pinned actions" setting is enabled for this repository.
 Actions have no lockfile and version tags are mutable git pointers - re-pointing a tag runs attacker code with the workflow token and secrets - so a commit SHA (and, for Go tools, a committed `go.sum` checksum) is the only immutable reference.
 On-demand refreshes keep "pinned" and "latest" close without scheduled churn, and Dependabot security updates still catch advisories with a reviewable diff, so pinning trades off against neither freshness nor safety.
 This follows Supabase's org-wide policy ([Git & GitHub](https://app.notion.com/p/c4922b923c544a2ea0377d60a0f21aec), Linear [PRODSEC-21](https://linear.app/supabase/issue/PRODSEC-21/) and [PRODSEC-67](https://linear.app/supabase/issue/PRODSEC-67/)) and extends the same discipline to our Go tooling.
+
+## gopls builds from its own tool module, apart from the other Go tools
+
+**What**:  
+[`tools/go/gopls`](tools/go/gopls/) is a dedicated module holding only the gopls tool directive, while every other Go tool shares [`tools/go`](tools/go/).
+
+**Why**:  
+gopls imports `golang.org/x/tools` internal packages, which carry no compatibility promise, so each gopls release requires the exact `golang.org/x/tools` commit it was built against.
+In a shared module, minimum version selection merges every tool's requirements, and a sibling bump (for example revive requiring a newer tagged `golang.org/x/tools`) floats gopls's dependency past that commit, breaking its compilation.
+A module of its own leaves gopls's requirement as the only `golang.org/x/tools` constraint, matching how the Go team ships gopls - installed standalone so its own `go.mod` governs.
 
 ## CI runner images are versioned labels, never `ubuntu-latest`
 
