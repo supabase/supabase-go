@@ -18,11 +18,13 @@
 # root require creeping into a domain module would force consumers of that one
 # domain to pull in modules they did not ask for.
 #
-# Containment: every Go source file lives inside a module directory. The go
-# command treats a repository root without go.mod as an implicit module, so a
-# Go file outside every module would be a package of that synthesized root
-# module, and pkg.go.dev - which refuses a module with no packages - would
-# then render a root page carrying the repository README.
+# Containment: the repository root carries no go.mod, and every Go source file
+# lives inside a module directory. The go command treats a repository root
+# without go.mod as an implicit module, so a Go file outside every module
+# would be a package of that synthesized root module, and pkg.go.dev - which
+# refuses a module with no packages - would then render a root page carrying
+# the repository README. A root go.mod would make that module explicit and
+# put every stray Go file legitimately inside it, so it is refused first.
 set -euo pipefail
 
 source "$(dirname "$0")/common.sh"
@@ -94,9 +96,17 @@ if [ -n "${violations}" ]; then
   exit 1
 fi
 
-# The containment leg. A directory is inside a module when it or an ancestor
-# holds a go.mod, which is also the rule module zips follow: a nested module's
-# directory is excluded from every enclosing module's zip.
+# The containment leg. The root go.mod check comes first because with one in
+# place every Go file would count as inside a module.
+if [ -f go.mod ]; then
+  echo "The repository root holds a go.mod, which makes the root itself a module - the one that would carry the repository README onto pkg.go.dev." >&2
+  echo "Remove it: every module lives in its own subdirectory, listed in go.work." >&2
+  exit 1
+fi
+
+# A directory is inside a module when it or an ancestor holds a go.mod, which
+# is also the rule module zips follow: a nested module's directory is excluded
+# from every enclosing module's zip.
 strays=""
 while IFS= read -r file; do
   dir="$(dirname "${file}")"
