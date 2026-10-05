@@ -75,9 +75,7 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
 
    Keep the hash lines.
 
-   This release verification script also works while the repository is private, provided git can authenticate to GitHub without prompting ([go.dev FAQ](https://go.dev/doc/faq#git_https)).
-
-7. Seed the public Go module ecosystem, once the repository is public:
+7. Seed the public Go module ecosystem:
 
    ```bash
    ./scripts/seed-module-proxy.sh [<landing-commit>]
@@ -87,7 +85,6 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
 
    Its hash lines must match step 6's byte for byte, proving the proxy serves exactly what GitHub serves.
 
-   A release cut while the repository was private is seeded the day the repository goes public, by passing that release's landing commit.
    The tags carry everything both scripts need, so any release stays reachable from the current checkout - including one whose landing commit predates the scripts themselves, which no checkout requirement could ever serve.
 
 ## Troubleshooting

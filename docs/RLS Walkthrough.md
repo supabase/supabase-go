@@ -116,6 +116,10 @@ go get github.com/supabase/supabase-go/supabase
 
 `go mod init` will suggest running `go mod tidy`, because it takes the `supabase` folder as a sign of an existing project.
 You can ignore the suggestion, since the `go get` after it adds everything the module needs.
+`go get` may also report downloading `github.com/supabase/supabase-go` itself at a `v0.0.0` pseudo-version.
+That is Go checking whether the repository root provides the package, which it does not, and the root never enters `go.mod`.
+Until `main.go` exists, `go.mod` marks every requirement `// indirect`, because nothing imports the SDK yet.
+The markers are harmless, and `go mod tidy` corrects them once `main.go` is in place.
 
 Save this as `main.go`:
 
