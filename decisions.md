@@ -234,12 +234,16 @@ The interface is named `HTTPClient` with a single `Do` method, following AWS SDK
 
 **What**:  
 The repository root carries no `go.mod`.
-Every published module lives in a subdirectory named after its package - `core/`, `postgrest/` and `supabase/`, the convenience entry point.
+Every published module lives in a subdirectory named after its package - `auth/`, `core/`, `postgrest/` and `supabase/`, the convenience entry point.
 Consumers import the root client as `github.com/supabase/supabase-go/supabase`, never `github.com/supabase/supabase-go` itself.
+No Go source file lives outside a module directory.
+[`scripts/check-module-paths.sh`](scripts/check-module-paths.sh) enforces both the absence of a root `go.mod` and that containment.
 
 **Why**:  
 pkg.go.dev renders the README it finds in a module's own directory, so a root-served module's documentation page carries the repository README - GitHub-audience content (status banner, module table, contribution pointers) that has no place in consumer API documentation.
-With no root module, the repository README never reaches pkg.go.dev and each module's page stays scoped to what that module ships.
+The go command still treats a repository root without `go.mod` as an implicit module whose `go.mod` it synthesizes ([Go Modules Reference](https://go.dev/ref/mod#non-module-compat)), so anyone's `go get` of the root path has the proxy cache a pseudo-version of it, README included.
+pkg.go.dev refuses a module that contains no packages ([pkgsite](https://github.com/golang/pkgsite/blob/b0feb34c6d91fdea7d471ec6026383042ba8aa12/internal/fetch/fetch.go#L305)), so while every Go file sits inside a module directory that pseudo-version stays an inert proxy entry, the README never renders there and each module's page stays scoped to what that module ships.
+A single stray Go file at the root would hand the synthesized module a package and pkg.go.dev a page, and a root `go.mod` would make that module explicit with every stray file legitimately inside it, so the check refuses both.
 The cost accepted is a doubled segment in the entry module's import path (`supabase-go/supabase`), and in exchange the layout is uniform: every published module follows the one directory-per-module shape, with no special root case in scripts, docs or the workspace.
 
 ## The postgrest module is Supabase-agnostic in code but not a supported general-purpose client
