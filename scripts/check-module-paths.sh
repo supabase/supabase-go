@@ -31,7 +31,7 @@ source "$(dirname "$0")/common.sh"
 
 echo "Module Path Check..."
 
-prefix="github.com/supabase/supabase-go"
+prefix="$(module_path_base)"
 
 # The module path a go.mod file declares.
 module_path_of() {

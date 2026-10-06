@@ -4,12 +4,14 @@
 # commit - named by the optional argument, HEAD when omitted - and pull each
 # one through proxy.golang.org into a throwaway module cache under /tmp.
 #
-# Usage: scripts/seed-module-proxy.sh [<landing-commit>] The first request makes the proxy fetch the version from GitHub
-# and cache it immutably - the point of no return for a release - records its
-# hashes in the sum.golang.org checksum database and leads pkg.go.dev to
-# build the documentation pages minutes later. Run scripts/verify-release.sh
-# first: its hash lines and this script's must match byte for byte, or the
-# proxy is serving different content than GitHub does.
+# Usage: scripts/seed-module-proxy.sh [<landing-commit>]
+#
+# The first request makes the proxy fetch the version from GitHub and cache it
+# immutably - the point of no return for a release - records its hashes in the
+# sum.golang.org checksum database and leads pkg.go.dev to build the
+# documentation pages minutes later. Run scripts/verify-release.sh first: its
+# hash lines and this script's must match byte for byte, or the proxy is
+# serving different content than GitHub does.
 #
 # GOPROXY is pinned to proxy.golang.org with no direct fallback, so success
 # proves the proxy itself serves every version, and the checksum database

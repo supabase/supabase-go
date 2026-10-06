@@ -8,9 +8,11 @@
 # release stays verifiable from the current checkout, including one whose
 # landing commit predates this script.
 #
-# Usage: scripts/verify-release.sh [<landing-commit>] Keep the hash lines: a later
-# scripts/seed-module-proxy.sh run for the same release must print them byte
-# for byte, proving the public module proxy serves what GitHub serves.
+# Usage: scripts/verify-release.sh [<landing-commit>]
+#
+# Keep the hash lines: a later scripts/seed-module-proxy.sh run for the same
+# release must print them byte for byte, proving the public module proxy
+# serves what GitHub serves.
 #
 # The downloads go direct (GOPROXY=direct) with GOPRIVATE covering the
 # modules, so neither proxy.golang.org nor sum.golang.org is contacted:
