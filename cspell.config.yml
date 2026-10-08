@@ -10,6 +10,7 @@ enableGlobDot: true
 
 ignorePaths:
   - node_modules/
+  - user.transient/
 
 dictionaryDefinitions:
   - name: local-codebase
