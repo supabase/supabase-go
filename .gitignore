@@ -26,3 +26,8 @@ AGENTS.md
 # Folders within this repository that support the local developer who wishes to locate
 # their own scripts, experiments and other transitory artifacts close to this codebase.
 user.transient/
+
+# The go command regenerates this workspace checksum ledger on demand (builds,
+# tests and gopls all maintain it). A committed copy would dirty itself after
+# each release once the new sibling tags become fetchable. See decisions.md.
+go.work.sum
