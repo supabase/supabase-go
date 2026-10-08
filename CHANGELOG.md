@@ -37,3 +37,9 @@ Our changelog files are also not _just_ designed for humans. Keep a Changelog [s
 We completely agree, however we also understand that our changelog files are increasingly read by and relied upon by AI builders, as a source of truth and aggregate index in the spirit of [progressive disclosure](https://agentskills.io/specification#progressive-disclosure). This is also true.
 
 Therefore we aim to write our changelog entries so that they can be parsed by humans and machines alike, using natural language, avoiding overly mechanized content formatting or going into too much detail that ends up presenting information that could already be gleaned relatively quickly from other source files. A succinct and snappy synopsis that contains links to canonical sources of more detailed information is the sweet spot.
+
+## Entry Shape
+
+Entries sit under the type headings Keep a Changelog defines (`### Added`, `### Changed`, `### Fixed` and family) inside their release or unreleased section. Each entry will usually take the form of a lead line naming the consumer-visible surface, followed by terse bullets naming the exported identifiers that were added, changed or removed.
+
+Anything a reader can discover from the identifiers themselves - signatures, field lists, wire behavior, the content of doc comments - should stay out of the entry. The reader is a consumer deciding whether and how to upgrade, not a reviewer of the work.
