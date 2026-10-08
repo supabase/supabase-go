@@ -7,7 +7,13 @@ Refer to [GitHub `../CHANGELOG.md`](https://github.com/supabase/supabase-go/blob
 
 ## Unreleased
 
-Administration surface for the project's users, behind a secret API key: `Client.Admin` reaches `CreateUser`, `GetUser` and `DeleteUser` (soft rather than hard with the `WithSoftDelete` option), with users described by `UserAttributes` and returned as the same `User` the session calls return. A malformed user id is rejected before the wire with `ErrInvalidUserID`.
+### Added
+
+Administration surface for the project's users, `Client.Admin`:
+
+- `CreateUser`
+- `DeleteUser` (including `WithSoftDelete` option)
+- `GetUser`
 
 ## `v0.1.0-alpha.1` (2026-10-01)
 
