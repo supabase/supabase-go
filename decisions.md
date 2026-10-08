@@ -93,7 +93,7 @@ Any workspace-mode go command (a build, a test, `go mod graph`, gopls) recreates
 
 **Why**:  
 Its only content is `go.mod` hashes for this repository's own published sibling versions, which require lines name but use directives override, so it never decides which code builds and each module's committed `go.sum` remains the consumer-facing ledger.
-A committed copy could not even update during a release PR (the bumped requires name versions that are unfetchable until the release-tags workflow pushes the tags) and would then dirty itself in whichever tree runs the first workspace command after publication - a housekeeping commit per release, buying no protection.
+A committed copy could not even update during a release PR (the bumped requires name versions that cannot be fetched until the release-tags workflow pushes the tags) and would then dirty itself in whichever tree runs the first workspace command after publication - a housekeeping commit per release, buying no protection.
 Cheaply reversible: track the file if external dependencies ever give it content a review would protect.
 
 ## Integration tests and their shared fixtures are adjacent non-published modules
