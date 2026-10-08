@@ -15,13 +15,28 @@ api_coverage: full
 # value family accepted across the range-aware filters. Types tied to exactly
 # one feature are registered with that feature below instead.
 supporting_symbols:
+  - auth.Admin
   - auth.Client
+  - auth.Client.Admin
+  - auth.ErrInvalidUserID
   - auth.ErrMissingJWT
   - auth.Error
   - auth.Error.Error
   - auth.Error.HTTPError
   - auth.New
   - auth.NewFromConfiguration
+  - auth.UserAttributes
+  - auth.UserAttributes.AppMetadata
+  - auth.UserAttributes.BanDuration
+  - auth.UserAttributes.Email
+  - auth.UserAttributes.EmailConfirm
+  - auth.UserAttributes.ID
+  - auth.UserAttributes.Password
+  - auth.UserAttributes.PasswordHash
+  - auth.UserAttributes.Phone
+  - auth.UserAttributes.PhoneConfirm
+  - auth.UserAttributes.Role
+  - auth.UserAttributes.UserMetadata
   - configuration.Configuration
   - configuration.Configuration.BaseURL
   - configuration.Configuration.HTTPClient
@@ -74,6 +89,21 @@ supporting_symbols:
   - supabase.New
 
 features:
+  auth.admin.create_user:
+    status: implemented
+    symbols:
+      - auth.Admin.CreateUser
+  auth.admin.delete_user:
+    status: implemented
+    symbols:
+      - auth.Admin.DeleteUser
+    supporting_symbols:
+      - auth.DeleteUserOption
+      - auth.WithSoftDelete
+  auth.admin.get_user:
+    status: implemented
+    symbols:
+      - auth.Admin.GetUser
   auth.session.get_claims:
     status: implemented
     note: |

@@ -29,6 +29,11 @@ const ErrExpiredJWT = authError("JWT has expired")
 // signature does not verify against the project's signing key.
 const ErrInvalidSignature = authError("JWT signature is invalid")
 
+// ErrInvalidUserID is reported by the [Admin] user operations when the given
+// user id is not a UUID in its canonical hyphenated form - groups of 8, 4, 4,
+// 4 and 12 hexadecimal digits, in either case - before any request is sent.
+const ErrInvalidUserID = authError("user ID is not a canonical UUID")
+
 // Error is the typed failure returned when the Auth server answers a request
 // with a non-2xx status, carrying the server's reported [error code] and message
 // alongside the HTTP status. [Client.GetUser] returns it directly, and

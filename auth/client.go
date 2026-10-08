@@ -17,7 +17,9 @@ import (
 )
 
 // Client verifies end-user JWTs and fetches user profiles for one Supabase
-// project. Construct a standalone client with [New], or build one on a shared
+// project, and a Client constructed with a secret API key also administers
+// the project's users through [Client.Admin]. Construct a standalone client
+// with [New], or build one on a shared
 // [configuration.Configuration] with [NewFromConfiguration]. A Client caches
 // the project's signing keys internally, so construct one Client per project
 // and reuse it rather than constructing per request. A Client is safe for
