@@ -85,6 +85,17 @@ The one workspace hazard is the overlay masking a missing or wrong `require`: ev
 [`scripts/check-module-paths.sh`](scripts/check-module-paths.sh) guards the path case: it fails when a workspace (published) module requires a first-party path that is not itself a workspace module, which a consumer could not resolve. [`scripts/check-release-consistency.sh`](scripts/check-release-consistency.sh) guards most of the version case, failing a require that names a version its sibling's changelog never declares. A missing require or a pin to the wrong declared version still rests on review, since there is no tidy gate yet (zero external dependencies).
 The decision is cheaply reversible (delete `go.work`, add `replace` blocks).
 
+## Ignore go.work.sum rather than commit it
+
+**What**:  
+`go.work.sum` is gitignored.
+Any workspace-mode go command (a build, a test, `go mod graph`, gopls) recreates it on demand, with every fetch verified against the checksum database.
+
+**Why**:  
+Its only content is `go.mod` hashes for this repository's own published sibling versions, which require lines name but use directives override, so it never decides which code builds and each module's committed `go.sum` remains the consumer-facing ledger.
+A committed copy could not even update during a release PR (the bumped requires name versions that are unfetchable until the release-tags workflow pushes the tags) and would then dirty itself in whichever tree runs the first workspace command after publication - a housekeeping commit per release, buying no protection.
+Cheaply reversible: track the file if external dependencies ever give it content a review would protect.
+
 ## Integration tests and their shared fixtures are adjacent non-published modules
 
 **What**:  
