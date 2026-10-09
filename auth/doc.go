@@ -43,8 +43,8 @@
 // otherwise.
 //
 // [Client.Admin] is the project's user-administration surface - creating,
-// fetching and deleting users with the project's secret API key and no user
-// token. See [Admin] for the trust boundary its methods sit behind.
+// fetching, updating, listing and deleting users with the project's secret
+// API key and no user token. See [Admin] for the trust boundary its methods sit behind.
 //
 // To act on the database as the verified user afterwards, so that Row Level
 // Security policies apply, attach the same token to a Database client through

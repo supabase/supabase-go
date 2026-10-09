@@ -51,6 +51,9 @@ supporting_symbols:
   - core.ModulePathAuth
   - core.ModulePathPostgrest
   - core.ModulePathRoot
+  - pagination.Option
+  - pagination.WithPage
+  - pagination.WithSize
   - postgrest.Client
   - postgrest.EmptyRange
   - postgrest.ErrMissingClient
@@ -104,6 +107,23 @@ features:
     status: implemented
     symbols:
       - auth.Admin.GetUser
+  auth.admin.list_users:
+    status: implemented
+    note: |
+      Explicit page-at-a-time pagination parsed from the server's
+      X-Total-Count and Link headers. No lazy iterator over all users.
+    symbols:
+      - auth.Admin.ListUsers
+    supporting_symbols:
+      - auth.UserPage
+      - auth.UserPage.LastPage
+      - auth.UserPage.NextPage
+      - auth.UserPage.Total
+      - auth.UserPage.Users
+  auth.admin.update_user:
+    status: implemented
+    symbols:
+      - auth.Admin.UpdateUser
   auth.session.get_claims:
     status: implemented
     note: |

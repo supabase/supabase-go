@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/supabase/supabase-go/auth"
+	"github.com/supabase/supabase-go/core/pagination"
 )
 
 // cSpell:ignore uuid
@@ -20,6 +21,7 @@ import (
 type recordedRequest struct {
 	method        string
 	path          string
+	query         string
 	contentType   string
 	apiKey        string
 	authorization string
@@ -27,10 +29,11 @@ type recordedRequest struct {
 }
 
 // adminServer stands in for the Auth server's admin endpoints, recording every
-// request and answering each with the configured status and body.
+// request and answering each with the configured status, header and body.
 type adminServer struct {
 	server   *httptest.Server
 	status   int
+	header   map[string]string
 	body     string
 	requests []recordedRequest
 }
@@ -48,11 +51,15 @@ func newAdminServer(t *testing.T) *adminServer {
 		recorder.requests = append(recorder.requests, recordedRequest{
 			method:        request.Method,
 			path:          request.URL.Path,
+			query:         request.URL.RawQuery,
 			contentType:   request.Header.Get("Content-Type"),
 			apiKey:        request.Header.Get("apikey"),
 			authorization: request.Header.Get("Authorization"),
 			body:          requestBody,
 		})
+		for key, value := range recorder.header {
+			writer.Header().Set(key, value)
+		}
 		writer.WriteHeader(recorder.status)
 		_, _ = writer.Write([]byte(recorder.body))
 	}))
@@ -196,6 +203,9 @@ func TestAdminRejectsMalformedUserID(t *testing.T) {
 			if _, err := admin.GetUser(context.Background(), testCase.id); !errors.Is(err, auth.ErrInvalidUserID) {
 				t.Errorf("GetUser(%q) = %v, want ErrInvalidUserID", testCase.id, err)
 			}
+			if _, err := admin.UpdateUser(context.Background(), testCase.id, auth.UserAttributes{}); !errors.Is(err, auth.ErrInvalidUserID) {
+				t.Errorf("UpdateUser(%q) = %v, want ErrInvalidUserID", testCase.id, err)
+			}
 			if err := admin.DeleteUser(context.Background(), testCase.id); !errors.Is(err, auth.ErrInvalidUserID) {
 				t.Errorf("DeleteUser(%q) = %v, want ErrInvalidUserID", testCase.id, err)
 			}
@@ -277,6 +287,14 @@ func TestAdminErrorSurface(t *testing.T) {
 		{"DeleteUser with WithSoftDelete", func(admin *auth.Admin) error {
 			return admin.DeleteUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", auth.WithSoftDelete())
 		}},
+		{"UpdateUser", func(admin *auth.Admin) error {
+			_, err := admin.UpdateUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", auth.UserAttributes{Role: "editor"})
+			return err
+		}},
+		{"ListUsers", func(admin *auth.Admin) error {
+			_, err := admin.ListUsers(context.Background())
+			return err
+		}},
 	}
 	for _, operation := range operations {
 		t.Run(operation.name, func(t *testing.T) {
@@ -335,4 +353,228 @@ func TestAdminUserParsing(t *testing.T) {
 	if user.UserMetadata()["display_name"] != "Ada" || user.AppMetadata()["provider"] != "email" {
 		t.Errorf("metadata = (%v, %v)", user.UserMetadata(), user.AppMetadata())
 	}
+}
+
+func TestAdminUpdateUserRequestShape(t *testing.T) {
+	cases := []struct {
+		name       string
+		attributes auth.UserAttributes
+		want       map[string]any
+	}{
+		{
+			name:       "the zero value sends an empty object",
+			attributes: auth.UserAttributes{},
+			want:       map[string]any{},
+		},
+		{
+			name:       "a ban lift passes the literal none through",
+			attributes: auth.UserAttributes{Role: "editor", BanDuration: "none"},
+			want:       map[string]any{"role": "editor", "ban_duration": "none"},
+		},
+		{
+			name:       "a nil metadata value renders null, the key-delete request",
+			attributes: auth.UserAttributes{UserMetadata: map[string]any{"locale": nil}},
+			want:       map[string]any{"user_metadata": map[string]any{"locale": nil}},
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			recorder := newAdminServer(t)
+			recorder.body = `{"id":"a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d","role":"editor"}`
+			admin := recorder.admin(t)
+
+			user, err := admin.UpdateUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", testCase.attributes)
+			if err != nil {
+				t.Fatalf("UpdateUser: %v", err)
+			}
+			if user.Role() != "editor" {
+				t.Errorf("Role = %q, want the response user's editor", user.Role())
+			}
+
+			if len(recorder.requests) != 1 {
+				t.Fatalf("requests = %d, want 1", len(recorder.requests))
+			}
+			request := recorder.requests[0]
+			if request.method != http.MethodPut || request.path != "/auth/v1/admin/users/a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d" {
+				t.Errorf("request = %s %s, want PUT of the user's path", request.method, request.path)
+			}
+			var sent map[string]any
+			if err := json.Unmarshal(request.body, &sent); err != nil {
+				t.Fatalf("request body %q: %v", request.body, err)
+			}
+			if !reflect.DeepEqual(sent, testCase.want) {
+				t.Errorf("body = %v, want %v", sent, testCase.want)
+			}
+		})
+	}
+}
+
+func TestAdminListUsersRequestShape(t *testing.T) {
+	cases := []struct {
+		name    string
+		options []pagination.Option
+		want    string
+	}{
+		{
+			name:    "a bare call sends no pagination parameters",
+			options: nil,
+			want:    "",
+		},
+		{
+			name:    "WithPage alone sends only the page",
+			options: []pagination.Option{pagination.WithPage(2)},
+			want:    "page=2",
+		},
+		{
+			name:    "WithSize alone sends only the size",
+			options: []pagination.Option{pagination.WithSize(50)},
+			want:    "per_page=50",
+		},
+		{
+			name:    "together they send both",
+			options: []pagination.Option{pagination.WithPage(2), pagination.WithSize(50)},
+			want:    "page=2&per_page=50",
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			recorder := newAdminServer(t)
+			recorder.body = `{"aud":"authenticated","users":[]}`
+			admin := recorder.admin(t)
+
+			if _, err := admin.ListUsers(context.Background(), testCase.options...); err != nil {
+				t.Fatalf("ListUsers: %v", err)
+			}
+
+			if len(recorder.requests) != 1 {
+				t.Fatalf("requests = %d, want 1", len(recorder.requests))
+			}
+			request := recorder.requests[0]
+			if request.method != http.MethodGet || request.path != "/auth/v1/admin/users" {
+				t.Errorf("request = %s %s, want GET /auth/v1/admin/users", request.method, request.path)
+			}
+			if request.query != testCase.want {
+				t.Errorf("query = %q, want %q", request.query, testCase.want)
+			}
+			if request.contentType != "" || len(request.body) != 0 {
+				t.Errorf("request carries a body (%q, %q), want none", request.contentType, request.body)
+			}
+		})
+	}
+}
+
+func TestAdminUserPageParsing(t *testing.T) {
+	t.Run("users, total and both page links parse", func(t *testing.T) {
+		recorder := newAdminServer(t)
+		recorder.header = map[string]string{
+			"X-Total-Count": "7",
+			"Link":          `<http://stack.local/admin/users?page=2&per_page=2>; rel="next", <http://stack.local/admin/users?page=4&per_page=2>; rel="last"`,
+		}
+		recorder.body = `{"aud":"authenticated","users":[
+			{"id":"a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d","email":"ada@example.com"},
+			{"id":"b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e","email":"grace@example.com"}
+		]}`
+		admin := recorder.admin(t)
+
+		page, err := admin.ListUsers(context.Background())
+		if err != nil {
+			t.Fatalf("ListUsers: %v", err)
+		}
+		users := page.Users()
+		if len(users) != 2 || users[0].Email() != "ada@example.com" || users[1].Email() != "grace@example.com" {
+			t.Errorf("Users = %d entries, want the body's two users", len(users))
+		}
+		if page.Total() != 7 {
+			t.Errorf("Total = %d, want 7", page.Total())
+		}
+		if number, ok := page.NextPage(); !ok || number != 2 {
+			t.Errorf("NextPage = (%d, %t), want (2, true)", number, ok)
+		}
+		if number, ok := page.LastPage(); !ok || number != 4 {
+			t.Errorf("LastPage = (%d, %t), want (4, true)", number, ok)
+		}
+	})
+
+	t.Run("the final page carries no next link", func(t *testing.T) {
+		recorder := newAdminServer(t)
+		recorder.header = map[string]string{
+			"X-Total-Count": "7",
+			"Link":          `<http://stack.local/admin/users?page=4>; rel="last"`,
+		}
+		recorder.body = `{"aud":"authenticated","users":[{"id":"a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"}]}`
+		admin := recorder.admin(t)
+
+		page, err := admin.ListUsers(context.Background())
+		if err != nil {
+			t.Fatalf("ListUsers: %v", err)
+		}
+		if _, ok := page.NextPage(); ok {
+			t.Error("NextPage reports options, want false on the final page")
+		}
+		if number, ok := page.LastPage(); !ok || number != 4 {
+			t.Errorf("LastPage = (%d, %t), want (4, true)", number, ok)
+		}
+	})
+
+	t.Run("an empty project lists page zero as last", func(t *testing.T) {
+		recorder := newAdminServer(t)
+		recorder.header = map[string]string{
+			"X-Total-Count": "0",
+			"Link":          `<http://stack.local/admin/users?page=0>; rel="last"`,
+		}
+		recorder.body = `{"aud":"authenticated","users":[]}`
+		admin := recorder.admin(t)
+
+		page, err := admin.ListUsers(context.Background())
+		if err != nil {
+			t.Fatalf("ListUsers: %v", err)
+		}
+		if len(page.Users()) != 0 || page.Total() != 0 {
+			t.Errorf("page = %d users with Total %d, want an empty page", len(page.Users()), page.Total())
+		}
+		if _, ok := page.NextPage(); ok {
+			t.Error("NextPage reports a page, want false")
+		}
+		if number, ok := page.LastPage(); !ok || number != 0 {
+			t.Errorf("LastPage = (%d, %t), want (0, true) - the header said page zero", number, ok)
+		}
+	})
+
+	t.Run("absent headers leave every accessor reporting absence", func(t *testing.T) {
+		recorder := newAdminServer(t)
+		recorder.body = `{"aud":"authenticated","users":[]}`
+		admin := recorder.admin(t)
+
+		page, err := admin.ListUsers(context.Background())
+		if err != nil {
+			t.Fatalf("ListUsers: %v", err)
+		}
+		if page.Total() != 0 {
+			t.Errorf("Total = %d, want 0", page.Total())
+		}
+		if _, ok := page.NextPage(); ok {
+			t.Error("NextPage reports a page, want false")
+		}
+		if _, ok := page.LastPage(); ok {
+			t.Error("LastPage reports a page, want false")
+		}
+	})
+
+	t.Run("a malformed Link header is ignored rather than an error", func(t *testing.T) {
+		recorder := newAdminServer(t)
+		recorder.header = map[string]string{"Link": "not a link header at all"}
+		recorder.body = `{"aud":"authenticated","users":[]}`
+		admin := recorder.admin(t)
+
+		page, err := admin.ListUsers(context.Background())
+		if err != nil {
+			t.Fatalf("ListUsers: %v", err)
+		}
+		if _, ok := page.NextPage(); ok {
+			t.Error("NextPage reports a page, want false")
+		}
+		if _, ok := page.LastPage(); ok {
+			t.Error("LastPage reports a page, want false")
+		}
+	})
 }
