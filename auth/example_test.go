@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/supabase/supabase-go/auth"
@@ -142,4 +143,83 @@ func bearerToken(request *http.Request) (string, bool) {
 		return "", false
 	}
 	return value, true
+}
+
+// ExampleClient_Admin provisions a teammate account from a back-office job.
+// The secret key comes from the environment, never from source: it bypasses
+// Row Level Security, so it belongs to server configuration alone. Admin
+// creation sends no confirmation email - EmailConfirm marks the address
+// trusted, so the account is usable immediately.
+func ExampleClient_Admin() {
+	secretKey := os.Getenv("SUPABASE_SECRET_KEY")
+	client, err := auth.New("https://PROJECT_ID.supabase.co", secretKey)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+
+	user, err := admin.CreateUser(context.Background(), auth.UserAttributes{
+		Email:        "ada@example.com",
+		Password:     "correct horse battery staple",
+		EmailConfirm: true,
+		AppMetadata:  map[string]any{"team": "platform"},
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("provisioned", user.Email())
+}
+
+// ExampleAdmin_CreateUser imports an account from a legacy authentication
+// system. PasswordHash carries the stored bcrypt, scrypt or argon2 hash, so
+// the user keeps their password across the migration - set it instead of
+// Password, never alongside it.
+func ExampleAdmin_CreateUser() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+
+	user, err := admin.CreateUser(context.Background(), auth.UserAttributes{
+		Email:        "imported@example.com",
+		EmailConfirm: true,
+		PasswordHash: "$2y$10$HASH_FROM_THE_LEGACY_STORE",
+		UserMetadata: map[string]any{"migrated_from": "legacy-auth"},
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("migrated", user.Email())
+}
+
+// ExampleAdmin_DeleteUser separates closing an account from erasing it. The
+// soft delete ends every session and factor and obfuscates the contact
+// details, but keeps the row readable for audit. The bare call makes no
+// choice, so the server's default applies: the hard delete, for the moment
+// the record itself must go, such as a data-protection erasure request.
+func ExampleAdmin_DeleteUser() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+	ctx := context.Background()
+
+	if err := admin.DeleteUser(ctx, "USER_ID", auth.WithSoftDelete()); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// Later, an erasure request arrives for the same account.
+	if err := admin.DeleteUser(ctx, "USER_ID"); err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("erased")
 }

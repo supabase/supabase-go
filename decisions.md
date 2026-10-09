@@ -764,3 +764,41 @@ The Auth client sends each request once and ignores the `configuration.WithRetry
 **Why**:  
 Auth's requests are GETs and safe to repeat, so honoring the option was possible.
 Regardless, the decision was made not to honor that option because verification sits on the request-handling hot path of the caller's own server (in our anticipated, likely use-case for this SDK), where invisible backoff multiplies the latency of the inbound request being served.
+
+## The auth admin surface is one in-package type behind an accessor
+
+**What**:  
+Admin operations live on an `Admin` type in package `auth`, reached with `authClient.Admin()`, sharing the client's transport, base URL and configuration.
+There is no `auth/admin` package and no standalone admin constructor.
+
+**Why**:  
+Admin methods return `*auth.User` and `*auth.Error`, so a separate package would have to import `auth` while `auth.Client` offers the accessor - an import cycle.
+The in-package service type is the cycle-free shape (go-github's service structs) and keeps domain navigation context-free, which is already this codebase's shape.
+Spelled-out method names keep one flat type unambiguous without the nested namespace objects the sibling SDKs lean on.
+
+## Admin request payloads are plain entity structs with wire-faithful fields
+
+**What**:  
+A flat admin payload is one exported struct per entity (`UserAttributes`), shared by every call that sends that entity, with `omitzero` on each field so a zero-valued field is not sent.
+Each field's type mirrors how the Auth server reads it: plain where the server treats the zero value as absent, a pointer only where nil and the zero value differ on the wire.
+
+**Why**:  
+A struct literal with named fields is how Go spells a record of named values, and a caller-built value the SDK reads once and never retains is contract-free, so it earns no accessor wrapper and no builder ceremony.
+Typing each field from the server's own params structs makes absent-versus-zero a per-field question answered once, so adding a field never flips a type's shape.
+The write model stays a separate type from the read model (`UserAttributes` beside `User`) because the server defines them as two wire messages whose fields largely differ - write-only passwords and confirm commands against read-only timestamps and identities - so the apparent repetition is two projections of one entity, not one piece of knowledge stated twice.
+No embedded core struct dedupes the shared field names, because Go does not promote embedded fields in composite literals and the flat payload literal is this entry's point.
+The json tags sit on the public fields deliberately: a tag pins the field to the server's published wire name, which outlives every Go identifier here, so the tags bind this SDK to the platform's contract rather than exposing anything of this SDK's own.
+The tag-free alternatives - an internal mirror struct with a field-by-field copy, or a hand-written MarshalJSON - restate the same fields a second time, and their shared failure mode (a field added to one statement and not the other) drops a value from requests silently.
+Builders stay where ordering and phases carry meaning (queries), and functional options stay construction and execution overrides, per the entries above.
+
+## Admin deletes return only error, and the delete mode is a per-call option
+
+**What**:  
+`Admin.DeleteUser(ctx, userID, options...)` returns `error` alone.
+A bare call sends no request body, so the server's documented default governs (the hard delete), and `WithSoftDelete()` sends `{"should_soft_delete": true}`.
+
+**Why**:  
+The server answers a user delete with an empty JSON object, so there is no value to return, and the capability spec pins that contract ([delete_user spec](https://github.com/supabase/sdk/blob/main/packages/capability-matrix/specs/auth/admin/delete_user.md)).
+A request that states only what the caller chose is the `omitzero` posture applied to the whole body: the wire stays minimal, the server's default stays the server's, and future delete parameters arrive as new options without a signature change.
+The handler reads the body only when one is present, so the bodiless bare call is a supported shape, not an accident.
+The sibling SDKs always send the flag, so this SDK alone would follow a changed server default - accepted, since such a flip would break every raw API consumer too and the functional option is the house shape for a per-call override (`configuration.WithRetry` and family).

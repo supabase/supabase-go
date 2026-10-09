@@ -107,7 +107,8 @@ echo "==> starting local stack (pinned CLI $("${SUPABASE_CLI}" --version))"
 # emitted only while the auth service is enabled (verified in the pinned CLI's
 # status.go), which is why integration/supabase/config.toml keeps auth on.
 # PUBLISHABLE_KEY is the successor to the deprecated ANON_KEY and is what the
-# CLI repository's own e2e tests consume.
+# CLI repository's own e2e tests consume. SECRET_KEY is the privileged
+# counterpart the auth admin tests construct their client with.
 eval "$("${SUPABASE_CLI}" --workdir "${project_directory}" status -o env)"
 
 # The modules with an adjacent integrationtest module - deliberately a curated
@@ -127,6 +128,7 @@ for module in "${modules[@]}"; do
     GOWORK=off \
     SUPABASE_URL="${API_URL}" \
     SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
+    SUPABASE_SECRET_KEY="${SECRET_KEY}" \
       go test -v -race -shuffle=on ./...
   )
 done
@@ -142,6 +144,7 @@ for example in $(enumerate_example_modules); do
     GOWORK=off \
     SUPABASE_URL="${API_URL}" \
     SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
+    SUPABASE_SECRET_KEY="${SECRET_KEY}" \
       go run .
   )
 done

@@ -27,6 +27,19 @@ func Credentials(t *testing.T) (projectURL, apiKey string) {
 	return projectURL, apiKey
 }
 
+// SecretCredentials returns the local stack's project URL and secret key from
+// the environment scripts/integration-test.sh exports, failing the test when
+// either is absent.
+func SecretCredentials(t *testing.T) (projectURL, apiKey string) {
+	t.Helper()
+	projectURL = os.Getenv("SUPABASE_URL")
+	apiKey = os.Getenv("SUPABASE_SECRET_KEY")
+	if projectURL == "" || apiKey == "" {
+		t.Fatal("SUPABASE_URL and SUPABASE_SECRET_KEY must be set for integration tests - run scripts/integration-test.sh")
+	}
+	return projectURL, apiKey
+}
+
 // User is one signed-up end user of the local stack's auth service, carrying
 // the credentials tests act with and the fields they assert on.
 type User struct {

@@ -1,5 +1,6 @@
 apidiff
 apikey
+bcrypt
 bytea
 codegen
 commentchecker
@@ -67,6 +68,7 @@ PRODSEC
 reassignable
 rebalance
 RSASSA
+scrypt
 signup
 SLSA
 SQLSTATE
