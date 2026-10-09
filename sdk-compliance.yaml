@@ -52,6 +52,10 @@ supporting_symbols:
   - core.ModulePathPostgrest
   - core.ModulePathRoot
   - pagination.Option
+  - pagination.Parameters
+  - pagination.Parameters.Page
+  - pagination.Parameters.Size
+  - pagination.Resolve
   - pagination.WithPage
   - pagination.WithSize
   - postgrest.Client
