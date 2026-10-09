@@ -5,6 +5,15 @@ All notable changes to this module will be documented in this file.
 This module is one of a number of modules defined in a multi-module repository.
 Refer to [GitHub `../CHANGELOG.md`](https://github.com/supabase/supabase-go/blob/main/CHANGELOG.md) for further details on structure, format and sibling modules.
 
+## Unreleased
+
+### Added
+
+Pagination options for the SDK's listing calls, package `pagination`:
+
+- `Option`s `WithPage` and `WithSize`
+- `Parameters` via `Resolve`
+
 ## `v0.1.0-alpha.1` (2026-10-01)
 
 Shared configuration for the SDK's domain clients, with options for a custom HTTP client, global headers, automatic retries and debug logging through `log/slog`. The module also defines the HTTP error type that domain errors embed. See the [`configuration`](https://pkg.go.dev/github.com/supabase/supabase-go/core/configuration) and [`responses`](https://pkg.go.dev/github.com/supabase/supabase-go/core/responses) package documentation.

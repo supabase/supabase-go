@@ -14,6 +14,8 @@ Administration surface for the project's users, `Client.Admin`:
 - `CreateUser`
 - `DeleteUser` (including `WithSoftDelete` option)
 - `GetUser`
+- `ListUsers` (paginated)
+- `UpdateUser`
 
 ## `v0.1.0-alpha.1` (2026-10-01)
 

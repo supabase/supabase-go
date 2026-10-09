@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/supabase/supabase-go/auth"
+	"github.com/supabase/supabase-go/core/pagination"
 )
 
 // ExampleClient_GetClaims verifies an end-user token and branches on the ways
@@ -195,6 +196,64 @@ func ExampleAdmin_CreateUser() {
 		return
 	}
 	fmt.Println("migrated", user.Email())
+}
+
+// ExampleAdmin_UpdateUser suspends a user by banning sign-ins for three
+// days, then lifts the ban early with the literal "none". Only the set
+// fields change: everything else on the user stays as it is.
+func ExampleAdmin_UpdateUser() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+	ctx := context.Background()
+
+	banned, err := admin.UpdateUser(ctx, "USER_ID", auth.UserAttributes{BanDuration: "72h"})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("banned until", banned.BannedUntil())
+
+	restored, err := admin.UpdateUser(ctx, "USER_ID", auth.UserAttributes{BanDuration: "none"})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("ban lifted:", restored.BannedUntil().IsZero())
+}
+
+// ExampleAdmin_ListUsers walks every page of the project's users, the shape
+// of a nightly reconciliation against a billing system. The walk leans on
+// the server's page-size default and asks for each page by number. NextPage
+// reports false on the last page, which ends the walk.
+func ExampleAdmin_ListUsers() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+	ctx := context.Background()
+
+	for number := 1; ; {
+		page, err := admin.ListUsers(ctx, pagination.WithPage(number))
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		for _, user := range page.Users() {
+			fmt.Println(user.ID(), user.Email())
+		}
+		next, ok := page.NextPage()
+		if !ok {
+			break
+		}
+		number = next
+	}
+	fmt.Println("reconciled")
 }
 
 // ExampleAdmin_DeleteUser separates closing an account from erasing it. The
