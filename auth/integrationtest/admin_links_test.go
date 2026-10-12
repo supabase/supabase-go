@@ -29,6 +29,9 @@ func TestAdminInviteUser(t *testing.T) {
 	if user.InvitedAt().IsZero() {
 		t.Error("InvitedAt is zero, want the invitation timestamp set")
 	}
+	if user.ConfirmationSentAt().IsZero() {
+		t.Error("ConfirmationSentAt is zero, want it set - the invitation email is a confirmation send")
+	}
 	if user.UserMetadata()["workspace"] != "integration" {
 		t.Errorf("UserMetadata = %v, want workspace integration", user.UserMetadata())
 	}
@@ -63,6 +66,9 @@ func TestAdminGenerateLinks(t *testing.T) {
 	if signup.EmailOTP() == "" || signup.HashedToken() == "" {
 		t.Errorf("verification artifacts = (%q, %q), want both non-empty", signup.EmailOTP(), signup.HashedToken())
 	}
+	if signup.User().ConfirmationSentAt().IsZero() {
+		t.Error("ConfirmationSentAt is zero on the signup link's user, want it set")
+	}
 	actionURL, err := url.Parse(signup.ActionLink())
 	if err != nil {
 		t.Fatalf("ActionLink %q does not parse: %v", signup.ActionLink(), err)
@@ -77,6 +83,9 @@ func TestAdminGenerateLinks(t *testing.T) {
 	}
 	if recovery.VerificationType() != "recovery" {
 		t.Errorf("VerificationType = %q, want recovery", recovery.VerificationType())
+	}
+	if recovery.User().RecoverySentAt().IsZero() {
+		t.Error("RecoverySentAt is zero on the recovery link's user, want it set")
 	}
 
 	magic, err := admin.GenerateLink(ctx, auth.NewLinkRequest(email).MagicLink())
@@ -96,6 +105,12 @@ func TestAdminGenerateLinks(t *testing.T) {
 	}
 	if toCurrent.VerificationType() != "email_change_current" {
 		t.Errorf("VerificationType = %q, want email_change_current", toCurrent.VerificationType())
+	}
+	if toCurrent.User().NewEmail() != newEmail {
+		t.Errorf("NewEmail = %q, want the pending change to %q", toCurrent.User().NewEmail(), newEmail)
+	}
+	if toCurrent.User().EmailChangeSentAt().IsZero() {
+		t.Error("EmailChangeSentAt is zero on the email-change link's user, want it set")
 	}
 
 	toNew, err := admin.GenerateLink(ctx, auth.NewLinkRequest(email).EmailChangeToNew(newEmail))

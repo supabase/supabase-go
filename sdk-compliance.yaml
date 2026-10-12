@@ -205,6 +205,7 @@ features:
     supporting_symbols:
       - auth.Identity
       - auth.Identity.CreatedAt
+      - auth.Identity.Email
       - auth.Identity.ID
       - auth.Identity.IdentityData
       - auth.Identity.IdentityID
@@ -216,18 +217,25 @@ features:
       - auth.User.AppMetadata
       - auth.User.Audience
       - auth.User.BannedUntil
+      - auth.User.ConfirmationSentAt
       - auth.User.ConfirmedAt
       - auth.User.CreatedAt
       - auth.User.DeletedAt
       - auth.User.Email
+      - auth.User.EmailChangeSentAt
       - auth.User.EmailConfirmedAt
       - auth.User.ID
       - auth.User.Identities
       - auth.User.InvitedAt
       - auth.User.IsAnonymous
       - auth.User.LastSignInAt
+      - auth.User.NewEmail
+      - auth.User.NewPhone
       - auth.User.Phone
+      - auth.User.PhoneChangeSentAt
       - auth.User.PhoneConfirmedAt
+      - auth.User.ReauthenticationSentAt
+      - auth.User.RecoverySentAt
       - auth.User.Role
       - auth.User.UpdatedAt
       - auth.User.UserMetadata

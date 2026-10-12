@@ -47,6 +47,34 @@ func (u *User) ConfirmedAt() time.Time { return u.inner.ConfirmedAt() }
 // time when they never were.
 func (u *User) InvitedAt() time.Time { return u.inner.InvitedAt() }
 
+// ConfirmationSentAt returns when the last signup or invitation confirmation
+// email was sent, or the zero time when none ever was.
+func (u *User) ConfirmationSentAt() time.Time { return u.inner.ConfirmationSentAt() }
+
+// RecoverySentAt returns when the last password recovery or magic link email
+// was sent, or the zero time when none ever was.
+func (u *User) RecoverySentAt() time.Time { return u.inner.RecoverySentAt() }
+
+// NewEmail returns the address a pending email change moves the user to, or
+// the empty string when no change is pending.
+func (u *User) NewEmail() string { return u.inner.NewEmail() }
+
+// EmailChangeSentAt returns when the last email change confirmation was sent,
+// or the zero time when none ever was.
+func (u *User) EmailChangeSentAt() time.Time { return u.inner.EmailChangeSentAt() }
+
+// NewPhone returns the number a pending phone change moves the user to, or
+// the empty string when no change is pending.
+func (u *User) NewPhone() string { return u.inner.NewPhone() }
+
+// PhoneChangeSentAt returns when the last phone change confirmation message
+// was sent, or the zero time when none ever was.
+func (u *User) PhoneChangeSentAt() time.Time { return u.inner.PhoneChangeSentAt() }
+
+// ReauthenticationSentAt returns when the last reauthentication one-time
+// password was sent, or the zero time when none ever was.
+func (u *User) ReauthenticationSentAt() time.Time { return u.inner.ReauthenticationSentAt() }
+
 // LastSignInAt returns when the user most recently signed in.
 func (u *User) LastSignInAt() time.Time { return u.inner.LastSignInAt() }
 
@@ -96,6 +124,10 @@ func (i Identity) ID() string { return i.inner.ID() }
 
 // IdentityID returns the identity's own unique ID within the project.
 func (i Identity) IdentityID() string { return i.inner.IdentityID() }
+
+// Email returns the email address carried in the identity's provider data,
+// or the empty string when the provider reported none.
+func (i Identity) Email() string { return i.inner.Email() }
 
 // UserID returns the ID of the user this identity belongs to.
 func (i Identity) UserID() string { return i.inner.UserID() }

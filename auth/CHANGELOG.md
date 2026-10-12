@@ -19,6 +19,8 @@ Administration surface for the project's users, `Client.Admin`:
 - `ListUsers` (paginated)
 - `UpdateUser`
 
+`User` now presents every field the server serves, adding `ConfirmationSentAt`, `EmailChangeSentAt`, `InvitedAt`, `NewEmail`, `NewPhone`, `PhoneChangeSentAt`, `ReauthenticationSentAt` and `RecoverySentAt`, and `Identity` likewise adds `Email`.
+
 ## `v0.1.0-alpha.1` (2026-10-01)
 
 Auth client for server-side verification of end-user access tokens. `Client.GetClaims` returns a token's verified claims and `Client.GetUser` fetches the user's current profile from the Auth server. See the [package documentation](https://pkg.go.dev/github.com/supabase/supabase-go/auth).

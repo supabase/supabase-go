@@ -324,11 +324,20 @@ func TestAdminUserParsing(t *testing.T) {
 		"role": "authenticated",
 		"email": "ada@example.com",
 		"email_confirmed_at": "2026-01-02T03:04:05Z",
+		"invited_at": "2026-01-02T03:04:05Z",
+		"confirmation_sent_at": "2026-01-02T03:04:05Z",
+		"recovery_sent_at": "2026-01-02T03:04:07Z",
+		"new_email": "ada@new.example.com",
+		"email_change_sent_at": "2026-01-02T03:04:08Z",
+		"new_phone": "15551234567",
+		"phone_change_sent_at": "2026-01-02T03:04:09Z",
+		"reauthentication_sent_at": "2026-01-02T03:04:10Z",
 		"created_at": "2026-01-02T03:04:05Z",
 		"updated_at": "2026-01-02T03:04:06Z",
 		"banned_until": "2027-01-02T03:04:05Z",
 		"user_metadata": {"display_name": "Ada"},
-		"app_metadata": {"provider": "email"}
+		"app_metadata": {"provider": "email"},
+		"identities": [{"id": "ada-provider-id", "identity_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", "provider": "email", "email": "ada@example.com"}]
 	}`
 	admin := recorder.admin(t)
 
@@ -353,6 +362,29 @@ func TestAdminUserParsing(t *testing.T) {
 	}
 	if user.UserMetadata()["display_name"] != "Ada" || user.AppMetadata()["provider"] != "email" {
 		t.Errorf("metadata = (%v, %v)", user.UserMetadata(), user.AppMetadata())
+	}
+	if user.NewEmail() != "ada@new.example.com" || user.NewPhone() != "15551234567" {
+		t.Errorf("pending changes = (%q, %q), want the fixture's new email and phone", user.NewEmail(), user.NewPhone())
+	}
+	sentTimestamps := []struct {
+		name  string
+		value time.Time
+	}{
+		{"InvitedAt", user.InvitedAt()},
+		{"ConfirmationSentAt", user.ConfirmationSentAt()},
+		{"RecoverySentAt", user.RecoverySentAt()},
+		{"EmailChangeSentAt", user.EmailChangeSentAt()},
+		{"PhoneChangeSentAt", user.PhoneChangeSentAt()},
+		{"ReauthenticationSentAt", user.ReauthenticationSentAt()},
+	}
+	for _, timestamp := range sentTimestamps {
+		if timestamp.value.IsZero() {
+			t.Errorf("%s is zero, want the fixture's timestamp", timestamp.name)
+		}
+	}
+	identities := user.Identities()
+	if len(identities) != 1 || identities[0].Email() != "ada@example.com" || identities[0].Provider() != "email" {
+		t.Errorf("identities = %v, want the fixture's one email identity", identities)
 	}
 }
 

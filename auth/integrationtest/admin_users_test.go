@@ -74,6 +74,10 @@ func TestAdminUserLifecycle(t *testing.T) {
 	if fetched.ID() != created.ID() || fetched.Email() != email {
 		t.Errorf("fetched = (%q, %q), want the created user", fetched.ID(), fetched.Email())
 	}
+	identities := fetched.Identities()
+	if len(identities) != 1 || identities[0].Provider() != "email" || identities[0].Email() != email {
+		t.Errorf("Identities = %d entries, want one email identity carrying %q", len(identities), email)
+	}
 
 	if err := admin.DeleteUser(t.Context(), created.ID()); err != nil {
 		t.Fatalf("DeleteUser: %v", err)

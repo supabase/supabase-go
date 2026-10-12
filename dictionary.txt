@@ -68,6 +68,7 @@ plainto
 postgrest
 PRODSEC
 reassignable
+reauthentication
 rebalance
 RSASSA
 scrypt
