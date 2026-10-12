@@ -282,3 +282,51 @@ func ExampleAdmin_DeleteUser() {
 	}
 	fmt.Println("erased")
 }
+
+// ExampleAdmin_InviteUser brings a teammate into a workspace. The server
+// creates the account and sends the invitation email itself. The metadata
+// lands on the created user for the accept page to read, and the redirect
+// must be on the project's redirect allow list.
+func ExampleAdmin_InviteUser() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+
+	user, err := admin.InviteUser(context.Background(), "grace@example.com",
+		auth.WithUserMetadata(map[string]any{"workspace": "platform", "invited_by": "ada@example.com"}),
+		auth.WithRedirectTo("https://app.example.com/accept-invite"))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("invited", user.Email())
+}
+
+// ExampleAdmin_GenerateLink mints a password recovery link for the calling
+// application to send through its own mailer - its own delivery provider,
+// template and sender domain - rather than having the Auth server send its
+// built-in recovery email. The server sends nothing here: that is the point
+// of generating a link instead of triggering the email flow.
+func ExampleAdmin_GenerateLink() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+
+	link, err := admin.GenerateLink(context.Background(), auth.
+		NewLinkRequest("grace@example.com").
+		RedirectTo("https://app.example.com/reset").
+		Recovery())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// Hand the URL to the mailer. It is a credential: log it nowhere.
+	fmt.Println(link.ActionLink())
+}

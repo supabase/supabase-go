@@ -13,7 +13,9 @@ Administration surface for the project's users, `Client.Admin`:
 
 - `CreateUser`
 - `DeleteUser` (including `WithSoftDelete` option)
+- `GenerateLink` (minting email action links, built with `NewLinkRequest`)
 - `GetUser`
+- `InviteUser`
 - `ListUsers` (paginated)
 - `UpdateUser`
 

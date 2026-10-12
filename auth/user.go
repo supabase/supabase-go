@@ -43,6 +43,10 @@ func (u *User) PhoneConfirmedAt() time.Time { return u.inner.PhoneConfirmedAt() 
 // ConfirmedAt returns when the user was first confirmed by any method.
 func (u *User) ConfirmedAt() time.Time { return u.inner.ConfirmedAt() }
 
+// InvitedAt returns when the user was last sent an invitation, or the zero
+// time when they never were.
+func (u *User) InvitedAt() time.Time { return u.inner.InvitedAt() }
+
 // LastSignInAt returns when the user most recently signed in.
 func (u *User) LastSignInAt() time.Time { return u.inner.LastSignInAt() }
 

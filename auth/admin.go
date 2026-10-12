@@ -31,13 +31,22 @@ import (
 // for concurrent use by multiple goroutines.
 type Admin struct {
 	httpClient configuration.HTTPClient
-	baseURL    *url.URL
+
+	// baseURL is the Auth service root.
+	baseURL *url.URL
+
+	// adminBaseURL is the /admin path within the Auth service.
+	adminBaseURL *url.URL
 }
 
 // Admin returns the administration surface for this client's project, a view
 // over the same transport and configuration.
 func (c *Client) Admin() *Admin {
-	return &Admin{httpClient: c.httpClient, baseURL: c.baseURL.JoinPath("admin")}
+	return &Admin{
+		httpClient:   c.httpClient,
+		baseURL:      c.baseURL,
+		adminBaseURL: c.baseURL.JoinPath("admin"),
+	}
 }
 
 // UserAttributes describes a user to [Admin.CreateUser] and
@@ -98,7 +107,7 @@ type UserAttributes struct {
 // decide whether the user starts confirmed. The server requires at least an
 // email or a phone number.
 func (a *Admin) CreateUser(ctx context.Context, attributes UserAttributes) (*User, error) {
-	body, err := a.send(ctx, http.MethodPost, a.baseURL.JoinPath("users"), attributes)
+	body, err := a.send(ctx, http.MethodPost, a.adminBaseURL.JoinPath("users"), attributes)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +121,7 @@ func (a *Admin) GetUser(ctx context.Context, userID string) (*User, error) {
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
 	}
-	body, err := a.send(ctx, http.MethodGet, a.baseURL.JoinPath("users", userID), nil)
+	body, err := a.send(ctx, http.MethodGet, a.adminBaseURL.JoinPath("users", userID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +136,7 @@ func (a *Admin) UpdateUser(ctx context.Context, userID string, attributes UserAt
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
 	}
-	body, err := a.send(ctx, http.MethodPut, a.baseURL.JoinPath("users", userID), attributes)
+	body, err := a.send(ctx, http.MethodPut, a.adminBaseURL.JoinPath("users", userID), attributes)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +165,7 @@ func (a *Admin) DeleteUser(ctx context.Context, userID string, options ...Delete
 		}
 		payload = request
 	}
-	_, err := a.send(ctx, http.MethodDelete, a.baseURL.JoinPath("users", userID), payload)
+	_, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID), payload)
 	return err
 }
 
@@ -187,7 +196,7 @@ func WithSoftDelete() DeleteUserOption {
 // [pagination.WithPage] and [pagination.WithSize] choose a page and its size
 // explicitly.
 func (a *Admin) ListUsers(ctx context.Context, options ...pagination.Option) (*UserPage, error) {
-	endpoint := a.baseURL.JoinPath("users")
+	endpoint := a.adminBaseURL.JoinPath("users")
 	parameters := pagination.Resolve(options...)
 	query := url.Values{}
 	if number, ok := parameters.Page(); ok {
@@ -284,6 +293,62 @@ func pageLink(header http.Header, rel string) (int, bool) {
 		return number, true
 	}
 	return 0, false
+}
+
+// InviteUser creates the user and has the server email them an invitation
+// link. An email already confirmed is the server's rejection with HTTP 422,
+// and an invited-but-unaccepted one is re-invited.
+func (a *Admin) InviteUser(ctx context.Context, email string, options ...InviteUserOption) (*User, error) {
+	var request inviteRequest
+	for _, option := range options {
+		option(&request)
+	}
+	endpoint := a.baseURL.JoinPath("invite")
+	if request.redirectTo != "" {
+		query := url.Values{}
+		query.Set("redirect_to", request.redirectTo)
+		endpoint.RawQuery = query.Encode()
+	}
+	body, err := a.send(ctx, http.MethodPost, endpoint, invitePayload{Email: email, Data: request.data})
+	if err != nil {
+		return nil, err
+	}
+	return parseUser(body)
+}
+
+// inviteRequest collects what one invite call's options chose. The redirect
+// is kept apart from the payload because the server reads it from the query
+// string, not the body.
+type inviteRequest struct {
+	data       map[string]any
+	redirectTo string
+}
+
+// invitePayload is the invite request body.
+type invitePayload struct {
+	Email string         `json:"email"`
+	Data  map[string]any `json:"data,omitzero"`
+}
+
+// InviteUserOption adjusts how one [Admin.InviteUser] call invites. Options
+// are applied in the order they are supplied.
+type InviteUserOption func(*inviteRequest)
+
+// WithUserMetadata stores metadata on the invited user, where the
+// invitation's accept page can read it.
+func WithUserMetadata(metadata map[string]any) InviteUserOption {
+	return func(request *inviteRequest) {
+		request.data = metadata
+	}
+}
+
+// WithRedirectTo names where the accepted invitation lands. A URL that is
+// not on the project's redirect allow list is ignored in favor of the
+// project's defaults rather than rejected.
+func WithRedirectTo(redirectURL string) InviteUserOption {
+	return func(request *inviteRequest) {
+		request.redirectTo = redirectURL
+	}
 }
 
 // send executes one admin request through exchange for the calls that read

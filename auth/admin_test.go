@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"testing"
 	"time"
@@ -287,6 +288,14 @@ func TestAdminErrorSurface(t *testing.T) {
 			return err
 		}},
 		{"ListUsers", func(admin *auth.Admin) error { _, err := admin.ListUsers(context.Background()); return err }},
+		{"InviteUser", func(admin *auth.Admin) error {
+			_, err := admin.InviteUser(context.Background(), "ada@example.com")
+			return err
+		}},
+		{"GenerateLink", func(admin *auth.Admin) error {
+			_, err := admin.GenerateLink(context.Background(), auth.NewLinkRequest("ada@example.com").Recovery())
+			return err
+		}},
 	}
 	for _, operation := range operations {
 		t.Run(operation.name, func(t *testing.T) {
@@ -422,6 +431,46 @@ func TestAdminListUsersRequestShape(t *testing.T) {
 			}
 			if request.contentType != "" || len(request.body) != 0 {
 				t.Errorf("request carries a body (%q, %q), want none", request.contentType, request.body)
+			}
+		})
+	}
+}
+
+func TestInviteUserRequestShape(t *testing.T) {
+	cases := []struct {
+		name      string
+		options   []auth.InviteUserOption
+		want      map[string]any
+		wantQuery string
+	}{
+		{name: "a bare invite sends the email alone", want: map[string]any{"email": "ada@example.com"}},
+		{name: "WithUserMetadata adds the data field", options: []auth.InviteUserOption{auth.WithUserMetadata(map[string]any{"workspace": "platform"})}, want: map[string]any{"email": "ada@example.com", "data": map[string]any{"workspace": "platform"}}},
+		{name: "WithRedirectTo rides the query string, never the body", options: []auth.InviteUserOption{auth.WithRedirectTo("https://app.example.com/accept")}, want: map[string]any{"email": "ada@example.com"}, wantQuery: "redirect_to=" + url.QueryEscape("https://app.example.com/accept")},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			recorder := newAdminServer(t)
+			admin := recorder.admin(t)
+
+			if _, err := admin.InviteUser(context.Background(), "ada@example.com", testCase.options...); err != nil {
+				t.Fatalf("InviteUser: %v", err)
+			}
+			if len(recorder.requests) != 1 {
+				t.Fatalf("requests = %d, want 1", len(recorder.requests))
+			}
+			request := recorder.requests[0]
+			if request.method != http.MethodPost || request.path != "/auth/v1/invite" {
+				t.Errorf("request = %s %s, want POST of the invite path beside admin, not under it", request.method, request.path)
+			}
+			if request.query != testCase.wantQuery {
+				t.Errorf("query = %q, want %q", request.query, testCase.wantQuery)
+			}
+			var sent map[string]any
+			if err := json.Unmarshal(request.body, &sent); err != nil {
+				t.Fatalf("request body %q: %v", request.body, err)
+			}
+			if !reflect.DeepEqual(sent, testCase.want) {
+				t.Errorf("body = %v, want %v", sent, testCase.want)
 			}
 		})
 	}

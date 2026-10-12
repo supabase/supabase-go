@@ -24,6 +24,7 @@ type User struct {
 	phone            string
 	phoneConfirmedAt time.Time
 	confirmedAt      time.Time
+	invitedAt        time.Time
 	lastSignInAt     time.Time
 	createdAt        time.Time
 	updatedAt        time.Time
@@ -59,6 +60,9 @@ func (u User) PhoneConfirmedAt() time.Time { return u.phoneConfirmedAt }
 
 // ConfirmedAt returns when the user was first confirmed by any method.
 func (u User) ConfirmedAt() time.Time { return u.confirmedAt }
+
+// InvitedAt returns when the user was last sent an invitation.
+func (u User) InvitedAt() time.Time { return u.invitedAt }
 
 // LastSignInAt returns when the user most recently signed in.
 func (u User) LastSignInAt() time.Time { return u.lastSignInAt }
@@ -142,6 +146,7 @@ type userWire struct {
 	Phone            string         `json:"phone"`
 	PhoneConfirmedAt *time.Time     `json:"phone_confirmed_at"`
 	ConfirmedAt      *time.Time     `json:"confirmed_at"`
+	InvitedAt        *time.Time     `json:"invited_at"`
 	LastSignInAt     *time.Time     `json:"last_sign_in_at"`
 	CreatedAt        *time.Time     `json:"created_at"`
 	UpdatedAt        *time.Time     `json:"updated_at"`
@@ -183,6 +188,7 @@ func Parse(body []byte) (User, error) {
 		phone:            wire.Phone,
 		phoneConfirmedAt: timeOrZero(wire.PhoneConfirmedAt),
 		confirmedAt:      timeOrZero(wire.ConfirmedAt),
+		invitedAt:        timeOrZero(wire.InvitedAt),
 		lastSignInAt:     timeOrZero(wire.LastSignInAt),
 		createdAt:        timeOrZero(wire.CreatedAt),
 		updatedAt:        timeOrZero(wire.UpdatedAt),

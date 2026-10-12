@@ -44,6 +44,7 @@ isdistinct
 jsonv
 jwks
 ldflags
+magiclink
 mistargeted
 mockability
 modcache
@@ -56,6 +57,7 @@ oapi
 omitempty
 omitzero
 opentelemetry
+OTP
 otelhttp
 pgrst
 PGRST

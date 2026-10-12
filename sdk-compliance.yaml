@@ -107,10 +107,48 @@ features:
     supporting_symbols:
       - auth.DeleteUserOption
       - auth.WithSoftDelete
+  auth.admin.generate_link:
+    status: implemented
+    symbols:
+      - auth.Admin.GenerateLink
+    supporting_symbols:
+      - auth.EmailChangeLinkRequest
+      - auth.GeneratedLink
+      - auth.GeneratedLink.ActionLink
+      - auth.GeneratedLink.EmailOTP
+      - auth.GeneratedLink.HashedToken
+      - auth.GeneratedLink.RedirectTo
+      - auth.GeneratedLink.User
+      - auth.GeneratedLink.VerificationType
+      - auth.InviteLinkRequest
+      - auth.InviteLinkRequest.UserMetadata
+      - auth.LinkRequest
+      - auth.LinkRequestBuilder
+      - auth.LinkRequestBuilder.EmailChangeToCurrent
+      - auth.LinkRequestBuilder.EmailChangeToNew
+      - auth.LinkRequestBuilder.Invite
+      - auth.LinkRequestBuilder.MagicLink
+      - auth.LinkRequestBuilder.Recovery
+      - auth.LinkRequestBuilder.RedirectTo
+      - auth.LinkRequestBuilder.Signup
+      - auth.MagicLinkRequest
+      - auth.MagicLinkRequest.UserMetadata
+      - auth.NewLinkRequest
+      - auth.RecoveryLinkRequest
+      - auth.SignupLinkRequest
+      - auth.SignupLinkRequest.UserMetadata
   auth.admin.get_user:
     status: implemented
     symbols:
       - auth.Admin.GetUser
+  auth.admin.invite_user:
+    status: implemented
+    symbols:
+      - auth.Admin.InviteUser
+    supporting_symbols:
+      - auth.InviteUserOption
+      - auth.WithRedirectTo
+      - auth.WithUserMetadata
   auth.admin.list_users:
     status: implemented
     note: |
@@ -185,6 +223,7 @@ features:
       - auth.User.EmailConfirmedAt
       - auth.User.ID
       - auth.User.Identities
+      - auth.User.InvitedAt
       - auth.User.IsAnonymous
       - auth.User.LastSignInAt
       - auth.User.Phone
