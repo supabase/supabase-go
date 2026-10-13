@@ -19,8 +19,8 @@ import (
 
 // Admin is the administration surface of the Auth service for one Supabase
 // project, reached with [Client.Admin]. Its methods act on the project's users
-// directly, with no user token involved, and require the Client to have been
-// constructed with a secret API key.
+// directly and require the Client to have been constructed with a secret API
+// key.
 //
 // Secret keys bypass Row Level Security, so a client holding one belongs in
 // server-controlled environments only - never in a browser, a mobile app or any
@@ -116,7 +116,8 @@ func (a *Admin) CreateUser(ctx context.Context, attributes UserAttributes) (*Use
 
 // GetUser fetches one user by id. The id must be a UUID in its canonical
 // hyphenated form, or [ErrInvalidUserID] is returned before any request is
-// sent. An unknown id is the server's rejection with HTTP 404.
+// sent. An unknown id is the server's rejection, an [*Error] whose HTTPStatus
+// is 404.
 func (a *Admin) GetUser(ctx context.Context, userID string) (*User, error) {
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
@@ -131,7 +132,8 @@ func (a *Admin) GetUser(ctx context.Context, userID string) (*User, error) {
 // UpdateUser changes the fields attributes sets and leaves the rest as they
 // are, returning the user as stored afterwards. The id must be a UUID in its
 // canonical hyphenated form, or [ErrInvalidUserID] is returned before any
-// request is sent. An unknown id is the server's rejection with HTTP 404.
+// request is sent. An unknown id is the server's rejection, an [*Error] whose
+// HTTPStatus is 404.
 func (a *Admin) UpdateUser(ctx context.Context, userID string, attributes UserAttributes) (*User, error) {
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
@@ -207,7 +209,7 @@ func (a *Admin) ListUsers(ctx context.Context, options ...pagination.Option) (*U
 	}
 	endpoint.RawQuery = query.Encode()
 
-	body, header, err := a.exchange(ctx, http.MethodGet, endpoint, nil)
+	body, header, err := a.exchange(ctx, http.MethodGet, endpoint, nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -296,8 +298,8 @@ func pageLink(header http.Header, rel string) (int, bool) {
 }
 
 // InviteUser creates the user and has the server email them an invitation
-// link. An email already confirmed is the server's rejection with HTTP 422,
-// and an invited-but-unaccepted one is re-invited.
+// link. An email already confirmed is the server's rejection, an [*Error]
+// whose HTTPStatus is 422, and an invited-but-unaccepted one is re-invited.
 func (a *Admin) InviteUser(ctx context.Context, email string, options ...InviteUserOption) (*User, error) {
 	var request inviteRequest
 	for _, option := range options {
@@ -351,17 +353,155 @@ func WithRedirectTo(redirectURL string) InviteUserOption {
 	}
 }
 
+// SignOut revokes sessions of the user jwt authenticates. A bare call sends
+// no scope, so the server's default governs, and that default is revoking
+// every session the user holds; [WithLocalScope] and [WithOthersScope] narrow
+// the revocation. The jwt is the end user's access token - the one admin
+// request that carries a user token, naming whose sessions to revoke - and an
+// empty jwt returns [ErrMissingJWT] before any request is sent.
+//
+// Revocation ends sessions, not tokens: a revoked session's unexpired access
+// tokens still verify locally with [Client.GetClaims] until they expire, but
+// fail [Client.GetUser], which consults the session.
+func (a *Admin) SignOut(ctx context.Context, jwt string, options ...SignOutOption) error {
+	if jwt == "" {
+		return ErrMissingJWT
+	}
+	var request signOutRequest
+	for _, option := range options {
+		option(&request)
+	}
+	endpoint := a.baseURL.JoinPath("logout")
+	if request.scope != "" {
+		query := url.Values{}
+		query.Set("scope", request.scope)
+		endpoint.RawQuery = query.Encode()
+	}
+	_, _, err := a.exchange(ctx, http.MethodPost, endpoint, nil, jwt)
+	return err
+}
+
+// signOutRequest collects what one sign-out call's options chose. The scope
+// rides the query string, built and sent only when an option narrowed it, so
+// a bare sign-out states nothing and the server's default applies.
+type signOutRequest struct {
+	scope string
+}
+
+// SignOutOption narrows which of the user's sessions [Admin.SignOut] revokes.
+// Options are applied in the order they are supplied, the later wins.
+type SignOutOption func(*signOutRequest)
+
+// WithLocalScope revokes only the session the presented token belongs to.
+func WithLocalScope() SignOutOption {
+	return func(request *signOutRequest) {
+		request.scope = "local"
+	}
+}
+
+// WithOthersScope revokes every session except the one the presented token
+// belongs to.
+func WithOthersScope() SignOutOption {
+	return func(request *signOutRequest) {
+		request.scope = "others"
+	}
+}
+
+// ListMFAFactors fetches the user's enrolled MFA factors. The id must be a
+// UUID in its canonical hyphenated form, or [ErrInvalidUserID] is returned
+// before any request is sent. An unknown id is the server's rejection, an
+// [*Error] whose HTTPStatus is 404.
+func (a *Admin) ListMFAFactors(ctx context.Context, userID string) ([]Factor, error) {
+	if !isCanonicalUUID(userID) {
+		return nil, ErrInvalidUserID
+	}
+	body, err := a.send(ctx, http.MethodGet, a.adminBaseURL.JoinPath("users", userID, "factors"), nil)
+	if err != nil {
+		return nil, err
+	}
+	return parseFactorList(body)
+}
+
+// UpdateMFAFactor changes what the options set on one of userID's factors and
+// returns the factor as stored. A call with no options changes nothing and
+// still succeeds. The ids must be UUIDs in their canonical hyphenated form,
+// or [ErrInvalidUserID] or [ErrInvalidFactorID] is returned before any
+// request is sent. An unknown id is the server's rejection, an [*Error] whose
+// HTTPStatus is 404.
+func (a *Admin) UpdateMFAFactor(ctx context.Context, userID, factorID string, options ...MFAFactorOption) (*Factor, error) {
+	if !isCanonicalUUID(userID) {
+		return nil, ErrInvalidUserID
+	}
+	if !isCanonicalUUID(factorID) {
+		return nil, ErrInvalidFactorID
+	}
+	var request updateMFAFactorRequest
+	for _, option := range options {
+		option(&request)
+	}
+	body, err := a.send(ctx, http.MethodPut, a.adminBaseURL.JoinPath("users", userID, "factors", factorID), request)
+	if err != nil {
+		return nil, err
+	}
+	return parseFactor(body)
+}
+
+// updateMFAFactorRequest is the admin factor-update request body: only what
+// the options set is sent, and a bare call sends the empty object the server
+// answers without changing anything.
+type updateMFAFactorRequest struct {
+	FriendlyName string `json:"friendly_name,omitzero"`
+	Phone        string `json:"phone,omitzero"`
+}
+
+// MFAFactorOption sets one field on an [Admin.UpdateMFAFactor] call. Options
+// are applied in the order they are supplied.
+type MFAFactorOption func(*updateMFAFactorRequest)
+
+// WithFriendlyName renames the factor.
+func WithFriendlyName(name string) MFAFactorOption {
+	return func(request *updateMFAFactorRequest) {
+		request.FriendlyName = name
+	}
+}
+
+// WithPhone moves a phone factor to a new number, in E.164 format, which the
+// server validates. On any other factor type the server ignores the number
+// while still answering with success.
+func WithPhone(phone string) MFAFactorOption {
+	return func(request *updateMFAFactorRequest) {
+		request.Phone = phone
+	}
+}
+
+// DeleteMFAFactor removes one of userID's factors, ending the second-factor
+// obligation it imposed on sign-in. The ids must be UUIDs in their canonical
+// hyphenated form, or [ErrInvalidUserID] or [ErrInvalidFactorID] is returned
+// before any request is sent. An unknown id is the server's rejection, an
+// [*Error] whose HTTPStatus is 404.
+func (a *Admin) DeleteMFAFactor(ctx context.Context, userID, factorID string) error {
+	if !isCanonicalUUID(userID) {
+		return ErrInvalidUserID
+	}
+	if !isCanonicalUUID(factorID) {
+		return ErrInvalidFactorID
+	}
+	_, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID, "factors", factorID), nil)
+	return err
+}
+
 // send executes one admin request through exchange for the calls that read
-// no response headers.
+// no response headers and present no user token.
 func (a *Admin) send(ctx context.Context, method string, endpoint *url.URL, payload any) ([]byte, error) {
-	body, _, err := a.exchange(ctx, method, endpoint, payload)
+	body, _, err := a.exchange(ctx, method, endpoint, payload, "")
 	return body, err
 }
 
 // exchange executes one admin request and returns the response body and
-// headers. A payload is JSON-encoded, a nil payload sends no body, and a
-// non-2xx answer is shaped into [*Error].
-func (a *Admin) exchange(ctx context.Context, method string, endpoint *url.URL, payload any) ([]byte, http.Header, error) {
+// headers. A payload is JSON-encoded, a nil payload sends no body, a non-empty
+// bearer carries an end user's token on the Authorization header in place of
+// the configured key, and a non-2xx answer is shaped into [*Error].
+func (a *Admin) exchange(ctx context.Context, method string, endpoint *url.URL, payload any, bearer string) ([]byte, http.Header, error) {
 	var requestBody io.Reader
 	if payload != nil {
 		encoded, err := json.Marshal(payload)
@@ -377,6 +517,9 @@ func (a *Admin) exchange(ctx context.Context, method string, endpoint *url.URL, 
 	}
 	if payload != nil {
 		request.Header.Set("Content-Type", "application/json")
+	}
+	if bearer != "" {
+		request.Header.Set("Authorization", "Bearer "+bearer)
 	}
 
 	response, err := a.httpClient.Do(request)

@@ -43,9 +43,10 @@
 // otherwise.
 //
 // [Client.Admin] is the project's user-administration surface - creating,
-// fetching, updating, listing, inviting and deleting users, and minting the
-// action links their email flows carry, with the project's secret API key and
-// no user token. See [Admin] for the trust boundary its methods sit behind.
+// fetching, updating, listing, inviting and deleting users, minting the
+// action links their email flows carry, revoking their sessions and
+// administering their enrolled MFA factors, all with the project's secret API
+// key. See [Admin] for the trust boundary its methods sit behind.
 //
 // To act on the database as the verified user afterwards, so that Row Level
 // Security policies apply, attach the same token to a Database client through

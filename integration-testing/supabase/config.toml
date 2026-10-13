@@ -24,6 +24,13 @@ major_version = 17
 enabled = true
 site_url = "http://127.0.0.1:3000"
 
+# The MFA admin capabilities need an enrolled factor to act on, and the test
+# fixtures enroll a TOTP factor for a throwaway user. verify_enabled is
+# required by the CLI whenever enroll_enabled is set.
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
 [studio]
 enabled = false
 

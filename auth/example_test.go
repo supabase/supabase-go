@@ -330,3 +330,72 @@ func ExampleAdmin_GenerateLink() {
 	// Hand the URL to the mailer. It is a credential: log it nowhere.
 	fmt.Println(link.ActionLink())
 }
+
+// ExampleAdmin_SignOut responds to a reported credential leak by revoking
+// every session the user holds. The token names whose sessions to revoke, and
+// the bare call is the server's default scope - all of them. WithOthersScope
+// would spare the session the token belongs to, WithLocalScope would end that
+// session alone.
+func ExampleAdmin_SignOut() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+
+	if err := admin.SignOut(context.Background(), "END_USER_ACCESS_TOKEN"); err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("all sessions revoked")
+}
+
+// ExampleAdmin_UpdateMFAFactor relabels a factor after the user moved their
+// authenticator app to a new device, so sign-in prompts and support
+// conversations name the device they actually hold.
+func ExampleAdmin_UpdateMFAFactor() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+
+	factor, err := admin.UpdateMFAFactor(context.Background(), "USER_ID", "FACTOR_ID",
+		auth.WithFriendlyName("Personal phone"))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("renamed to", factor.FriendlyName())
+}
+
+// ExampleAdmin_DeleteMFAFactor restores access for a user who lost the phone
+// their authenticator app lived on: list the factors, remove the TOTP one,
+// and the next sign-in can enroll a replacement.
+func ExampleAdmin_DeleteMFAFactor() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+	ctx := context.Background()
+
+	factors, err := admin.ListMFAFactors(ctx, "USER_ID")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	for _, factor := range factors {
+		if factor.Type() != "totp" {
+			continue
+		}
+		if err := admin.DeleteMFAFactor(ctx, "USER_ID", factor.ID()); err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println("removed", factor.FriendlyName())
+	}
+}

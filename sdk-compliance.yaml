@@ -18,11 +18,23 @@ supporting_symbols:
   - auth.Admin
   - auth.Client
   - auth.Client.Admin
+  - auth.ErrInvalidFactorID
   - auth.ErrInvalidUserID
   - auth.ErrMissingJWT
   - auth.Error
   - auth.Error.Error
   - auth.Error.HTTPError
+  - auth.Factor
+  - auth.Factor.CreatedAt
+  - auth.Factor.FriendlyName
+  - auth.Factor.ID
+  - auth.Factor.LastChallengedAt
+  - auth.Factor.LastWebAuthnChallengeData
+  - auth.Factor.Phone
+  - auth.Factor.Status
+  - auth.Factor.Type
+  - auth.Factor.UpdatedAt
+  - auth.Factor.WebAuthnAAGUID
   - auth.New
   - auth.NewFromConfiguration
   - auth.UserAttributes
@@ -100,6 +112,10 @@ features:
     status: implemented
     symbols:
       - auth.Admin.CreateUser
+  auth.admin.delete_mfa_factor:
+    status: implemented
+    symbols:
+      - auth.Admin.DeleteMFAFactor
   auth.admin.delete_user:
     status: implemented
     symbols:
@@ -149,6 +165,10 @@ features:
       - auth.InviteUserOption
       - auth.WithRedirectTo
       - auth.WithUserMetadata
+  auth.admin.list_mfa_factors:
+    status: implemented
+    symbols:
+      - auth.Admin.ListMFAFactors
   auth.admin.list_users:
     status: implemented
     note: |
@@ -162,6 +182,22 @@ features:
       - auth.UserPage.NextPage
       - auth.UserPage.Total
       - auth.UserPage.Users
+  auth.admin.sign_out:
+    status: implemented
+    symbols:
+      - auth.Admin.SignOut
+    supporting_symbols:
+      - auth.SignOutOption
+      - auth.WithLocalScope
+      - auth.WithOthersScope
+  auth.admin.update_mfa_factor:
+    status: implemented
+    symbols:
+      - auth.Admin.UpdateMFAFactor
+    supporting_symbols:
+      - auth.MFAFactorOption
+      - auth.WithFriendlyName
+      - auth.WithPhone
   auth.admin.update_user:
     status: implemented
     symbols:
@@ -224,6 +260,7 @@ features:
       - auth.User.Email
       - auth.User.EmailChangeSentAt
       - auth.User.EmailConfirmedAt
+      - auth.User.Factors
       - auth.User.ID
       - auth.User.Identities
       - auth.User.InvitedAt

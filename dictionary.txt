@@ -1,3 +1,4 @@
+aaguid
 apidiff
 apikey
 bcrypt
@@ -84,6 +85,7 @@ synctest
 telemetrytest
 testkit
 torschlusspanik
+totp
 traceparent
 tsquery
 tstzrange
@@ -94,5 +96,6 @@ upsert
 urls
 vcs
 vulncheck
+webauthn
 websearch
 weltschmerz

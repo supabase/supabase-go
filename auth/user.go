@@ -114,6 +114,17 @@ func (u *User) Identities() []Identity {
 	return identities
 }
 
+// Factors returns the user's enrolled multi-factor authentication factors.
+// The result is a copy the caller may retain and modify freely.
+func (u *User) Factors() []Factor {
+	inner := u.inner.Factors()
+	factors := make([]Factor, len(inner))
+	for i, enrolled := range inner {
+		factors[i] = Factor{inner: enrolled}
+	}
+	return factors
+}
+
 // Identity is one linked sign-in identity - a provider account - on a user.
 type Identity struct {
 	inner profile.Identity

@@ -55,7 +55,8 @@ func (b LinkRequestBuilder) MagicLink() MagicLinkRequest {
 }
 
 // Recovery describes a password recovery link for an existing user. An
-// unknown email is the server's rejection with HTTP 404.
+// unknown email is the server's rejection, an [*Error] whose HTTPStatus is
+// 404.
 func (b LinkRequestBuilder) Recovery() RecoveryLinkRequest {
 	return RecoveryLinkRequest{request: b.request.WithMode("recovery")}
 }
@@ -63,14 +64,14 @@ func (b LinkRequestBuilder) Recovery() RecoveryLinkRequest {
 // EmailChangeToCurrent describes the link that confirms moving the user's
 // email to newEmail, for delivery to the current address. The server answers
 // it only on projects with secure email change enabled, and an unknown email
-// is its rejection with HTTP 404.
+// is its rejection, an [*Error] whose HTTPStatus is 404.
 func (b LinkRequestBuilder) EmailChangeToCurrent(newEmail string) EmailChangeLinkRequest {
 	return EmailChangeLinkRequest{request: b.request.WithMode("email_change_current").WithNewEmail(newEmail)}
 }
 
 // EmailChangeToNew describes the link that confirms moving the user's email
 // to newEmail, for delivery to that new address. An unknown email is the
-// server's rejection with HTTP 404.
+// server's rejection, an [*Error] whose HTTPStatus is 404.
 func (b LinkRequestBuilder) EmailChangeToNew(newEmail string) EmailChangeLinkRequest {
 	return EmailChangeLinkRequest{request: b.request.WithMode("email_change_new").WithNewEmail(newEmail)}
 }

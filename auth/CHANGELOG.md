@@ -12,14 +12,18 @@ Refer to [GitHub `../CHANGELOG.md`](https://github.com/supabase/supabase-go/blob
 Administration surface for the project's users, `Client.Admin`:
 
 - `CreateUser`
+- `DeleteMFAFactor`
 - `DeleteUser` (including `WithSoftDelete` option)
 - `GenerateLink` (minting email action links, built with `NewLinkRequest`)
 - `GetUser`
 - `InviteUser`
+- `ListMFAFactors`
 - `ListUsers` (paginated)
+- `SignOut` (revoking a user's sessions, including `WithLocalScope` and `WithOthersScope` options)
+- `UpdateMFAFactor` (including `WithFriendlyName` and `WithPhone` options)
 - `UpdateUser`
 
-`User` now presents every field the server serves, adding `ConfirmationSentAt`, `EmailChangeSentAt`, `InvitedAt`, `NewEmail`, `NewPhone`, `PhoneChangeSentAt`, `ReauthenticationSentAt` and `RecoverySentAt`, and `Identity` likewise adds `Email`.
+`User` now presents every field the server serves, adding `ConfirmationSentAt`, `EmailChangeSentAt`, `InvitedAt`, `NewEmail`, `NewPhone`, `PhoneChangeSentAt`, `ReauthenticationSentAt` and `RecoverySentAt`, and `Identity` likewise adds `Email`. `User` also carries `Factors`, the enrolled MFA factors, each a wire-complete `Factor`.
 
 ## `v0.1.0-alpha.1` (2026-10-01)
 

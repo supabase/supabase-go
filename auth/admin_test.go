@@ -202,6 +202,14 @@ func TestAdminRejectsMalformedUserID(t *testing.T) {
 		}},
 		{"DeleteUser", func(id string) error { return admin.DeleteUser(context.Background(), id) }},
 		{"DeleteUser with WithSoftDelete", func(id string) error { return admin.DeleteUser(context.Background(), id, auth.WithSoftDelete()) }},
+		{"ListMFAFactors", func(id string) error { _, err := admin.ListMFAFactors(context.Background(), id); return err }},
+		{"UpdateMFAFactor", func(id string) error {
+			_, err := admin.UpdateMFAFactor(context.Background(), id, "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918")
+			return err
+		}},
+		{"DeleteMFAFactor", func(id string) error {
+			return admin.DeleteMFAFactor(context.Background(), id, "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918")
+		}},
 	}
 	for _, testCase := range malformed {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -209,6 +217,32 @@ func TestAdminRejectsMalformedUserID(t *testing.T) {
 				if err := operation.call(testCase.id); !errors.Is(err, auth.ErrInvalidUserID) {
 					t.Errorf("%s(%q) = %v, want ErrInvalidUserID", operation.name, testCase.id, err)
 				}
+			}
+		})
+	}
+	if len(recorder.requests) != 0 {
+		t.Errorf("requests = %d, want 0 - a malformed id must never reach the wire", len(recorder.requests))
+	}
+}
+
+func TestAdminRejectsMalformedFactorID(t *testing.T) {
+	const userID = "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+	recorder := newAdminServer(t)
+	admin := recorder.admin(t)
+	operations := []struct {
+		name string
+		call func(id string) error
+	}{
+		{"UpdateMFAFactor", func(id string) error {
+			_, err := admin.UpdateMFAFactor(context.Background(), userID, id, auth.WithFriendlyName("Renamed"))
+			return err
+		}},
+		{"DeleteMFAFactor", func(id string) error { return admin.DeleteMFAFactor(context.Background(), userID, id) }},
+	}
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			if err := operation.call("not-a-uuid"); !errors.Is(err, auth.ErrInvalidFactorID) {
+				t.Errorf("%s(not-a-uuid) = %v, want ErrInvalidFactorID", operation.name, err)
 			}
 		})
 	}
@@ -295,6 +329,20 @@ func TestAdminErrorSurface(t *testing.T) {
 		{"GenerateLink", func(admin *auth.Admin) error {
 			_, err := admin.GenerateLink(context.Background(), auth.NewLinkRequest("ada@example.com").Recovery())
 			return err
+		}},
+		{"SignOut", func(admin *auth.Admin) error {
+			return admin.SignOut(context.Background(), "end-user-jwt", auth.WithLocalScope())
+		}},
+		{"ListMFAFactors", func(admin *auth.Admin) error {
+			_, err := admin.ListMFAFactors(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
+			return err
+		}},
+		{"UpdateMFAFactor", func(admin *auth.Admin) error {
+			_, err := admin.UpdateMFAFactor(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918", auth.WithFriendlyName("Renamed"))
+			return err
+		}},
+		{"DeleteMFAFactor", func(admin *auth.Admin) error {
+			return admin.DeleteMFAFactor(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918")
 		}},
 	}
 	for _, operation := range operations {
@@ -592,5 +640,244 @@ func TestAdminUserPageParsing(t *testing.T) {
 				t.Errorf("LastPage = (%d, %t), want (%d, %t)", number, ok, testCase.wantLast, testCase.wantLastOK)
 			}
 		})
+	}
+}
+
+func TestAdminSignOutRequestShape(t *testing.T) {
+	scopes := []struct {
+		name    string
+		options []auth.SignOutOption
+		query   string
+	}{
+		{"a bare call sends no scope, leaving the server's default global revocation", nil, ""},
+		{"WithLocalScope narrows to the presented session", []auth.SignOutOption{auth.WithLocalScope()}, "scope=local"},
+		{"WithOthersScope spares the presented session", []auth.SignOutOption{auth.WithOthersScope()}, "scope=others"},
+		{"of two scopes the later wins", []auth.SignOutOption{auth.WithLocalScope(), auth.WithOthersScope()}, "scope=others"},
+	}
+	for _, testCase := range scopes {
+		t.Run(testCase.name, func(t *testing.T) {
+			recorder := newAdminServer(t)
+			// The server answers a sign-out with 204 and no body, so success is
+			// the nil error alone.
+			recorder.status = http.StatusNoContent
+			recorder.body = ""
+			admin := recorder.admin(t)
+
+			if err := admin.SignOut(context.Background(), "end-user-jwt", testCase.options...); err != nil {
+				t.Fatalf("SignOut: %v", err)
+			}
+
+			if len(recorder.requests) != 1 {
+				t.Fatalf("requests = %d, want 1", len(recorder.requests))
+			}
+			request := recorder.requests[0]
+			if request.method != http.MethodPost || request.path != "/auth/v1/logout" {
+				t.Errorf("request = %s %s, want POST of the logout path", request.method, request.path)
+			}
+			if request.query != testCase.query {
+				t.Errorf("query = %q, want %q", request.query, testCase.query)
+			}
+			if request.authorization != "Bearer end-user-jwt" {
+				t.Errorf("Authorization = %q, want the end user's token - it names whose sessions to revoke", request.authorization)
+			}
+			if request.contentType != "" || len(request.body) != 0 {
+				t.Errorf("request carries a body (%q, %q), want none", request.contentType, request.body)
+			}
+		})
+	}
+
+	t.Run("an empty token is rejected before the wire", func(t *testing.T) {
+		recorder := newAdminServer(t)
+		admin := recorder.admin(t)
+		if err := admin.SignOut(context.Background(), ""); !errors.Is(err, auth.ErrMissingJWT) {
+			t.Errorf("SignOut with an empty token = %v, want ErrMissingJWT", err)
+		}
+		if len(recorder.requests) != 0 {
+			t.Errorf("requests = %d, want 0", len(recorder.requests))
+		}
+	})
+}
+
+func TestAdminMFARequestShapes(t *testing.T) {
+	const userID = "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+	const factorID = "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918"
+	const factorsPath = "/auth/v1/admin/users/" + userID + "/factors"
+	const factorPath = factorsPath + "/" + factorID
+
+	t.Run("ListMFAFactors GETs the factors path with no body", func(t *testing.T) {
+		recorder := newAdminServer(t)
+		recorder.body = `[]`
+		admin := recorder.admin(t)
+
+		factors, err := admin.ListMFAFactors(context.Background(), userID)
+		if err != nil {
+			t.Fatalf("ListMFAFactors: %v", err)
+		}
+		if len(factors) != 0 {
+			t.Errorf("factors = %d, want 0 from an empty array", len(factors))
+		}
+		request := recorder.requests[0]
+		if request.method != http.MethodGet || request.path != factorsPath {
+			t.Errorf("request = %s %s, want GET %s", request.method, request.path, factorsPath)
+		}
+		if request.contentType != "" || len(request.body) != 0 {
+			t.Errorf("request carries a body (%q, %q), want none", request.contentType, request.body)
+		}
+	})
+
+	t.Run("DeleteMFAFactor DELETEs the factor's path with no body", func(t *testing.T) {
+		recorder := newAdminServer(t)
+		admin := recorder.admin(t)
+
+		if err := admin.DeleteMFAFactor(context.Background(), userID, factorID); err != nil {
+			t.Fatalf("DeleteMFAFactor: %v", err)
+		}
+		request := recorder.requests[0]
+		if request.method != http.MethodDelete || request.path != factorPath {
+			t.Errorf("request = %s %s, want DELETE %s", request.method, request.path, factorPath)
+		}
+		if request.contentType != "" || len(request.body) != 0 {
+			t.Errorf("request carries a body (%q, %q), want none", request.contentType, request.body)
+		}
+	})
+
+	updates := []struct {
+		name    string
+		options []auth.MFAFactorOption
+		want    map[string]any
+	}{
+		{name: "a bare update sends an empty object, changing nothing", want: map[string]any{}},
+		{name: "WithFriendlyName sends only the name", options: []auth.MFAFactorOption{auth.WithFriendlyName("Work laptop")}, want: map[string]any{"friendly_name": "Work laptop"}},
+		{name: "WithPhone sends only the phone", options: []auth.MFAFactorOption{auth.WithPhone("+15551234567")}, want: map[string]any{"phone": "+15551234567"}},
+		{
+			name:    "both options send both fields",
+			options: []auth.MFAFactorOption{auth.WithFriendlyName("Work laptop"), auth.WithPhone("+15551234567")},
+			want:    map[string]any{"friendly_name": "Work laptop", "phone": "+15551234567"},
+		},
+	}
+	for _, testCase := range updates {
+		t.Run(testCase.name, func(t *testing.T) {
+			recorder := newAdminServer(t)
+			recorder.body = `{"id":"` + factorID + `","factor_type":"totp","status":"verified"}`
+			admin := recorder.admin(t)
+
+			factor, err := admin.UpdateMFAFactor(context.Background(), userID, factorID, testCase.options...)
+			if err != nil {
+				t.Fatalf("UpdateMFAFactor: %v", err)
+			}
+			if factor.ID() != factorID {
+				t.Errorf("ID = %q, want the served factor parsed", factor.ID())
+			}
+			request := recorder.requests[0]
+			if request.method != http.MethodPut || request.path != factorPath {
+				t.Errorf("request = %s %s, want PUT %s", request.method, request.path, factorPath)
+			}
+			if request.contentType != "application/json" {
+				t.Errorf("Content-Type = %q, want application/json", request.contentType)
+			}
+			var sent map[string]any
+			if err := json.Unmarshal(request.body, &sent); err != nil {
+				t.Fatalf("request body %q: %v", request.body, err)
+			}
+			if !reflect.DeepEqual(sent, testCase.want) {
+				t.Errorf("body = %v, want %v", sent, testCase.want)
+			}
+		})
+	}
+}
+
+func TestFactorParsing(t *testing.T) {
+	recorder := newAdminServer(t)
+	recorder.body = `[
+		{
+			"id": "11111111-aaaa-4bbb-8ccc-222222222222",
+			"factor_type": "totp",
+			"status": "verified",
+			"friendly_name": "Work laptop",
+			"phone": "",
+			"created_at": "2026-01-02T03:04:05Z",
+			"updated_at": "2026-01-02T03:04:06Z",
+			"last_challenged_at": "2026-01-03T04:05:06Z"
+		},
+		{
+			"id": "33333333-bbbb-4ccc-8ddd-444444444444",
+			"factor_type": "phone",
+			"status": "unverified",
+			"friendly_name": "",
+			"phone": "+15551234567",
+			"created_at": "2026-01-02T03:04:05Z",
+			"updated_at": "2026-01-02T03:04:05Z",
+			"last_challenged_at": null
+		},
+		{
+			"id": "55555555-cccc-4ddd-8eee-666666666666",
+			"factor_type": "webauthn",
+			"status": "verified",
+			"friendly_name": "Security key",
+			"phone": "",
+			"web_authn_aaguid": "77777777-dddd-4eee-8fff-888888888888",
+			"last_webauthn_challenge_data": {"type": "webauthn", "challenge": {"id": "challenge-id"}},
+			"created_at": "2026-01-02T03:04:05Z",
+			"updated_at": "2026-01-02T03:04:05Z"
+		},
+		{
+			"id": "99999999-eeee-4fff-8aaa-000000000000",
+			"factor_type": "hardware_token",
+			"status": "unverified"
+		}
+	]`
+	admin := recorder.admin(t)
+
+	factors, err := admin.ListMFAFactors(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
+	if err != nil {
+		t.Fatalf("ListMFAFactors: %v", err)
+	}
+	if len(factors) != 4 {
+		t.Fatalf("factors = %d, want 4", len(factors))
+	}
+
+	totp := factors[0]
+	if totp.ID() != "11111111-aaaa-4bbb-8ccc-222222222222" || totp.Type() != "totp" || totp.Status() != "verified" {
+		t.Errorf("totp = (%q, %q, %q), want the served identity fields", totp.ID(), totp.Type(), totp.Status())
+	}
+	if totp.FriendlyName() != "Work laptop" || totp.Phone() != "" || totp.WebAuthnAAGUID() != "" {
+		t.Errorf("totp = (%q, %q, %q), want only the friendly name set", totp.FriendlyName(), totp.Phone(), totp.WebAuthnAAGUID())
+	}
+	if !totp.CreatedAt().Equal(time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)) ||
+		!totp.UpdatedAt().Equal(time.Date(2026, 1, 2, 3, 4, 6, 0, time.UTC)) ||
+		!totp.LastChallengedAt().Equal(time.Date(2026, 1, 3, 4, 5, 6, 0, time.UTC)) {
+		t.Errorf("totp timestamps = (%v, %v, %v), want the served instants", totp.CreatedAt(), totp.UpdatedAt(), totp.LastChallengedAt())
+	}
+	if totp.LastWebAuthnChallengeData() != nil {
+		t.Errorf("totp challenge data = %v, want nil on a TOTP factor", totp.LastWebAuthnChallengeData())
+	}
+
+	phone := factors[1]
+	if phone.Type() != "phone" || phone.Status() != "unverified" || phone.Phone() != "+15551234567" {
+		t.Errorf("phone = (%q, %q, %q), want the served phone factor", phone.Type(), phone.Status(), phone.Phone())
+	}
+	if phone.FriendlyName() != "" || !phone.LastChallengedAt().IsZero() {
+		t.Errorf("phone = (%q, %v), want no name and the null challenge time zero", phone.FriendlyName(), phone.LastChallengedAt())
+	}
+
+	webAuthn := factors[2]
+	if webAuthn.Type() != "webauthn" || webAuthn.WebAuthnAAGUID() != "77777777-dddd-4eee-8fff-888888888888" {
+		t.Errorf("webauthn = (%q, %q), want the served AAGUID", webAuthn.Type(), webAuthn.WebAuthnAAGUID())
+	}
+	challengeData := webAuthn.LastWebAuthnChallengeData()
+	if challengeData["type"] != "webauthn" {
+		t.Errorf("challenge data = %v, want the served object", challengeData)
+	}
+	challengeData["type"] = "mutated"
+	if webAuthn.LastWebAuthnChallengeData()["type"] != "webauthn" {
+		t.Error("mutating the returned challenge data changed the factor, want a copy")
+	}
+
+	unknown := factors[3]
+	if unknown.Type() != "hardware_token" {
+		t.Errorf("Type = %q, want an unknown factor type passed through verbatim", unknown.Type())
+	}
+	if !unknown.CreatedAt().IsZero() || !unknown.UpdatedAt().IsZero() {
+		t.Errorf("timestamps = (%v, %v), want zero when the server omits them", unknown.CreatedAt(), unknown.UpdatedAt())
 	}
 }

@@ -10,6 +10,8 @@ import (
 	"maps"
 	"slices"
 	"time"
+
+	"github.com/supabase/supabase-go/auth/internal/factor"
 )
 
 // User is the opaque state of one user profile.
@@ -41,6 +43,7 @@ type User struct {
 	appMetadata            map[string]any
 	userMetadata           map[string]any
 	identities             []Identity
+	factors                []factor.Factor
 }
 
 // ID returns the user's unique ID.
@@ -128,6 +131,9 @@ func (u User) UserMetadata() map[string]any { return maps.Clone(u.userMetadata) 
 // Identities returns a copy of the user's linked sign-in identities.
 func (u User) Identities() []Identity { return slices.Clone(u.identities) }
 
+// Factors returns a copy of the user's enrolled MFA factors.
+func (u User) Factors() []factor.Factor { return slices.Clone(u.factors) }
+
 // Identity is the opaque state of one linked sign-in identity on a user.
 type Identity struct {
 	id           string
@@ -175,31 +181,32 @@ func (i Identity) UpdatedAt() time.Time { return i.updatedAt }
 // timestamps are pointers so an absent field stays the zero time rather than
 // the Unix epoch.
 type userWire struct {
-	ID                     string         `json:"id"`
-	Audience               string         `json:"aud"`
-	Role                   string         `json:"role"`
-	Email                  string         `json:"email"`
-	EmailConfirmedAt       *time.Time     `json:"email_confirmed_at"`
-	Phone                  string         `json:"phone"`
-	PhoneConfirmedAt       *time.Time     `json:"phone_confirmed_at"`
-	ConfirmedAt            *time.Time     `json:"confirmed_at"`
-	InvitedAt              *time.Time     `json:"invited_at"`
-	ConfirmationSentAt     *time.Time     `json:"confirmation_sent_at"`
-	RecoverySentAt         *time.Time     `json:"recovery_sent_at"`
-	NewEmail               string         `json:"new_email"`
-	EmailChangeSentAt      *time.Time     `json:"email_change_sent_at"`
-	NewPhone               string         `json:"new_phone"`
-	PhoneChangeSentAt      *time.Time     `json:"phone_change_sent_at"`
-	ReauthenticationSentAt *time.Time     `json:"reauthentication_sent_at"`
-	LastSignInAt           *time.Time     `json:"last_sign_in_at"`
-	CreatedAt              *time.Time     `json:"created_at"`
-	UpdatedAt              *time.Time     `json:"updated_at"`
-	BannedUntil            *time.Time     `json:"banned_until"`
-	DeletedAt              *time.Time     `json:"deleted_at"`
-	IsAnonymous            bool           `json:"is_anonymous"`
-	AppMetadata            map[string]any `json:"app_metadata"`
-	UserMetadata           map[string]any `json:"user_metadata"`
-	Identities             []identityWire `json:"identities"`
+	ID                     string          `json:"id"`
+	Audience               string          `json:"aud"`
+	Role                   string          `json:"role"`
+	Email                  string          `json:"email"`
+	EmailConfirmedAt       *time.Time      `json:"email_confirmed_at"`
+	Phone                  string          `json:"phone"`
+	PhoneConfirmedAt       *time.Time      `json:"phone_confirmed_at"`
+	ConfirmedAt            *time.Time      `json:"confirmed_at"`
+	InvitedAt              *time.Time      `json:"invited_at"`
+	ConfirmationSentAt     *time.Time      `json:"confirmation_sent_at"`
+	RecoverySentAt         *time.Time      `json:"recovery_sent_at"`
+	NewEmail               string          `json:"new_email"`
+	EmailChangeSentAt      *time.Time      `json:"email_change_sent_at"`
+	NewPhone               string          `json:"new_phone"`
+	PhoneChangeSentAt      *time.Time      `json:"phone_change_sent_at"`
+	ReauthenticationSentAt *time.Time      `json:"reauthentication_sent_at"`
+	LastSignInAt           *time.Time      `json:"last_sign_in_at"`
+	CreatedAt              *time.Time      `json:"created_at"`
+	UpdatedAt              *time.Time      `json:"updated_at"`
+	BannedUntil            *time.Time      `json:"banned_until"`
+	DeletedAt              *time.Time      `json:"deleted_at"`
+	IsAnonymous            bool            `json:"is_anonymous"`
+	AppMetadata            map[string]any  `json:"app_metadata"`
+	UserMetadata           map[string]any  `json:"user_metadata"`
+	Identities             []identityWire  `json:"identities"`
+	Factors                json.RawMessage `json:"factors"`
 }
 
 // identityWire is the JSON shape of one entry in a user's identities array.
@@ -262,6 +269,13 @@ func Parse(body []byte) (User, error) {
 			lastSignInAt: timeOrZero(identity.LastSignInAt),
 			updatedAt:    timeOrZero(identity.UpdatedAt),
 		})
+	}
+	if len(wire.Factors) > 0 {
+		factors, err := factor.ParseList(wire.Factors)
+		if err != nil {
+			return User{}, err
+		}
+		user.factors = factors
 	}
 	return user, nil
 }
