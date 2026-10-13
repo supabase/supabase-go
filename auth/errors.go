@@ -39,6 +39,12 @@ const ErrInvalidUserID = authError("user ID is not a canonical UUID")
 // [ErrInvalidUserID] describes for user ids, before any request is sent.
 const ErrInvalidFactorID = authError("factor ID is not a canonical UUID")
 
+// ErrMissingIdentifier is reported by the [Admin] custom provider operations
+// that address one provider when the given identifier is empty, before any
+// request is sent: an empty identifier would change the shape of the request
+// path and reach a different route entirely.
+const ErrMissingIdentifier = authError("provider identifier is required")
+
 // Error is the typed failure returned when the Auth server answers a request
 // with a non-2xx status, carrying the server's reported [error code] and message
 // alongside the HTTP status. [Client.GetUser] returns it directly, and

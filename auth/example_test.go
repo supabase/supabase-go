@@ -399,3 +399,54 @@ func ExampleAdmin_DeleteMFAFactor() {
 		fmt.Println("removed", factor.FriendlyName())
 	}
 }
+
+// ExampleAdmin_CreateCustomProvider onboards an enterprise customer whose
+// workforce signs in through the customer's own identity provider. OIDC needs
+// only the issuer beyond the client credential the customer registered - the
+// server discovers the endpoints from it, and rejects the registration if
+// discovery fails, so a misconfiguration surfaces here rather than at a
+// user's sign-in. The identifier carries the custom: prefix the server
+// requires.
+func ExampleAdmin_CreateCustomProvider() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+
+	definition := auth.NewCustomProvider(
+		"custom:acme-corp",
+		"Acme Corp SSO",
+		"CLIENT_ID_FROM_THE_CUSTOMER",
+		"CLIENT_SECRET_FROM_THE_CUSTOMER",
+	).OIDC("https://login.acme.example").
+		Scopes("openid", "profile", "email")
+
+	provider, err := admin.CreateCustomProvider(context.Background(), definition)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("registered", provider.Identifier())
+}
+
+// ExampleAdmin_UpdateCustomProvider disables a provider during an incident at
+// the customer's identity provider, keeping its configuration intact for the
+// moment it is trusted again. An option carried is an instruction, an option
+// absent leaves the stored value alone.
+func ExampleAdmin_UpdateCustomProvider() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+
+	provider, err := admin.UpdateCustomProvider(context.Background(), "custom:acme-corp", auth.WithEnabled(false))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(provider.Name(), "disabled")
+}

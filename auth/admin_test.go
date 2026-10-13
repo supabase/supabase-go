@@ -22,6 +22,7 @@ import (
 type recordedRequest struct {
 	method        string
 	path          string
+	escapedPath   string
 	query         string
 	contentType   string
 	apiKey        string
@@ -52,6 +53,7 @@ func newAdminServer(t *testing.T) *adminServer {
 		recorder.requests = append(recorder.requests, recordedRequest{
 			method:        request.Method,
 			path:          request.URL.Path,
+			escapedPath:   request.URL.EscapedPath(),
 			query:         request.URL.RawQuery,
 			contentType:   request.Header.Get("Content-Type"),
 			apiKey:        request.Header.Get("apikey"),
@@ -343,6 +345,25 @@ func TestAdminErrorSurface(t *testing.T) {
 		}},
 		{"DeleteMFAFactor", func(admin *auth.Admin) error {
 			return admin.DeleteMFAFactor(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918")
+		}},
+		{"CreateCustomProvider", func(admin *auth.Admin) error {
+			_, err := admin.CreateCustomProvider(context.Background(), auth.NewCustomProvider("custom:acme", "Acme", "client-id", "client-secret").OIDC("https://id.acme.example"))
+			return err
+		}},
+		{"GetCustomProvider", func(admin *auth.Admin) error {
+			_, err := admin.GetCustomProvider(context.Background(), "custom:acme")
+			return err
+		}},
+		{"ListCustomProviders", func(admin *auth.Admin) error {
+			_, err := admin.ListCustomProviders(context.Background(), auth.WithOIDCOnly())
+			return err
+		}},
+		{"UpdateCustomProvider", func(admin *auth.Admin) error {
+			_, err := admin.UpdateCustomProvider(context.Background(), "custom:acme", auth.WithEnabled(false))
+			return err
+		}},
+		{"DeleteCustomProvider", func(admin *auth.Admin) error {
+			return admin.DeleteCustomProvider(context.Background(), "custom:acme")
 		}},
 	}
 	for _, operation := range operations {
@@ -879,5 +900,490 @@ func TestFactorParsing(t *testing.T) {
 	}
 	if !unknown.CreatedAt().IsZero() || !unknown.UpdatedAt().IsZero() {
 		t.Errorf("timestamps = (%v, %v), want zero when the server omits them", unknown.CreatedAt(), unknown.UpdatedAt())
+	}
+}
+
+func TestAdminCreateCustomProviderRequestShape(t *testing.T) {
+	cases := []struct {
+		name       string
+		definition auth.CustomProviderDefinition
+		want       map[string]any
+	}{
+		{
+			name: "a minimal OIDC definition sends the required fields and leaves every default unstated",
+			definition: auth.NewCustomProvider("custom:acme", "Acme Corp SSO", "client-id-1", "client-secret-1").
+				OIDC("https://id.acme.example"),
+			want: map[string]any{
+				"provider_type": "oidc",
+				"identifier":    "custom:acme",
+				"name":          "Acme Corp SSO",
+				"client_id":     "client-id-1",
+				"client_secret": "client-secret-1",
+				"issuer":        "https://id.acme.example",
+			},
+		},
+		{
+			name: "every OIDC refinement maps to its wire name",
+			definition: auth.NewCustomProvider("custom:acme", "Acme Corp SSO", "client-id-1", "client-secret-1").
+				OIDC("https://id.acme.example").
+				Scopes("openid", "email").
+				AcceptableClientIDs("client-id-2").
+				CustomClaimsAllowlist("department").
+				AttributeMapping(map[string]any{"full_name": "name"}).
+				AuthorizationParams(map[string]string{"prompt": "consent"}).
+				WithoutPKCE().
+				StartDisabled().
+				EmailOptional().
+				DiscoveryURL("https://id.acme.example/.well-known/openid-configuration").
+				SkipNonceCheck(),
+			want: map[string]any{
+				"provider_type":           "oidc",
+				"identifier":              "custom:acme",
+				"name":                    "Acme Corp SSO",
+				"client_id":               "client-id-1",
+				"client_secret":           "client-secret-1",
+				"scopes":                  []any{"openid", "email"},
+				"acceptable_client_ids":   []any{"client-id-2"},
+				"custom_claims_allowlist": []any{"department"},
+				"attribute_mapping":       map[string]any{"full_name": "name"},
+				"authorization_params":    map[string]any{"prompt": "consent"},
+				"pkce_enabled":            false,
+				"enabled":                 false,
+				"email_optional":          true,
+				"issuer":                  "https://id.acme.example",
+				"discovery_url":           "https://id.acme.example/.well-known/openid-configuration",
+				"skip_nonce_check":        true,
+			},
+		},
+		{
+			name: "an OAuth2 definition carries its three endpoints and the JWKS URI",
+			definition: auth.NewCustomProvider("custom:legacy", "Legacy IdP", "client-id-9", "client-secret-9").
+				OAuth2("https://id.example/authorize", "https://id.example/token", "https://id.example/userinfo").
+				JWKSURI("https://id.example/jwks").
+				Scopes("profile"),
+			want: map[string]any{
+				"provider_type":     "oauth2",
+				"identifier":        "custom:legacy",
+				"name":              "Legacy IdP",
+				"client_id":         "client-id-9",
+				"client_secret":     "client-secret-9",
+				"scopes":            []any{"profile"},
+				"authorization_url": "https://id.example/authorize",
+				"token_url":         "https://id.example/token",
+				"userinfo_url":      "https://id.example/userinfo",
+				"jwks_uri":          "https://id.example/jwks",
+			},
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			recorder := newAdminServer(t)
+			// The server answers a create with 201 and the stored provider.
+			recorder.status = http.StatusCreated
+			recorder.body = `{"id":"11111111-2222-4333-8444-555555555555","identifier":"custom:acme"}`
+			admin := recorder.admin(t)
+
+			provider, err := admin.CreateCustomProvider(context.Background(), testCase.definition)
+			if err != nil {
+				t.Fatalf("CreateCustomProvider: %v", err)
+			}
+			if provider.Identifier() != "custom:acme" {
+				t.Errorf("Identifier = %q, want the response provider", provider.Identifier())
+			}
+
+			if len(recorder.requests) != 1 {
+				t.Fatalf("requests = %d, want 1", len(recorder.requests))
+			}
+			request := recorder.requests[0]
+			if request.method != http.MethodPost || request.path != "/auth/v1/admin/custom-providers" {
+				t.Errorf("request = %s %s, want POST /auth/v1/admin/custom-providers", request.method, request.path)
+			}
+			var sent map[string]any
+			if err := json.Unmarshal(request.body, &sent); err != nil {
+				t.Fatalf("request body %q: %v", request.body, err)
+			}
+			if !reflect.DeepEqual(sent, testCase.want) {
+				t.Errorf("body = %v, want %v", sent, testCase.want)
+			}
+		})
+	}
+}
+
+func TestCustomProviderBuilderCopySemantics(t *testing.T) {
+	recorder := newAdminServer(t)
+	recorder.status = http.StatusCreated
+	recorder.body = `{"identifier":"custom:acme"}`
+	admin := recorder.admin(t)
+
+	// Refining a definition must fork it, never reach back into the value it
+	// forked from.
+	base := auth.NewCustomProvider("custom:acme", "Acme", "client-id", "client-secret").OIDC("https://id.acme.example")
+	refined := base.Scopes("openid")
+
+	// A caller's later writes to a supplied map must not reach a definition
+	// already built.
+	mapping := map[string]any{"full_name": "name"}
+	mapped := base.AttributeMapping(mapping)
+	mapping["full_name"] = "mutated"
+
+	for _, definition := range []auth.CustomProviderDefinition{base, refined, mapped} {
+		if _, err := admin.CreateCustomProvider(context.Background(), definition); err != nil {
+			t.Fatalf("CreateCustomProvider: %v", err)
+		}
+	}
+	if len(recorder.requests) != 3 {
+		t.Fatalf("requests = %d, want 3", len(recorder.requests))
+	}
+
+	bodies := make([]map[string]any, 3)
+	for i := range bodies {
+		if err := json.Unmarshal(recorder.requests[i].body, &bodies[i]); err != nil {
+			t.Fatalf("request %d body: %v", i, err)
+		}
+	}
+	if _, found := bodies[0]["scopes"]; found {
+		t.Error("base definition sent scopes, want the fork left untouched")
+	}
+	if !reflect.DeepEqual(bodies[1]["scopes"], []any{"openid"}) {
+		t.Errorf("refined scopes = %v, want the fork carrying them", bodies[1]["scopes"])
+	}
+	if !reflect.DeepEqual(bodies[2]["attribute_mapping"], map[string]any{"full_name": "name"}) {
+		t.Errorf("attribute_mapping = %v, want the clone taken before the caller's mutation", bodies[2]["attribute_mapping"])
+	}
+}
+
+func TestAdminUpdateCustomProviderSendsOnlyChosenFields(t *testing.T) {
+	cases := []struct {
+		name    string
+		options []auth.CustomProviderOption
+		want    map[string]any
+	}{
+		{"a bare call sends an empty object, the server's no-op", nil, map[string]any{}},
+		{"an option carried is an instruction", []auth.CustomProviderOption{auth.WithEnabled(false)}, map[string]any{"enabled": false}},
+		{"a no-argument scopes call clears the list", []auth.CustomProviderOption{auth.WithScopes()}, map[string]any{"scopes": []any{}}},
+		{"a nil mapping clears rather than keeps", []auth.CustomProviderOption{auth.WithAttributeMapping(nil)}, map[string]any{"attribute_mapping": map[string]any{}}},
+		{
+			name: "every option maps to its wire name",
+			options: []auth.CustomProviderOption{
+				auth.WithName("Acme Corp SSO"),
+				auth.WithClientID("client-id-2"),
+				auth.WithClientSecret("client-secret-2"),
+				auth.WithScopes("openid", "profile"),
+				auth.WithAcceptableClientIDs("client-id-3"),
+				auth.WithCustomClaimsAllowlist("department"),
+				auth.WithAttributeMapping(map[string]any{"full_name": "name"}),
+				auth.WithAuthorizationParams(map[string]string{"prompt": "consent"}),
+				auth.WithPKCEEnabled(true),
+				auth.WithEnabled(true),
+				auth.WithEmailOptional(false),
+				auth.WithIssuer("https://id.acme.example"),
+				auth.WithDiscoveryURL("https://id.acme.example/.well-known/openid-configuration"),
+				auth.WithSkipNonceCheck(false),
+				auth.WithAuthorizationURL("https://id.example/authorize"),
+				auth.WithTokenURL("https://id.example/token"),
+				auth.WithUserinfoURL("https://id.example/userinfo"),
+				auth.WithJWKSURI("https://id.example/jwks"),
+			},
+			want: map[string]any{
+				"name":                    "Acme Corp SSO",
+				"client_id":               "client-id-2",
+				"client_secret":           "client-secret-2",
+				"scopes":                  []any{"openid", "profile"},
+				"acceptable_client_ids":   []any{"client-id-3"},
+				"custom_claims_allowlist": []any{"department"},
+				"attribute_mapping":       map[string]any{"full_name": "name"},
+				"authorization_params":    map[string]any{"prompt": "consent"},
+				"pkce_enabled":            true,
+				"enabled":                 true,
+				"email_optional":          false,
+				"issuer":                  "https://id.acme.example",
+				"discovery_url":           "https://id.acme.example/.well-known/openid-configuration",
+				"skip_nonce_check":        false,
+				"authorization_url":       "https://id.example/authorize",
+				"token_url":               "https://id.example/token",
+				"userinfo_url":            "https://id.example/userinfo",
+				"jwks_uri":                "https://id.example/jwks",
+			},
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			recorder := newAdminServer(t)
+			recorder.body = `{"identifier":"custom:acme"}`
+			admin := recorder.admin(t)
+
+			if _, err := admin.UpdateCustomProvider(context.Background(), "custom:acme", testCase.options...); err != nil {
+				t.Fatalf("UpdateCustomProvider: %v", err)
+			}
+			if len(recorder.requests) != 1 {
+				t.Fatalf("requests = %d, want 1", len(recorder.requests))
+			}
+			request := recorder.requests[0]
+			if request.method != http.MethodPut || request.path != "/auth/v1/admin/custom-providers/custom:acme" {
+				t.Errorf("request = %s %s, want PUT /auth/v1/admin/custom-providers/custom:acme", request.method, request.path)
+			}
+			var sent map[string]any
+			if err := json.Unmarshal(request.body, &sent); err != nil {
+				t.Fatalf("request body %q: %v", request.body, err)
+			}
+			if !reflect.DeepEqual(sent, testCase.want) {
+				t.Errorf("body = %v, want %v", sent, testCase.want)
+			}
+		})
+	}
+}
+
+func TestAdminListCustomProvidersFilter(t *testing.T) {
+	cases := []struct {
+		name    string
+		options []auth.ListCustomProvidersOption
+		query   string
+	}{
+		{"a bare call sends no filter, listing every provider", nil, ""},
+		{"WithOIDCOnly narrows to OIDC", []auth.ListCustomProvidersOption{auth.WithOIDCOnly()}, "type=oidc"},
+		{"WithOAuth2Only narrows to OAuth 2.0", []auth.ListCustomProvidersOption{auth.WithOAuth2Only()}, "type=oauth2"},
+		{"of two filters the later wins", []auth.ListCustomProvidersOption{auth.WithOIDCOnly(), auth.WithOAuth2Only()}, "type=oauth2"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			recorder := newAdminServer(t)
+			recorder.body = `{"providers":[{"identifier":"custom:acme"},{"identifier":"custom:legacy"}]}`
+			admin := recorder.admin(t)
+
+			providers, err := admin.ListCustomProviders(context.Background(), testCase.options...)
+			if err != nil {
+				t.Fatalf("ListCustomProviders: %v", err)
+			}
+			if len(providers) != 2 || providers[0].Identifier() != "custom:acme" {
+				t.Errorf("providers = %d with first %q, want the enveloped pair", len(providers), providers[0].Identifier())
+			}
+
+			if len(recorder.requests) != 1 {
+				t.Fatalf("requests = %d, want 1", len(recorder.requests))
+			}
+			request := recorder.requests[0]
+			if request.method != http.MethodGet || request.path != "/auth/v1/admin/custom-providers" {
+				t.Errorf("request = %s %s, want GET /auth/v1/admin/custom-providers", request.method, request.path)
+			}
+			if request.query != testCase.query {
+				t.Errorf("query = %q, want %q", request.query, testCase.query)
+			}
+		})
+	}
+}
+
+func TestCustomProviderParsing(t *testing.T) {
+	recorder := newAdminServer(t)
+	recorder.body = `{"providers":[
+		{
+			"id": "11111111-2222-4333-8444-555555555555",
+			"provider_type": "oidc",
+			"identifier": "custom:acme",
+			"name": "Acme Corp SSO",
+			"client_id": "client-id-1",
+			"acceptable_client_ids": ["client-id-2"],
+			"scopes": ["openid", "email"],
+			"pkce_enabled": true,
+			"attribute_mapping": {"full_name": "name"},
+			"custom_claims_allowlist": ["department"],
+			"authorization_params": {"prompt": "consent"},
+			"enabled": true,
+			"email_optional": true,
+			"issuer": "https://id.acme.example",
+			"discovery_url": "https://id.acme.example/.well-known/openid-configuration",
+			"skip_nonce_check": true,
+			"discovery_document": {
+				"issuer": "https://id.acme.example",
+				"authorization_endpoint": "https://id.acme.example/authorize",
+				"token_endpoint": "https://id.acme.example/token",
+				"userinfo_endpoint": "https://id.acme.example/userinfo",
+				"jwks_uri": "https://id.acme.example/jwks",
+				"scopes_supported": ["openid", "email"],
+				"response_types_supported": ["code"],
+				"grant_types_supported": ["authorization_code"],
+				"subject_types_supported": ["public"]
+			},
+			"created_at": "2026-01-02T03:04:05Z",
+			"updated_at": "2026-01-03T03:04:05Z"
+		},
+		{
+			"id": "66666666-7777-4888-9999-aaaaaaaaaaaa",
+			"provider_type": "oauth2",
+			"identifier": "custom:legacy",
+			"name": "Legacy IdP",
+			"client_id": "client-id-9",
+			"pkce_enabled": false,
+			"enabled": false,
+			"email_optional": false,
+			"authorization_url": "https://id.example/authorize",
+			"token_url": "https://id.example/token",
+			"userinfo_url": "https://id.example/userinfo",
+			"jwks_uri": "https://id.example/jwks"
+		}
+	]}`
+	admin := recorder.admin(t)
+
+	providers, err := admin.ListCustomProviders(context.Background())
+	if err != nil {
+		t.Fatalf("ListCustomProviders: %v", err)
+	}
+	if len(providers) != 2 {
+		t.Fatalf("providers = %d, want 2", len(providers))
+	}
+
+	oidc := providers[0]
+	if oidc.ID() != "11111111-2222-4333-8444-555555555555" || oidc.Type() != "oidc" {
+		t.Errorf("oidc = (%q, %q), want the served id and type", oidc.ID(), oidc.Type())
+	}
+	if oidc.Identifier() != "custom:acme" || oidc.Name() != "Acme Corp SSO" || oidc.ClientID() != "client-id-1" {
+		t.Errorf("oidc = (%q, %q, %q), want the served identity fields", oidc.Identifier(), oidc.Name(), oidc.ClientID())
+	}
+	if !reflect.DeepEqual(oidc.AcceptableClientIDs(), []string{"client-id-2"}) {
+		t.Errorf("AcceptableClientIDs = %v, want the served list", oidc.AcceptableClientIDs())
+	}
+	if !reflect.DeepEqual(oidc.Scopes(), []string{"openid", "email"}) {
+		t.Errorf("Scopes = %v, want the served list", oidc.Scopes())
+	}
+	if !oidc.PKCEEnabled() || !oidc.Enabled() || !oidc.EmailOptional() || !oidc.SkipNonceCheck() {
+		t.Error("booleans want every served true flag reported")
+	}
+	if !reflect.DeepEqual(oidc.AttributeMapping(), map[string]any{"full_name": "name"}) {
+		t.Errorf("AttributeMapping = %v, want the served mapping", oidc.AttributeMapping())
+	}
+	if !reflect.DeepEqual(oidc.CustomClaimsAllowlist(), []string{"department"}) {
+		t.Errorf("CustomClaimsAllowlist = %v, want the served list", oidc.CustomClaimsAllowlist())
+	}
+	if !reflect.DeepEqual(oidc.AuthorizationParams(), map[string]string{"prompt": "consent"}) {
+		t.Errorf("AuthorizationParams = %v, want the served parameters", oidc.AuthorizationParams())
+	}
+	if oidc.Issuer() != "https://id.acme.example" || oidc.DiscoveryURL() != "https://id.acme.example/.well-known/openid-configuration" {
+		t.Errorf("oidc endpoints = (%q, %q), want the served issuer and discovery URL", oidc.Issuer(), oidc.DiscoveryURL())
+	}
+	if oidc.AuthorizationURL() != "" || oidc.TokenURL() != "" || oidc.UserinfoURL() != "" || oidc.JWKSURI() != "" {
+		t.Error("OAuth2 endpoint accessors on an OIDC provider want empty strings")
+	}
+	if oidc.CreatedAt().Format(time.RFC3339) != "2026-01-02T03:04:05Z" || oidc.UpdatedAt().Format(time.RFC3339) != "2026-01-03T03:04:05Z" {
+		t.Errorf("timestamps = (%v, %v), want the served instants", oidc.CreatedAt(), oidc.UpdatedAt())
+	}
+
+	discovery, ok := oidc.DiscoveryDocument()
+	if !ok {
+		t.Fatal("DiscoveryDocument reported absent, want the served document")
+	}
+	if discovery.Issuer() != "https://id.acme.example" ||
+		discovery.AuthorizationEndpoint() != "https://id.acme.example/authorize" ||
+		discovery.TokenEndpoint() != "https://id.acme.example/token" ||
+		discovery.UserinfoEndpoint() != "https://id.acme.example/userinfo" ||
+		discovery.JWKSURI() != "https://id.acme.example/jwks" {
+		t.Error("discovery endpoints want the served document's values")
+	}
+	if !reflect.DeepEqual(discovery.ScopesSupported(), []string{"openid", "email"}) ||
+		!reflect.DeepEqual(discovery.ResponseTypesSupported(), []string{"code"}) ||
+		!reflect.DeepEqual(discovery.GrantTypesSupported(), []string{"authorization_code"}) ||
+		!reflect.DeepEqual(discovery.SubjectTypesSupported(), []string{"public"}) {
+		t.Error("discovery capability lists want the served document's values")
+	}
+
+	// The accessors hand out copies: mutating a result never reaches the provider.
+	scopes := oidc.Scopes()
+	scopes[0] = "mutated"
+	if oidc.Scopes()[0] != "openid" {
+		t.Error("mutating the returned scopes changed the provider, want a copy")
+	}
+	mapping := oidc.AttributeMapping()
+	mapping["full_name"] = "mutated"
+	if oidc.AttributeMapping()["full_name"] != "name" {
+		t.Error("mutating the returned mapping changed the provider, want a copy")
+	}
+
+	oauth2 := providers[1]
+	if oauth2.Type() != "oauth2" || oauth2.Identifier() != "custom:legacy" {
+		t.Errorf("oauth2 = (%q, %q), want the served type and identifier", oauth2.Type(), oauth2.Identifier())
+	}
+	if oauth2.AuthorizationURL() != "https://id.example/authorize" ||
+		oauth2.TokenURL() != "https://id.example/token" ||
+		oauth2.UserinfoURL() != "https://id.example/userinfo" ||
+		oauth2.JWKSURI() != "https://id.example/jwks" {
+		t.Error("oauth2 endpoints want the served URLs")
+	}
+	if oauth2.PKCEEnabled() || oauth2.Enabled() || oauth2.EmailOptional() {
+		t.Error("booleans want every served false flag reported")
+	}
+	if oauth2.Issuer() != "" || oauth2.DiscoveryURL() != "" {
+		t.Error("OIDC accessors on an OAuth2 provider want empty strings")
+	}
+	if _, ok := oauth2.DiscoveryDocument(); ok {
+		t.Error("DiscoveryDocument on an OAuth2 provider reported present, want absent")
+	}
+	if oauth2.AcceptableClientIDs() != nil || oauth2.Scopes() != nil {
+		t.Error("absent lists want nil")
+	}
+	if !oauth2.CreatedAt().IsZero() || !oauth2.UpdatedAt().IsZero() {
+		t.Errorf("timestamps = (%v, %v), want zero when the server omits them", oauth2.CreatedAt(), oauth2.UpdatedAt())
+	}
+}
+
+func TestCustomProviderIdentifierEscaping(t *testing.T) {
+	// The identifier rides the path as one escaped segment: the colon the
+	// server requires stays raw, while characters that would change the
+	// path's shape are escaped.
+	const identifier = "custom:acme corp/1"
+	const wantPath = "/auth/v1/admin/custom-providers/custom:acme%20corp%2F1"
+	recorder := newAdminServer(t)
+	recorder.body = `{"identifier":"custom:acme corp/1"}`
+	admin := recorder.admin(t)
+
+	operations := []struct {
+		name string
+		call func() error
+	}{
+		{"GetCustomProvider", func() error {
+			_, err := admin.GetCustomProvider(context.Background(), identifier)
+			return err
+		}},
+		{"UpdateCustomProvider", func() error {
+			_, err := admin.UpdateCustomProvider(context.Background(), identifier, auth.WithName("Renamed"))
+			return err
+		}},
+		{"DeleteCustomProvider", func() error { return admin.DeleteCustomProvider(context.Background(), identifier) }},
+	}
+	for i, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			if err := operation.call(); err != nil {
+				t.Fatalf("%s: %v", operation.name, err)
+			}
+			if got := recorder.requests[i].escapedPath; got != wantPath {
+				t.Errorf("escaped path = %q, want %q", got, wantPath)
+			}
+		})
+	}
+}
+
+func TestAdminRejectsMissingIdentifier(t *testing.T) {
+	recorder := newAdminServer(t)
+	admin := recorder.admin(t)
+	operations := []struct {
+		name string
+		call func() error
+	}{
+		{"GetCustomProvider", func() error {
+			_, err := admin.GetCustomProvider(context.Background(), "")
+			return err
+		}},
+		{"UpdateCustomProvider", func() error {
+			_, err := admin.UpdateCustomProvider(context.Background(), "", auth.WithName("Renamed"))
+			return err
+		}},
+		{"DeleteCustomProvider", func() error { return admin.DeleteCustomProvider(context.Background(), "") }},
+	}
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			if err := operation.call(); !errors.Is(err, auth.ErrMissingIdentifier) {
+				t.Errorf("%s(\"\") = %v, want ErrMissingIdentifier", operation.name, err)
+			}
+		})
+	}
+	if len(recorder.requests) != 0 {
+		t.Errorf("requests = %d, want 0 - an empty identifier must never reach the wire", len(recorder.requests))
 	}
 }

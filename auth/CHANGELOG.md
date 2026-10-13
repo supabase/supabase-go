@@ -9,17 +9,22 @@ Refer to [GitHub `../CHANGELOG.md`](https://github.com/supabase/supabase-go/blob
 
 ### Added
 
-Administration surface for the project's users, `Client.Admin`:
+Administration surface for the project's users and custom sign-in providers, `Client.Admin`:
 
+- `CreateCustomProvider` (registering a custom OAuth 2.0 or OIDC provider, built with `NewCustomProvider`)
 - `CreateUser`
+- `DeleteCustomProvider`
 - `DeleteMFAFactor`
 - `DeleteUser` (including `WithSoftDelete` option)
 - `GenerateLink` (minting email action links, built with `NewLinkRequest`)
+- `GetCustomProvider`
 - `GetUser`
 - `InviteUser`
+- `ListCustomProviders` (including `WithOIDCOnly` and `WithOAuth2Only` options)
 - `ListMFAFactors`
 - `ListUsers` (paginated)
 - `SignOut` (revoking a user's sessions, including `WithLocalScope` and `WithOthersScope` options)
+- `UpdateCustomProvider` (one functional option per changeable field)
 - `UpdateMFAFactor` (including `WithFriendlyName` and `WithPhone` options)
 - `UpdateUser`
 

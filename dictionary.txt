@@ -6,6 +6,7 @@ bytea
 codegen
 commentchecker
 contravariance
+customprovider
 cyclop
 dyld
 errcheck
@@ -38,12 +39,14 @@ gorelease
 goroutines
 govulncheck
 GOWORK
+hostnames
 inclusivity
 infertypeargs
 integrationtest
 isdistinct
 jsonv
 jwks
+JWKSURI
 ldflags
 magiclink
 mistargeted
@@ -55,6 +58,7 @@ nullable
 nullsfirst
 nullslast
 oapi
+oidc
 omitempty
 omitzero
 opentelemetry
@@ -64,6 +68,7 @@ pgrst
 PGRST
 phraseto
 pinact
+pkce
 pkgsite
 plainto
 postgrest
@@ -94,6 +99,7 @@ typestate
 unrepresentable
 upsert
 urls
+userinfo
 vcs
 vulncheck
 webauthn

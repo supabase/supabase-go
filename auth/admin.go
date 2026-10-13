@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"slices"
@@ -18,9 +19,9 @@ import (
 )
 
 // Admin is the administration surface of the Auth service for one Supabase
-// project, reached with [Client.Admin]. Its methods act on the project's users
-// directly and require the Client to have been constructed with a secret API
-// key.
+// project, reached with [Client.Admin]. Its methods act directly on the
+// project's users and on its custom sign-in providers, and require the Client
+// to have been constructed with a secret API key.
 //
 // Secret keys bypass Row Level Security, so a client holding one belongs in
 // server-controlled environments only - never in a browser, a mobile app or any
@@ -488,6 +489,300 @@ func (a *Admin) DeleteMFAFactor(ctx context.Context, userID, factorID string) er
 	}
 	_, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID, "factors", factorID), nil)
 	return err
+}
+
+// CreateCustomProvider registers a custom OAuth 2.0 or OIDC provider for
+// users to sign in through, built with [NewCustomProvider], and returns the
+// provider as stored. An identifier already registered is the server's
+// rejection, an [*Error] whose Code is "conflict".
+func (a *Admin) CreateCustomProvider(ctx context.Context, definition CustomProviderDefinition) (*CustomProvider, error) {
+	body, err := a.send(ctx, http.MethodPost, a.adminBaseURL.JoinPath("custom-providers"), definition.providerDefinition().Payload())
+	if err != nil {
+		return nil, err
+	}
+	return parseCustomProvider(body)
+}
+
+// GetCustomProvider fetches one custom provider by its "custom:"-prefixed
+// identifier. An empty identifier returns [ErrMissingIdentifier] before any
+// request is sent, and an unknown or unprefixed one is the server's
+// rejection, an [*Error] whose HTTPStatus is 404 or 400.
+func (a *Admin) GetCustomProvider(ctx context.Context, identifier string) (*CustomProvider, error) {
+	if identifier == "" {
+		return nil, ErrMissingIdentifier
+	}
+	body, err := a.send(ctx, http.MethodGet, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), nil)
+	if err != nil {
+		return nil, err
+	}
+	return parseCustomProvider(body)
+}
+
+// ListCustomProviders fetches the project's custom providers. A bare call
+// lists every provider; [WithOIDCOnly] and [WithOAuth2Only] narrow the
+// listing to one type.
+func (a *Admin) ListCustomProviders(ctx context.Context, options ...ListCustomProvidersOption) ([]CustomProvider, error) {
+	var request listCustomProvidersRequest
+	for _, option := range options {
+		option(&request)
+	}
+	endpoint := a.adminBaseURL.JoinPath("custom-providers")
+	if request.providerType != "" {
+		query := url.Values{}
+		query.Set("type", request.providerType)
+		endpoint.RawQuery = query.Encode()
+	}
+	body, err := a.send(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	return parseCustomProviderList(body)
+}
+
+// listCustomProvidersRequest collects what one listing call's options chose.
+// The type filter rides the query string, built and sent only when an option
+// narrowed it, so a bare listing states nothing and every provider answers.
+type listCustomProvidersRequest struct {
+	providerType string
+}
+
+// ListCustomProvidersOption narrows which providers [Admin.ListCustomProviders]
+// lists. Options are applied in the order they are supplied, the later wins.
+type ListCustomProvidersOption func(*listCustomProvidersRequest)
+
+// WithOIDCOnly narrows the listing to OIDC providers.
+func WithOIDCOnly() ListCustomProvidersOption {
+	return func(request *listCustomProvidersRequest) {
+		request.providerType = "oidc"
+	}
+}
+
+// WithOAuth2Only narrows the listing to OAuth 2.0 providers.
+func WithOAuth2Only() ListCustomProvidersOption {
+	return func(request *listCustomProvidersRequest) {
+		request.providerType = "oauth2"
+	}
+}
+
+// UpdateCustomProvider changes what the options set on one custom provider,
+// addressed by its "custom:"-prefixed identifier, and returns the provider as
+// stored. A call with no options changes nothing and still succeeds. The type
+// and the identifier are the two things no option can change: the server
+// fixes both at creation. An empty identifier returns [ErrMissingIdentifier]
+// before any request is sent, and an unknown or unprefixed one is the
+// server's rejection, an [*Error] whose HTTPStatus is 404 or 400.
+func (a *Admin) UpdateCustomProvider(ctx context.Context, identifier string, options ...CustomProviderOption) (*CustomProvider, error) {
+	if identifier == "" {
+		return nil, ErrMissingIdentifier
+	}
+	var request updateCustomProviderRequest
+	for _, option := range options {
+		option(&request)
+	}
+	body, err := a.send(ctx, http.MethodPut, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), request)
+	if err != nil {
+		return nil, err
+	}
+	return parseCustomProvider(body)
+}
+
+// DeleteCustomProvider removes one custom provider, addressed by its
+// "custom:"-prefixed identifier, ending sign-ins through it. An empty
+// identifier returns [ErrMissingIdentifier] before any request is sent, and
+// an unknown or unprefixed one is the server's rejection, an [*Error] whose
+// HTTPStatus is 404 or 400.
+func (a *Admin) DeleteCustomProvider(ctx context.Context, identifier string) error {
+	if identifier == "" {
+		return ErrMissingIdentifier
+	}
+	_, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), nil)
+	return err
+}
+
+// updateCustomProviderRequest is the custom provider update request body:
+// only what the options set is sent, and a bare call sends the empty object
+// the server answers without changing anything. Deviating booleans are
+// pointers because the field's absence, not falseness, is what leaves the
+// stored value alone.
+type updateCustomProviderRequest struct {
+	Name                  string            `json:"name,omitzero"`
+	ClientID              string            `json:"client_id,omitzero"`
+	ClientSecret          string            `json:"client_secret,omitzero"`
+	Scopes                []string          `json:"scopes,omitzero"`
+	AcceptableClientIDs   []string          `json:"acceptable_client_ids,omitzero"`
+	CustomClaimsAllowlist []string          `json:"custom_claims_allowlist,omitzero"`
+	AttributeMapping      map[string]any    `json:"attribute_mapping,omitzero"`
+	AuthorizationParams   map[string]string `json:"authorization_params,omitzero"`
+	PKCEEnabled           *bool             `json:"pkce_enabled,omitzero"`
+	Enabled               *bool             `json:"enabled,omitzero"`
+	EmailOptional         *bool             `json:"email_optional,omitzero"`
+	Issuer                string            `json:"issuer,omitzero"`
+	DiscoveryURL          string            `json:"discovery_url,omitzero"`
+	SkipNonceCheck        *bool             `json:"skip_nonce_check,omitzero"`
+	AuthorizationURL      string            `json:"authorization_url,omitzero"`
+	TokenURL              string            `json:"token_url,omitzero"`
+	UserinfoURL           string            `json:"userinfo_url,omitzero"`
+	JwksURI               string            `json:"jwks_uri,omitzero"`
+}
+
+// CustomProviderOption sets one field on an [Admin.UpdateCustomProvider]
+// call: an option carried is an instruction, an option absent leaves the
+// stored value alone. Options are applied in the order they are supplied. An
+// option for the other type's fields - [WithIssuer] on an OAuth 2.0 provider,
+// [WithTokenURL] on an OIDC one - is ignored by the server, which still
+// answers with success.
+type CustomProviderOption func(*updateCustomProviderRequest)
+
+// WithName renames the provider.
+func WithName(name string) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.Name = name
+	}
+}
+
+// WithClientID replaces the OAuth client id registered with the provider.
+func WithClientID(clientID string) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.ClientID = clientID
+	}
+}
+
+// WithClientSecret rotates the provider's client secret. The server encrypts
+// it at rest and never serves it back.
+func WithClientSecret(clientSecret string) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.ClientSecret = clientSecret
+	}
+}
+
+// WithScopes replaces the scopes requested at authorization. A call with no
+// arguments clears the list, and the server keeps "openid" present on OIDC
+// providers either way.
+func WithScopes(scopes ...string) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.Scopes = append([]string{}, scopes...)
+	}
+}
+
+// WithAcceptableClientIDs replaces the additional client ids accepted in the
+// provider's tokens. A call with no arguments clears the list.
+func WithAcceptableClientIDs(ids ...string) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.AcceptableClientIDs = append([]string{}, ids...)
+	}
+}
+
+// WithCustomClaimsAllowlist replaces the provider claim keys copied verbatim
+// into the user's custom claims. A call with no arguments clears the list.
+func WithCustomClaimsAllowlist(claims ...string) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.CustomClaimsAllowlist = append([]string{}, claims...)
+	}
+}
+
+// WithAttributeMapping replaces the mapping of provider claims to user
+// attributes. A nil or empty map clears the stored mapping. The request holds
+// its own clone of the map.
+func WithAttributeMapping(mapping map[string]any) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.AttributeMapping = clonedOrEmpty(mapping)
+	}
+}
+
+// WithAuthorizationParams replaces the extra parameters the authorization
+// request carries. A nil or empty map clears the stored parameters. The
+// request holds its own clone of the map.
+func WithAuthorizationParams(params map[string]string) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.AuthorizationParams = clonedOrEmpty(params)
+	}
+}
+
+// WithPKCEEnabled turns PKCE on or off for the provider's authorization flow.
+func WithPKCEEnabled(enabled bool) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.PKCEEnabled = &enabled
+	}
+}
+
+// WithEnabled turns sign-ins through the provider on or off, the kill switch
+// that keeps the configuration while the provider is distrusted.
+func WithEnabled(enabled bool) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.Enabled = &enabled
+	}
+}
+
+// WithEmailOptional sets whether users may sign in through the provider
+// without an email claim.
+func WithEmailOptional(optional bool) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.EmailOptional = &optional
+	}
+}
+
+// WithIssuer moves an OIDC provider to a new issuer URL. The server fetches
+// and validates the new issuer's discovery document before storing it.
+func WithIssuer(issuer string) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.Issuer = issuer
+	}
+}
+
+// WithDiscoveryURL states where an OIDC provider's discovery document lives
+// when it is not at the issuer's well-known location. The server fetches and
+// validates the document before storing the URL.
+func WithDiscoveryURL(discoveryURL string) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.DiscoveryURL = discoveryURL
+	}
+}
+
+// WithSkipNonceCheck sets whether an OIDC provider skips ID token nonce
+// verification.
+func WithSkipNonceCheck(skip bool) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.SkipNonceCheck = &skip
+	}
+}
+
+// WithAuthorizationURL replaces an OAuth 2.0 provider's authorization
+// endpoint.
+func WithAuthorizationURL(authorizationURL string) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.AuthorizationURL = authorizationURL
+	}
+}
+
+// WithTokenURL replaces an OAuth 2.0 provider's token endpoint.
+func WithTokenURL(tokenURL string) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.TokenURL = tokenURL
+	}
+}
+
+// WithUserinfoURL replaces an OAuth 2.0 provider's userinfo endpoint.
+func WithUserinfoURL(userinfoURL string) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.UserinfoURL = userinfoURL
+	}
+}
+
+// WithJWKSURI replaces where an OAuth 2.0 provider publishes its signing
+// keys.
+func WithJWKSURI(jwksURI string) CustomProviderOption {
+	return func(request *updateCustomProviderRequest) {
+		request.JwksURI = jwksURI
+	}
+}
+
+// clonedOrEmpty clones a caller's map, normalizing nil to an empty map so an
+// option carried always sends its field: on the wire an empty object clears
+// where an absent key keeps.
+func clonedOrEmpty[V any](source map[string]V) map[string]V {
+	cloned := make(map[string]V, len(source))
+	maps.Copy(cloned, source)
+	return cloned
 }
 
 // send executes one admin request through exchange for the calls that read
