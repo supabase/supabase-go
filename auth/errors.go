@@ -13,8 +13,8 @@ type authError string
 
 func (e authError) Error() string { return "auth: " + string(e) }
 
-// ErrMissingJWT is reported by [Client.GetClaims] and [Client.GetUser] when the
-// supplied token is empty.
+// ErrMissingJWT is reported by [Client.GetClaims], [Client.GetUser] and
+// [Admin.SignOut] when the supplied token is empty.
 const ErrMissingJWT = authError("JWT is required")
 
 // ErrMalformedJWT is reported by [Client.GetClaims] when the supplied token is
@@ -33,6 +33,17 @@ const ErrInvalidSignature = authError("JWT signature is invalid")
 // user id is not a UUID in its canonical hyphenated form - groups of 8, 4, 4,
 // 4 and 12 hexadecimal digits, in either case - before any request is sent.
 const ErrInvalidUserID = authError("user ID is not a canonical UUID")
+
+// ErrInvalidFactorID is reported by the [Admin] MFA factor operations when the
+// given factor id is not a UUID in its canonical hyphenated form, as
+// [ErrInvalidUserID] describes for user ids, before any request is sent.
+const ErrInvalidFactorID = authError("factor ID is not a canonical UUID")
+
+// ErrMissingIdentifier is reported by the [Admin] custom provider operations
+// that address one provider when the given identifier is empty, before any
+// request is sent: an empty identifier would change the shape of the request
+// path and reach a different route entirely.
+const ErrMissingIdentifier = authError("provider identifier is required")
 
 // Error is the typed failure returned when the Auth server answers a request
 // with a non-2xx status, carrying the server's reported [error code] and message

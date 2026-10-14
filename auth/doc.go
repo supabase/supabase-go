@@ -42,9 +42,12 @@
 // updated metadata) or on the session still being live, and for GetClaims
 // otherwise.
 //
-// [Client.Admin] is the project's user-administration surface - creating,
-// fetching and deleting users with the project's secret API key and no user
-// token. See [Admin] for the trust boundary its methods sit behind.
+// [Client.Admin] is the project's administration surface - creating,
+// fetching, updating, listing, inviting and deleting users, minting the
+// action links their email flows carry, revoking their sessions,
+// administering their enrolled MFA factors and managing the custom OAuth 2.0
+// and OIDC providers they sign in through, all with the project's secret API
+// key. See [Admin] for the trust boundary its methods sit behind.
 //
 // To act on the database as the verified user afterwards, so that Row Level
 // Security policies apply, attach the same token to a Database client through

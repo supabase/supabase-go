@@ -18,13 +18,60 @@ supporting_symbols:
   - auth.Admin
   - auth.Client
   - auth.Client.Admin
+  - auth.CustomProvider
+  - auth.CustomProvider.AcceptableClientIDs
+  - auth.CustomProvider.AttributeMapping
+  - auth.CustomProvider.AuthorizationParams
+  - auth.CustomProvider.AuthorizationURL
+  - auth.CustomProvider.ClientID
+  - auth.CustomProvider.CreatedAt
+  - auth.CustomProvider.CustomClaimsAllowlist
+  - auth.CustomProvider.DiscoveryDocument
+  - auth.CustomProvider.DiscoveryURL
+  - auth.CustomProvider.EmailOptional
+  - auth.CustomProvider.Enabled
+  - auth.CustomProvider.ID
+  - auth.CustomProvider.Identifier
+  - auth.CustomProvider.Issuer
+  - auth.CustomProvider.JWKSURI
+  - auth.CustomProvider.Name
+  - auth.CustomProvider.PKCEEnabled
+  - auth.CustomProvider.Scopes
+  - auth.CustomProvider.SkipNonceCheck
+  - auth.CustomProvider.TokenURL
+  - auth.CustomProvider.Type
+  - auth.CustomProvider.UpdatedAt
+  - auth.CustomProvider.UserinfoURL
+  - auth.ErrInvalidFactorID
   - auth.ErrInvalidUserID
+  - auth.ErrMissingIdentifier
   - auth.ErrMissingJWT
   - auth.Error
   - auth.Error.Error
   - auth.Error.HTTPError
+  - auth.Factor
+  - auth.Factor.CreatedAt
+  - auth.Factor.FriendlyName
+  - auth.Factor.ID
+  - auth.Factor.LastChallengedAt
+  - auth.Factor.LastWebAuthnChallengeData
+  - auth.Factor.Phone
+  - auth.Factor.Status
+  - auth.Factor.Type
+  - auth.Factor.UpdatedAt
+  - auth.Factor.WebAuthnAAGUID
   - auth.New
   - auth.NewFromConfiguration
+  - auth.OIDCDiscoveryDocument
+  - auth.OIDCDiscoveryDocument.AuthorizationEndpoint
+  - auth.OIDCDiscoveryDocument.GrantTypesSupported
+  - auth.OIDCDiscoveryDocument.Issuer
+  - auth.OIDCDiscoveryDocument.JWKSURI
+  - auth.OIDCDiscoveryDocument.ResponseTypesSupported
+  - auth.OIDCDiscoveryDocument.ScopesSupported
+  - auth.OIDCDiscoveryDocument.SubjectTypesSupported
+  - auth.OIDCDiscoveryDocument.TokenEndpoint
+  - auth.OIDCDiscoveryDocument.UserinfoEndpoint
   - auth.UserAttributes
   - auth.UserAttributes.AppMetadata
   - auth.UserAttributes.BanDuration
@@ -51,6 +98,13 @@ supporting_symbols:
   - core.ModulePathAuth
   - core.ModulePathPostgrest
   - core.ModulePathRoot
+  - pagination.Option
+  - pagination.Parameters
+  - pagination.Parameters.Page
+  - pagination.Parameters.Size
+  - pagination.Resolve
+  - pagination.WithPage
+  - pagination.WithSize
   - postgrest.Client
   - postgrest.EmptyRange
   - postgrest.ErrMissingClient
@@ -89,10 +143,49 @@ supporting_symbols:
   - supabase.New
 
 features:
+  auth.admin.create_provider:
+    status: implemented
+    symbols:
+      - auth.Admin.CreateCustomProvider
+    supporting_symbols:
+      - auth.CustomProviderBuilder
+      - auth.CustomProviderBuilder.OAuth2
+      - auth.CustomProviderBuilder.OIDC
+      - auth.CustomProviderDefinition
+      - auth.NewCustomProvider
+      - auth.OAuth2ProviderDefinition
+      - auth.OAuth2ProviderDefinition.AcceptableClientIDs
+      - auth.OAuth2ProviderDefinition.AttributeMapping
+      - auth.OAuth2ProviderDefinition.AuthorizationParams
+      - auth.OAuth2ProviderDefinition.CustomClaimsAllowlist
+      - auth.OAuth2ProviderDefinition.EmailOptional
+      - auth.OAuth2ProviderDefinition.JWKSURI
+      - auth.OAuth2ProviderDefinition.Scopes
+      - auth.OAuth2ProviderDefinition.StartDisabled
+      - auth.OAuth2ProviderDefinition.WithoutPKCE
+      - auth.OIDCProviderDefinition
+      - auth.OIDCProviderDefinition.AcceptableClientIDs
+      - auth.OIDCProviderDefinition.AttributeMapping
+      - auth.OIDCProviderDefinition.AuthorizationParams
+      - auth.OIDCProviderDefinition.CustomClaimsAllowlist
+      - auth.OIDCProviderDefinition.DiscoveryURL
+      - auth.OIDCProviderDefinition.EmailOptional
+      - auth.OIDCProviderDefinition.Scopes
+      - auth.OIDCProviderDefinition.SkipNonceCheck
+      - auth.OIDCProviderDefinition.StartDisabled
+      - auth.OIDCProviderDefinition.WithoutPKCE
   auth.admin.create_user:
     status: implemented
     symbols:
       - auth.Admin.CreateUser
+  auth.admin.delete_mfa_factor:
+    status: implemented
+    symbols:
+      - auth.Admin.DeleteMFAFactor
+  auth.admin.delete_provider:
+    status: implemented
+    symbols:
+      - auth.Admin.DeleteCustomProvider
   auth.admin.delete_user:
     status: implemented
     symbols:
@@ -100,10 +193,121 @@ features:
     supporting_symbols:
       - auth.DeleteUserOption
       - auth.WithSoftDelete
+  auth.admin.generate_link:
+    status: implemented
+    symbols:
+      - auth.Admin.GenerateLink
+    supporting_symbols:
+      - auth.EmailChangeLinkRequest
+      - auth.GeneratedLink
+      - auth.GeneratedLink.ActionLink
+      - auth.GeneratedLink.EmailOTP
+      - auth.GeneratedLink.HashedToken
+      - auth.GeneratedLink.RedirectTo
+      - auth.GeneratedLink.User
+      - auth.GeneratedLink.VerificationType
+      - auth.InviteLinkRequest
+      - auth.InviteLinkRequest.UserMetadata
+      - auth.LinkRequest
+      - auth.LinkRequestBuilder
+      - auth.LinkRequestBuilder.EmailChangeToCurrent
+      - auth.LinkRequestBuilder.EmailChangeToNew
+      - auth.LinkRequestBuilder.Invite
+      - auth.LinkRequestBuilder.MagicLink
+      - auth.LinkRequestBuilder.Recovery
+      - auth.LinkRequestBuilder.RedirectTo
+      - auth.LinkRequestBuilder.Signup
+      - auth.MagicLinkRequest
+      - auth.MagicLinkRequest.UserMetadata
+      - auth.NewLinkRequest
+      - auth.RecoveryLinkRequest
+      - auth.SignupLinkRequest
+      - auth.SignupLinkRequest.UserMetadata
+  auth.admin.get_provider:
+    status: implemented
+    symbols:
+      - auth.Admin.GetCustomProvider
   auth.admin.get_user:
     status: implemented
     symbols:
       - auth.Admin.GetUser
+  auth.admin.invite_user:
+    status: implemented
+    symbols:
+      - auth.Admin.InviteUser
+    supporting_symbols:
+      - auth.InviteUserOption
+      - auth.WithRedirectTo
+      - auth.WithUserMetadata
+  auth.admin.list_mfa_factors:
+    status: implemented
+    symbols:
+      - auth.Admin.ListMFAFactors
+  auth.admin.list_providers:
+    status: implemented
+    symbols:
+      - auth.Admin.ListCustomProviders
+    supporting_symbols:
+      - auth.ListCustomProvidersOption
+      - auth.WithOAuth2Only
+      - auth.WithOIDCOnly
+  auth.admin.list_users:
+    status: implemented
+    note: |
+      Explicit page-at-a-time pagination parsed from the server's
+      X-Total-Count and Link headers. No lazy iterator over all users.
+    symbols:
+      - auth.Admin.ListUsers
+    supporting_symbols:
+      - auth.UserPage
+      - auth.UserPage.LastPage
+      - auth.UserPage.NextPage
+      - auth.UserPage.Total
+      - auth.UserPage.Users
+  auth.admin.sign_out:
+    status: implemented
+    symbols:
+      - auth.Admin.SignOut
+    supporting_symbols:
+      - auth.SignOutOption
+      - auth.WithLocalScope
+      - auth.WithOthersScope
+  auth.admin.update_mfa_factor:
+    status: implemented
+    symbols:
+      - auth.Admin.UpdateMFAFactor
+    supporting_symbols:
+      - auth.MFAFactorOption
+      - auth.WithFriendlyName
+      - auth.WithPhone
+  auth.admin.update_provider:
+    status: implemented
+    symbols:
+      - auth.Admin.UpdateCustomProvider
+    supporting_symbols:
+      - auth.CustomProviderOption
+      - auth.WithAcceptableClientIDs
+      - auth.WithAttributeMapping
+      - auth.WithAuthorizationParams
+      - auth.WithAuthorizationURL
+      - auth.WithClientID
+      - auth.WithClientSecret
+      - auth.WithCustomClaimsAllowlist
+      - auth.WithDiscoveryURL
+      - auth.WithEmailOptional
+      - auth.WithEnabled
+      - auth.WithIssuer
+      - auth.WithJWKSURI
+      - auth.WithName
+      - auth.WithPKCEEnabled
+      - auth.WithScopes
+      - auth.WithSkipNonceCheck
+      - auth.WithTokenURL
+      - auth.WithUserinfoURL
+  auth.admin.update_user:
+    status: implemented
+    symbols:
+      - auth.Admin.UpdateUser
   auth.session.get_claims:
     status: implemented
     note: |
@@ -143,6 +347,7 @@ features:
     supporting_symbols:
       - auth.Identity
       - auth.Identity.CreatedAt
+      - auth.Identity.Email
       - auth.Identity.ID
       - auth.Identity.IdentityData
       - auth.Identity.IdentityID
@@ -154,17 +359,26 @@ features:
       - auth.User.AppMetadata
       - auth.User.Audience
       - auth.User.BannedUntil
+      - auth.User.ConfirmationSentAt
       - auth.User.ConfirmedAt
       - auth.User.CreatedAt
       - auth.User.DeletedAt
       - auth.User.Email
+      - auth.User.EmailChangeSentAt
       - auth.User.EmailConfirmedAt
+      - auth.User.Factors
       - auth.User.ID
       - auth.User.Identities
+      - auth.User.InvitedAt
       - auth.User.IsAnonymous
       - auth.User.LastSignInAt
+      - auth.User.NewEmail
+      - auth.User.NewPhone
       - auth.User.Phone
+      - auth.User.PhoneChangeSentAt
       - auth.User.PhoneConfirmedAt
+      - auth.User.ReauthenticationSentAt
+      - auth.User.RecoverySentAt
       - auth.User.Role
       - auth.User.UpdatedAt
       - auth.User.UserMetadata

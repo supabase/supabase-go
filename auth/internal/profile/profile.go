@@ -10,29 +10,40 @@ import (
 	"maps"
 	"slices"
 	"time"
+
+	"github.com/supabase/supabase-go/auth/internal/factor"
 )
 
 // User is the opaque state of one user profile.
 // Timestamp accessors return the zero [time.Time] when the server supplied no
 // value.
 type User struct {
-	id               string
-	audience         string
-	role             string
-	email            string
-	emailConfirmedAt time.Time
-	phone            string
-	phoneConfirmedAt time.Time
-	confirmedAt      time.Time
-	lastSignInAt     time.Time
-	createdAt        time.Time
-	updatedAt        time.Time
-	bannedUntil      time.Time
-	deletedAt        time.Time
-	isAnonymous      bool
-	appMetadata      map[string]any
-	userMetadata     map[string]any
-	identities       []Identity
+	id                     string
+	audience               string
+	role                   string
+	email                  string
+	emailConfirmedAt       time.Time
+	phone                  string
+	phoneConfirmedAt       time.Time
+	confirmedAt            time.Time
+	invitedAt              time.Time
+	confirmationSentAt     time.Time
+	recoverySentAt         time.Time
+	newEmail               string
+	emailChangeSentAt      time.Time
+	newPhone               string
+	phoneChangeSentAt      time.Time
+	reauthenticationSentAt time.Time
+	lastSignInAt           time.Time
+	createdAt              time.Time
+	updatedAt              time.Time
+	bannedUntil            time.Time
+	deletedAt              time.Time
+	isAnonymous            bool
+	appMetadata            map[string]any
+	userMetadata           map[string]any
+	identities             []Identity
+	factors                []factor.Factor
 }
 
 // ID returns the user's unique ID.
@@ -59,6 +70,34 @@ func (u User) PhoneConfirmedAt() time.Time { return u.phoneConfirmedAt }
 
 // ConfirmedAt returns when the user was first confirmed by any method.
 func (u User) ConfirmedAt() time.Time { return u.confirmedAt }
+
+// InvitedAt returns when the user was last sent an invitation.
+func (u User) InvitedAt() time.Time { return u.invitedAt }
+
+// ConfirmationSentAt returns when the last signup or invitation confirmation
+// email was sent.
+func (u User) ConfirmationSentAt() time.Time { return u.confirmationSentAt }
+
+// RecoverySentAt returns when the last password recovery or magic link email
+// was sent.
+func (u User) RecoverySentAt() time.Time { return u.recoverySentAt }
+
+// NewEmail returns the address a pending email change moves the user to.
+func (u User) NewEmail() string { return u.newEmail }
+
+// EmailChangeSentAt returns when the last email change confirmation was sent.
+func (u User) EmailChangeSentAt() time.Time { return u.emailChangeSentAt }
+
+// NewPhone returns the number a pending phone change moves the user to.
+func (u User) NewPhone() string { return u.newPhone }
+
+// PhoneChangeSentAt returns when the last phone change confirmation message
+// was sent.
+func (u User) PhoneChangeSentAt() time.Time { return u.phoneChangeSentAt }
+
+// ReauthenticationSentAt returns when the last reauthentication one-time
+// password was sent.
+func (u User) ReauthenticationSentAt() time.Time { return u.reauthenticationSentAt }
 
 // LastSignInAt returns when the user most recently signed in.
 func (u User) LastSignInAt() time.Time { return u.lastSignInAt }
@@ -92,6 +131,9 @@ func (u User) UserMetadata() map[string]any { return maps.Clone(u.userMetadata) 
 // Identities returns a copy of the user's linked sign-in identities.
 func (u User) Identities() []Identity { return slices.Clone(u.identities) }
 
+// Factors returns a copy of the user's enrolled MFA factors.
+func (u User) Factors() []factor.Factor { return slices.Clone(u.factors) }
+
 // Identity is the opaque state of one linked sign-in identity on a user.
 type Identity struct {
 	id           string
@@ -99,6 +141,7 @@ type Identity struct {
 	userID       string
 	provider     string
 	identityData map[string]any
+	email        string
 	createdAt    time.Time
 	lastSignInAt time.Time
 	updatedAt    time.Time
@@ -120,6 +163,10 @@ func (i Identity) Provider() string { return i.provider }
 // clone is shallow, as for [User.AppMetadata].
 func (i Identity) IdentityData() map[string]any { return maps.Clone(i.identityData) }
 
+// Email returns the email address carried in the identity's provider data,
+// or the empty string when the provider reported none.
+func (i Identity) Email() string { return i.email }
+
 // CreatedAt returns when the identity was linked.
 func (i Identity) CreatedAt() time.Time { return i.createdAt }
 
@@ -134,23 +181,32 @@ func (i Identity) UpdatedAt() time.Time { return i.updatedAt }
 // timestamps are pointers so an absent field stays the zero time rather than
 // the Unix epoch.
 type userWire struct {
-	ID               string         `json:"id"`
-	Audience         string         `json:"aud"`
-	Role             string         `json:"role"`
-	Email            string         `json:"email"`
-	EmailConfirmedAt *time.Time     `json:"email_confirmed_at"`
-	Phone            string         `json:"phone"`
-	PhoneConfirmedAt *time.Time     `json:"phone_confirmed_at"`
-	ConfirmedAt      *time.Time     `json:"confirmed_at"`
-	LastSignInAt     *time.Time     `json:"last_sign_in_at"`
-	CreatedAt        *time.Time     `json:"created_at"`
-	UpdatedAt        *time.Time     `json:"updated_at"`
-	BannedUntil      *time.Time     `json:"banned_until"`
-	DeletedAt        *time.Time     `json:"deleted_at"`
-	IsAnonymous      bool           `json:"is_anonymous"`
-	AppMetadata      map[string]any `json:"app_metadata"`
-	UserMetadata     map[string]any `json:"user_metadata"`
-	Identities       []identityWire `json:"identities"`
+	ID                     string          `json:"id"`
+	Audience               string          `json:"aud"`
+	Role                   string          `json:"role"`
+	Email                  string          `json:"email"`
+	EmailConfirmedAt       *time.Time      `json:"email_confirmed_at"`
+	Phone                  string          `json:"phone"`
+	PhoneConfirmedAt       *time.Time      `json:"phone_confirmed_at"`
+	ConfirmedAt            *time.Time      `json:"confirmed_at"`
+	InvitedAt              *time.Time      `json:"invited_at"`
+	ConfirmationSentAt     *time.Time      `json:"confirmation_sent_at"`
+	RecoverySentAt         *time.Time      `json:"recovery_sent_at"`
+	NewEmail               string          `json:"new_email"`
+	EmailChangeSentAt      *time.Time      `json:"email_change_sent_at"`
+	NewPhone               string          `json:"new_phone"`
+	PhoneChangeSentAt      *time.Time      `json:"phone_change_sent_at"`
+	ReauthenticationSentAt *time.Time      `json:"reauthentication_sent_at"`
+	LastSignInAt           *time.Time      `json:"last_sign_in_at"`
+	CreatedAt              *time.Time      `json:"created_at"`
+	UpdatedAt              *time.Time      `json:"updated_at"`
+	BannedUntil            *time.Time      `json:"banned_until"`
+	DeletedAt              *time.Time      `json:"deleted_at"`
+	IsAnonymous            bool            `json:"is_anonymous"`
+	AppMetadata            map[string]any  `json:"app_metadata"`
+	UserMetadata           map[string]any  `json:"user_metadata"`
+	Identities             []identityWire  `json:"identities"`
+	Factors                json.RawMessage `json:"factors"`
 }
 
 // identityWire is the JSON shape of one entry in a user's identities array.
@@ -160,6 +216,7 @@ type identityWire struct {
 	UserID       string         `json:"user_id"`
 	Provider     string         `json:"provider"`
 	IdentityData map[string]any `json:"identity_data"`
+	Email        string         `json:"email"`
 	CreatedAt    *time.Time     `json:"created_at"`
 	LastSignInAt *time.Time     `json:"last_sign_in_at"`
 	UpdatedAt    *time.Time     `json:"updated_at"`
@@ -175,22 +232,30 @@ func Parse(body []byte) (User, error) {
 	}
 
 	user := User{
-		id:               wire.ID,
-		audience:         wire.Audience,
-		role:             wire.Role,
-		email:            wire.Email,
-		emailConfirmedAt: timeOrZero(wire.EmailConfirmedAt),
-		phone:            wire.Phone,
-		phoneConfirmedAt: timeOrZero(wire.PhoneConfirmedAt),
-		confirmedAt:      timeOrZero(wire.ConfirmedAt),
-		lastSignInAt:     timeOrZero(wire.LastSignInAt),
-		createdAt:        timeOrZero(wire.CreatedAt),
-		updatedAt:        timeOrZero(wire.UpdatedAt),
-		bannedUntil:      timeOrZero(wire.BannedUntil),
-		deletedAt:        timeOrZero(wire.DeletedAt),
-		isAnonymous:      wire.IsAnonymous,
-		appMetadata:      wire.AppMetadata,
-		userMetadata:     wire.UserMetadata,
+		id:                     wire.ID,
+		audience:               wire.Audience,
+		role:                   wire.Role,
+		email:                  wire.Email,
+		emailConfirmedAt:       timeOrZero(wire.EmailConfirmedAt),
+		phone:                  wire.Phone,
+		phoneConfirmedAt:       timeOrZero(wire.PhoneConfirmedAt),
+		confirmedAt:            timeOrZero(wire.ConfirmedAt),
+		invitedAt:              timeOrZero(wire.InvitedAt),
+		confirmationSentAt:     timeOrZero(wire.ConfirmationSentAt),
+		recoverySentAt:         timeOrZero(wire.RecoverySentAt),
+		newEmail:               wire.NewEmail,
+		emailChangeSentAt:      timeOrZero(wire.EmailChangeSentAt),
+		newPhone:               wire.NewPhone,
+		phoneChangeSentAt:      timeOrZero(wire.PhoneChangeSentAt),
+		reauthenticationSentAt: timeOrZero(wire.ReauthenticationSentAt),
+		lastSignInAt:           timeOrZero(wire.LastSignInAt),
+		createdAt:              timeOrZero(wire.CreatedAt),
+		updatedAt:              timeOrZero(wire.UpdatedAt),
+		bannedUntil:            timeOrZero(wire.BannedUntil),
+		deletedAt:              timeOrZero(wire.DeletedAt),
+		isAnonymous:            wire.IsAnonymous,
+		appMetadata:            wire.AppMetadata,
+		userMetadata:           wire.UserMetadata,
 	}
 	for _, identity := range wire.Identities {
 		user.identities = append(user.identities, Identity{
@@ -199,10 +264,18 @@ func Parse(body []byte) (User, error) {
 			userID:       identity.UserID,
 			provider:     identity.Provider,
 			identityData: identity.IdentityData,
+			email:        identity.Email,
 			createdAt:    timeOrZero(identity.CreatedAt),
 			lastSignInAt: timeOrZero(identity.LastSignInAt),
 			updatedAt:    timeOrZero(identity.UpdatedAt),
 		})
+	}
+	if len(wire.Factors) > 0 {
+		factors, err := factor.ParseList(wire.Factors)
+		if err != nil {
+			return User{}, err
+		}
+		user.factors = factors
 	}
 	return user, nil
 }

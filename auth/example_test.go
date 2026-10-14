@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/supabase/supabase-go/auth"
+	"github.com/supabase/supabase-go/core/pagination"
 )
 
 // ExampleClient_GetClaims verifies an end-user token and branches on the ways
@@ -145,7 +146,7 @@ func bearerToken(request *http.Request) (string, bool) {
 	return value, true
 }
 
-// ExampleClient_Admin provisions a teammate account from a back-office job.
+// ExampleClient_Admin provisions a user account from a back-office job.
 // The secret key comes from the environment, never from source: it bypasses
 // Row Level Security, so it belongs to server configuration alone. Admin
 // creation sends no confirmation email - EmailConfirm marks the address
@@ -197,6 +198,64 @@ func ExampleAdmin_CreateUser() {
 	fmt.Println("migrated", user.Email())
 }
 
+// ExampleAdmin_UpdateUser suspends a user by banning sign-ins for three
+// days, then lifts the ban early with the literal "none". Only the set
+// fields change: everything else on the user stays as it is.
+func ExampleAdmin_UpdateUser() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+	ctx := context.Background()
+
+	banned, err := admin.UpdateUser(ctx, "USER_ID", auth.UserAttributes{BanDuration: "72h"})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("banned until", banned.BannedUntil())
+
+	restored, err := admin.UpdateUser(ctx, "USER_ID", auth.UserAttributes{BanDuration: "none"})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("ban lifted:", restored.BannedUntil().IsZero())
+}
+
+// ExampleAdmin_ListUsers walks every page of the project's users, the shape
+// of a nightly reconciliation against a billing system. The walk leans on
+// the server's page-size default and asks for each page by number. NextPage
+// reports false on the last page, which ends the walk.
+func ExampleAdmin_ListUsers() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+	ctx := context.Background()
+
+	for number := 1; ; {
+		page, err := admin.ListUsers(ctx, pagination.WithPage(number))
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		for _, user := range page.Users() {
+			fmt.Println(user.ID(), user.Email())
+		}
+		next, ok := page.NextPage()
+		if !ok {
+			break
+		}
+		number = next
+	}
+	fmt.Println("reconciled")
+}
+
 // ExampleAdmin_DeleteUser separates closing an account from erasing it. The
 // soft delete ends every session and factor and obfuscates the contact
 // details, but keeps the row readable for audit. The bare call makes no
@@ -222,4 +281,172 @@ func ExampleAdmin_DeleteUser() {
 		return
 	}
 	fmt.Println("erased")
+}
+
+// ExampleAdmin_InviteUser brings a new user into a workspace. The server
+// creates the account and sends the invitation email itself. The metadata
+// lands on the created user for the accept page to read, and the redirect
+// must be on the project's redirect allow list.
+func ExampleAdmin_InviteUser() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+
+	user, err := admin.InviteUser(context.Background(), "grace@example.com",
+		auth.WithUserMetadata(map[string]any{"workspace": "platform", "invited_by": "ada@example.com"}),
+		auth.WithRedirectTo("https://app.example.com/accept-invite"))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("invited", user.Email())
+}
+
+// ExampleAdmin_GenerateLink mints a password recovery link for the calling
+// application to send through its own mailer - its own delivery provider,
+// template and sender domain - rather than having the Auth server send its
+// built-in recovery email. The server sends nothing here: that is the point
+// of generating a link instead of triggering the email flow.
+func ExampleAdmin_GenerateLink() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+
+	link, err := admin.GenerateLink(context.Background(), auth.
+		NewLinkRequest("grace@example.com").
+		RedirectTo("https://app.example.com/reset").
+		Recovery())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// Hand the URL to the mailer. It is a credential: log it nowhere.
+	fmt.Println(link.ActionLink())
+}
+
+// ExampleAdmin_SignOut responds to a reported credential leak by revoking
+// every session the user holds. The token names whose sessions to revoke, and
+// the bare call is the server's default scope - all of them. WithOthersScope
+// would spare the session the token belongs to, WithLocalScope would end that
+// session alone.
+func ExampleAdmin_SignOut() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+
+	if err := admin.SignOut(context.Background(), "END_USER_ACCESS_TOKEN"); err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("all sessions revoked")
+}
+
+// ExampleAdmin_UpdateMFAFactor relabels a factor after the user moved their
+// authenticator app to a new device, so sign-in prompts and support
+// conversations name the device they actually hold.
+func ExampleAdmin_UpdateMFAFactor() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+
+	factor, err := admin.UpdateMFAFactor(context.Background(), "USER_ID", "FACTOR_ID",
+		auth.WithFriendlyName("Personal phone"))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("renamed to", factor.FriendlyName())
+}
+
+// ExampleAdmin_DeleteMFAFactor restores access for a user who lost the phone
+// their authenticator app lived on: list the factors, remove the TOTP one,
+// and the next sign-in can enroll a replacement.
+func ExampleAdmin_DeleteMFAFactor() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+	ctx := context.Background()
+
+	factors, err := admin.ListMFAFactors(ctx, "USER_ID")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	for _, factor := range factors {
+		if factor.Type() != "totp" {
+			continue
+		}
+		if err := admin.DeleteMFAFactor(ctx, "USER_ID", factor.ID()); err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println("removed", factor.FriendlyName())
+	}
+}
+
+// ExampleAdmin_CreateCustomProvider onboards an enterprise customer whose
+// workforce signs in through the customer's own identity provider. OIDC needs
+// only the issuer beyond the client credential the customer registered - the
+// server discovers the endpoints from it, and rejects the registration if
+// discovery fails, so a misconfiguration surfaces here rather than at a
+// user's sign-in. The identifier carries the custom: prefix the server
+// requires.
+func ExampleAdmin_CreateCustomProvider() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+
+	definition := auth.NewCustomProvider(
+		"custom:acme-corp",
+		"Acme Corp SSO",
+		"CLIENT_ID_FROM_THE_CUSTOMER",
+		"CLIENT_SECRET_FROM_THE_CUSTOMER",
+	).OIDC("https://login.acme.example").
+		Scopes("openid", "profile", "email")
+
+	provider, err := admin.CreateCustomProvider(context.Background(), definition)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("registered", provider.Identifier())
+}
+
+// ExampleAdmin_UpdateCustomProvider disables a provider during an incident at
+// the customer's identity provider, keeping its configuration intact for the
+// moment it is trusted again. An option carried is an instruction, an option
+// absent leaves the stored value alone.
+func ExampleAdmin_UpdateCustomProvider() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	admin := client.Admin()
+
+	provider, err := admin.UpdateCustomProvider(context.Background(), "custom:acme-corp", auth.WithEnabled(false))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(provider.Name(), "disabled")
 }
