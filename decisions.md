@@ -1,9 +1,9 @@
 # Development Decisions for `supabase-go`
 
-<!-- cSpell:ignore Cheney claude Cname Getenv iter mktemp openai pgrst pgx Seq sqlc vnd WHATWG -->
+<!-- cSpell:ignore claude Cname Getenv iter pgrst pgx Seq sqlc -->
 
-This document has been created to capture decisions that have been made during development on this SDK which felt like worth recording for future reference.
-It's designed to be quick and friction-less to populate, a friction log inspired micro decisions list, often expected to be imperfect but with the ethos of "something is better than nothing" in terms of what we capture.
+This document captures development decisions worth recording for future reference.
+An entry earns its place only by capturing what the codebase itself cannot show - typically the alternative that lost and why it lost - with the selection bar held by the [recording-decisions skill](.agents/skills/recording-decisions/SKILL.md).
 
 There is, of course, the chance that this document might drift away from what's present in the wider codebase.
 Such drift will only ever be accidental in nature and, as such, this document is to be read carefully and judiciously.
@@ -23,11 +23,10 @@ When the reason for something concerns only the file it sits in (a configuration
 ## No `Makefile` or task runner
 
 **What**:  
-CI and local dev use plain `go` commands only.
+Every workflow is a single `go` command or a plain bash script under [`scripts/`](scripts/), run identically by developers and CI.
 
 **Why**:  
-A `Makefile` is a borrowed-from-C convention that earns its place only when a repo orchestrates non-Go work (docker, migrations, codegen, cross-compile, release packaging).
-A pure multi-module library has none of that - every task is a single `go`-toolchain invocation.
+The scripts state each workflow as the exact commands a developer runs, so a task-runner layer would put a second vocabulary (targets, variables, a DSL) between the reader and those commands while adding no orchestration the scripts do not already carry.
 
 ## CI uses only first-party Actions (GitHub's `actions` org)
 
@@ -80,10 +79,8 @@ The workspace's use directives supply the actual source for every in-repo build,
 **Why**:  
 Every in-repo build must compile a module against its siblings' current source - unreleased changes included - rather than the released versions its require lines name, which needs either `replace` directives or a workspace.
 `go.work` is the purpose-built mechanism (Go 1.18+) and gives a cleaner separation of "what we publish to customers" (the `go.mod` files, free of dev-only redirects) from "how we develop locally" (one workspace file), stating the wiring once instead of repeating `replace … => ../core` in every consumer.
-Committing it is the Go-team-endorsed practice for monorepos ([golang/go#53502](https://github.com/golang/go/issues/53502) explicitly declined a "never commit" warning; the relative paths are identical for every clone, gopls configures multi-module editing from it, and Dependabot understands it), and it is safe for consumers: `go.work` is never included in a published module zip and is ignored by `go get`, so it cannot affect anyone importing the SDK.
-The one workspace hazard is the overlay masking a missing or wrong `require`: every in-repo build resolves siblings from workspace source, so a `require` defect surfaces only in consumer builds.
-[`scripts/check-module-paths.sh`](scripts/check-module-paths.sh) guards the path case: it fails when a workspace (published) module requires a first-party path that is not itself a workspace module, which a consumer could not resolve. [`scripts/check-release-consistency.sh`](scripts/check-release-consistency.sh) guards most of the version case, failing a require that names a version its sibling's changelog never declares. A missing require or a pin to the wrong declared version still rests on review, since there is no tidy gate yet (zero external dependencies).
-The decision is cheaply reversible (delete `go.work`, add `replace` blocks).
+Committing it is Go-team-endorsed for monorepos ([golang/go#53502](https://github.com/golang/go/issues/53502) declined a "never commit" warning) and safe for consumers, since `go.work` never enters a published module zip and `go get` ignores it.
+The workspace hazard - the overlay masking a missing or wrong `require`, a defect only consumer builds would surface - is guarded by [`scripts/check-module-paths.sh`](scripts/check-module-paths.sh) (first-party paths a consumer could not resolve) and [`scripts/check-release-consistency.sh`](scripts/check-release-consistency.sh) (versions no sibling changelog declares), with the remainder resting on review.
 
 ## Ignore go.work.sum rather than commit it
 
@@ -94,7 +91,6 @@ Any workspace-mode go command (a build, a test, `go mod graph`, gopls) recreates
 **Why**:  
 Its only content is `go.mod` hashes for this repository's own published sibling versions, which require lines name but use directives override, so it never decides which code builds and each module's committed `go.sum` remains the consumer-facing ledger.
 A committed copy could not even update during a release PR (the bumped requires name versions that cannot be fetched until the release-tags workflow pushes the tags) and would then dirty itself in whichever tree runs the first workspace command after publication - a housekeeping commit per release, buying no protection.
-Cheaply reversible: track the file if external dependencies ever give it content a review would protect.
 
 ## Integration tests and their shared fixtures are adjacent non-published modules
 
@@ -138,11 +134,9 @@ Every error message from a package is prefixed with that package's name (`config
 The prefix is written once, in the string-backed type's `Error()` method (`return "configuration: " + string(e)`), so each sentinel definition carries only its own distinct message text rather than repeating the prefix on every declaration.
 
 **Why**:  
-Naming the originating package is the dominant Go convention - the standard library does it everywhere (`json:`, `http:`, `os:`) - and it preserves provenance once an error is wrapped, logged or surfaced far from where it was created.
-The package is the unit a consumer imports and reasons about, so it is the right granularity for provenance. Finer-grained "which kind of failure" information is carried by the error's identifier and type (`ErrMissingURL`, `configurationError`) and its message text, not duplicated into the prefix.
-Package granularity also stays consistent as a package grows more error sources (for example the internal `transport` package behind `configuration`), so every error from the package reads with the same token regardless of which code produced it.
-Centralizing the literal in `Error()` rather than baking `configuration: ` into each sentinel removes the repetition. Our single string-backed error type gives us one render choke point that the scattered `errors.New` calls in the standard library do not have.
-The rendered prefix does not affect `errors.Is`, which compares the underlying sentinel values (the unprefixed message strings). The prefix is purely for the human reading the message.
+Naming the originating package is the dominant Go convention (`json:`, `http:`, `os:`) and preserves provenance once an error is wrapped or logged far from its source.
+The package is the unit a consumer imports and reasons about, and the granularity stays consistent however many error sources the package grows - finer "which kind of failure" information is carried by the error's identifier and type, not duplicated into the prefix.
+Centralizing the literal in `Error()` removes per-sentinel repetition, a render choke point the standard library's scattered `errors.New` calls lack, and the prefix is purely for the human reading the message, since `errors.Is` compares the underlying sentinel values.
 
 ## Everything executed from outside the repo is digest-pinned (Actions and tooling)
 
@@ -194,27 +188,8 @@ Discovery is scripted while application stays manual: read-only [`scripts/tools-
 Dependabot security updates stay enabled via repo settings so advisories still raise a PR, but scheduled version-update PRs are deferred until the repo opens to broader contribution.
 
 **Why**:  
-During early development on this codebase it's going to be actively iterated upon by a single developer and so is not likely to be left idle for long periods of time with no activity.
-This means that the benefits of regular (weekly) dependabot PRs are less obvious, and perhaps might even turn into a distraction or nuisance to that singular development flow.
-
-## Public API doc comments use the Go doc-comment syntax (links, lists, prose)
-
-**What**:  
-Doc comments on exported identifiers use the Go 1.19+ "Go Doc Comments" syntax, not plain prose alone.
-The features we rely on:
-
-- Doc links - `[Name]`, `[pkg.Name]` and `[pkg.Type.Method]` - to cross-reference other identifiers and packages.
-- Bullet or numbered lists for enumerable behavior, such as the set of sentinel errors a constructor returns.
-- Parameters and return values referenced by name in running prose (Go has no `@param` or `@return` tags; the rendered signature supplies the parameter list).
-- Runnable `ExampleXxx` functions as executable usage documentation.
-
-We do not use Markdown in doc comments. Bold, italics and inline backtick code spans are unsupported, so backticks never appear in doc comments because they would render literally.
-
-**Why**:  
-This is the one syntax that `gofmt` canonicalizes and that every Go documentation consumer renders identically: `go doc` at the command line, pkg.go.dev on the web and gopls on editor hover.
-One comment therefore serves all three without divergence.
-Doc links become navigable cross-links on the rendered page, lists make conditions like the error-return set scannable, and runnable examples cannot drift from the code because `go test` executes them.
-Holding to the standard syntax lets `gofmt` keep formatting consistent and stops contributors inventing ad hoc conventions.
+Under solo active development the repo is never idle long enough for scheduled update PRs to catch real staleness, so a weekly stream would be distraction rather than protection.
+Scripted discovery keeps the refresh deliberate while advisories still arrive on their own.
 
 ## Domain navigation is context-free and cannot fail
 
@@ -320,10 +295,8 @@ The one posture that does not belong at org level - that external code contribut
 
 ## Merge strategy and commit conventions
 
-Both decisions below deliberately diverge from the approach taken by other Supabase repositories - the "house defaults" (squash-only merging, Conventional Commit PR titles) - including those in the SDK domain.
-Those defaults serve downstream release automation, which wants exactly one conventional commit per PR from which to infer changelogs and version bumps.
-This SDK is taking a progressive changelog update approach, where changelog-worthy updates to the codebase are required to atomically submit a changelog entry under the 'Unreleased' heading for relevant modules.
-Each module's next version is then chosen by hand at release time, from the entries under its 'Unreleased' heading.
+Both decisions below deliberately diverge from the Supabase house defaults (squash-only merging, Conventional Commit PR titles), which serve release automation that infers changelogs and version bumps from one conventional commit per PR.
+This SDK infers neither: changelog-worthy changes land atomic entries under each module's 'Unreleased' heading, from which versions are chosen by hand at release time.
 
 ### PRs land as merge commits, not squashes
 
@@ -334,10 +307,8 @@ Every PR lands with its individual commits as ancestors of `main`, under a merge
 **Why**:  
 A squash merge keeps the granular history only as GitHub platform metadata (the PR's Commits tab, backed by hidden `refs/pull/N/head` refs), not in the repository: a fresh clone sees one commit per PR, and `git log`, `git blame` and `git bisect` cannot reach the individual steps.
 Merge commits keep that history in Git itself, portable to any clone or mirror and addressable by every Git tool, while GitHub-side PR metadata (review threads, per-commit checks) is identical under either strategy.
-The standard objection to merge commits - that intermediate commits are WIP noise which pollutes `main` and defeats `bisect` - does not apply under the working discipline here: every commit moves the codebase from one working state to another.
-The one-entry-per-PR reading that squash exists to provide remains available through `git log --first-parent main`, and squash has no inverse, since discarded ancestry cannot be recovered from the repository afterwards.
-The trade-off accepted: the full log of `main` is busier than a squash log, and the clean-history guarantee rests on solo discipline rather than enforcement.
-When the repo opens to external contributions that guarantee weakens, so this is revisited then - a cheap change, as enabling squash is a repository setting that applies only to future merges.
+The standard objection - WIP noise polluting `main` and defeating `bisect` - does not apply under the discipline here that every commit moves the codebase between working states, and the one-entry-per-PR reading squash provides remains available as `git log --first-parent main`.
+Squash has no inverse (discarded ancestry is unrecoverable), while this choice is a repository setting, cheap to revisit when external contributions weaken the discipline guarantee.
 
 ### No Conventional Commits in commit messages or PR titles
 
@@ -413,13 +384,10 @@ A key may appear any number of times and insertion order is preserved.
 A query string is an ordered multimap, and PostgREST's dialect gives repeated keys meaning: repeated filter keys AND together (`age=gte.18&age=lte.65` is exactly how `Gte("age", 18).Lte("age", 65)` serializes) and repeated `or=` groups combine.
 `map[string]string` is the one shape that cannot represent valid PostgREST queries - a second filter on a column would silently overwrite the first.
 
-The sibling SDKs store the same multimap shape, for example [`postgrest-js`](https://github.com/supabase/supabase-js/tree/master/packages/core/postgrest-js) appending to `URLSearchParams`.
-Between the two faithful shapes, the slice of pairs was preferred over `map[string][]string` because it keeps the model free of reference-typed fields: a plain struct copy is safe (pairs are immutable values; writes append after `slices.Clone`), whereas a map field aliases on copy, `maps.Clone` is shallow over the value slices, and one forgotten deep clone in a future `With*` method is a data race - the exact hazard the model exists to remove (supabase-py needed a third-party persistent-collections library to make the map shape safe; the slice gets the same guarantee from the stdlib).
+The sibling SDKs store the same multimap shape ([`postgrest-js`](https://github.com/supabase/supabase-js/tree/master/packages/core/postgrest-js) appends to `URLSearchParams`).
+Between the two faithful shapes, the slice of pairs beats `map[string][]string` because it keeps the model free of reference-typed fields: a struct copy of immutable pairs is a genuinely deep copy, whereas a map field aliases on copy and one forgotten deep clone in a future `With*` method is a data race - the exact hazard the model exists to remove.
 
-Singleton keys take replace-semantics through `WithParameterReplacing`, which `Limit` uses so that a repeated call replaces the earlier value - the last-write-wins behavior the sibling SDKs implement, and the safe choice given PostgREST documents no behavior for a repeated limit key.
-
-Comma-separated list keys take join-semantics through `WithParameterJoining`, which `Order` uses so that repeated calls grow one `order` pair instead of repeating the key: PostgREST reads only the first `order` parameter for a query level and silently ignores the rest, so a repeated key would drop every term after the first call's.
-The ordering refinements extend the newest term through `WithParameterValueAppended`, whose plain string append is sound because the term grammar forbids commas inside a term, so the flat value's tail is always the newest term.
+Beside plain appends the model offers replace-semantics for singleton keys (`Limit`, last-write-wins as the siblings implement, PostgREST documenting no behavior for a repeated limit key) and join-semantics for comma-separated list keys (`Order`, because PostgREST reads only the first `order` parameter per query level and silently ignores the rest, so a repeated key would drop every later term).
 
 ## The query string is rendered by an in-model RFC 3986 writer, not url.Values.Encode
 
@@ -431,10 +399,9 @@ The remaining query characters - the commas, parentheses, dots, colons and aster
 `url.Values.Encode` is form-encoding: it escapes every byte outside the unreserved set and sorts pairs by key, so PostgREST queries render as `select=id%2Cname` noise in logs and tests, in an order no caller wrote, and measurably longer in a comma-dense dialect (three bytes per comma across select lists, in-lists and multi-column order values).
 RFC 3986 permits the sub-delimiters literally in a query, PostgREST URL-decodes before parsing - both spellings are identical to the server, as the sibling SDKs demonstrate by shipping both - and PostgREST's documentation writes the literal form throughout, so readability, size and order fidelity are the only stakes.
 Cross-key order is semantically inert - PostgREST reads each parameter out by name - so insertion-order rendering is for the human reading the wire, not the server.
-`+` and `;` are escaped despite being sub-delimiters because form-decoders - PostgREST's own query parsing included - read `+` as a space, and Go's `url.ParseQuery` rejects `;` outright.
-A space renders `%20` rather than form-encoding's `+` because `%20` is the uniform unsafe-octet rule's own output and the only spelling that decodes to a space under both RFC 3986 percent-decoding and form-decoding, where `+` would need a special-case branch borrowed from the form-encoding family ([supabase-swift pins the same spelling](https://github.com/supabase/supabase-swift/blob/ebef170a4a6820d064e5909dd4f54e4341f12eb5/Tests/PostgRESTTests/PostgrestTransformBuilderTests.swift#L34)).
-`RawQuery` is the documented home for pre-encoded query text and round-trips byte-for-byte through `url.Parse`, so the writer composes with `http.NewRequestWithContext` without re-encoding.
-The escaper is octet-oriented rather than rune-oriented because percent-encoding is defined on octets (RFC 3986 section 2.5's UTF-8-then-escape rule), so any string renders losslessly - arbitrary non-UTF-8 bytes included - where a rune-based walk would silently corrupt invalid sequences to U+FFFD.
+`+` and `;` are escaped despite being sub-delimiters (form-decoders, PostgREST's own query parsing included, read `+` as a space, and Go's `url.ParseQuery` rejects `;` outright), and a space renders `%20` because that is the one spelling that decodes to a space under both RFC 3986 percent-decoding and form-decoding ([supabase-swift pins the same spelling](https://github.com/supabase/supabase-swift/blob/ebef170a4a6820d064e5909dd4f54e4341f12eb5/Tests/PostgRESTTests/PostgrestTransformBuilderTests.swift#L34)).
+`RawQuery` is the documented home for pre-encoded query text, so the writer composes with `http.NewRequestWithContext` without re-encoding.
+The escaper is octet-oriented because percent-encoding is defined on octets (RFC 3986 section 2.5's UTF-8-then-escape rule), so any string renders losslessly - arbitrary non-UTF-8 bytes included - where a rune-based walk would silently corrupt invalid sequences to U+FFFD.
 
 ## Builder phases are distinct concrete types (typestate); embedding only narrows, interfaces only at the terminals
 
@@ -533,44 +500,30 @@ Distinguishing "the server answered with an error" (`*Error`) from "we never got
 ## Integration harness: pinned-binary Supabase CLI, minimal services, floor + stable matrix
 
 **What**:  
-CI's integration job and `scripts/integration-test.sh` run the same script, which starts a local stack using the Supabase CLI, a committed minimal `config.toml` (only db, api and auth enabled), a committed schema migration and a committed data-only `seed.sql`.
-The CLI is the pinned release binary, verified against a committed SHA-256 and installed into Go's own bin directory (GOBIN, else GOPATH/bin), never taken from npm.
-Integration tests are env-gated and run under `-race`.
-They live in `integrationtest` modules beside the code they exercise, consuming only the public API, and selection is by the module boundary alone: the script runs `./...` in each with no `-run` name filter.
-The CI job runs the same floor + stable matrix as build-and-test; a `GOWORK=off go vet` pass over the same modules in the unit script additionally keeps them compiling for fast local signal.
+CI's integration job and local runs share [`scripts/integration-test.sh`](scripts/integration-test.sh): a pinned, checksum-verified Supabase CLI release binary starts a disposable local stack from committed configuration (minimal `config.toml`, schema migrations, data-only `seed.sql`), then env-gated integration tests run under `-race` on the same floor + stable matrix as build-and-test.
+The tests live in `integrationtest` modules beside the code they exercise, consuming only the public API, and selection is by the module boundary alone: the script runs `./...` in each with no `-run` name filter, while the fast tier additionally vets the modules for compile signal.
+The mechanics whose reasons concern single files - the CLI fetch route, the disposable project-directory copy, which services run - carry those reasons as comments in the script and in [`config.toml`](integration-testing/supabase/config.toml).
 
 **Why**:  
-The CLI cannot be installed with `go install` at v2 for two independent reasons: its module (`github.com/supabase/cli`) now lives in `apps/cli-go/` while the repo root carries no `go.mod`, so the module proxy resolves that path only to the stale v1 root-module history rather than the v2 code, and its `go.mod` carries local `replace` directives, which `go install pkg@version` refuses outright.
-It is fetched instead as the pinned release binary, verified against a committed SHA-256 and installed into Go's own bin directory (GOBIN, else GOPATH/bin) - a writable, on-PATH location outside the checkout, so a read-only working tree is fine - the same first-party curl-and-checksum pattern as the local Go toolchain install.
-npm was rejected as the channel even though it pins equally well, because bundling the CLI into `tools/node` conflated it with the unrelated cspell tool - every `npm ci` pulling both - and forced a node_modules write into the checkout, whereas cspell stays on npm as a genuine JS tool whose deep dependency tree is what a lockfile exists for.
-The auth service stays enabled despite no test calling it, because `supabase status -o env` emits the stack's API keys (PUBLISHABLE_KEY included) only while auth is enabled - the harness reads its credentials from that output, consuming PUBLISHABLE_KEY exactly as the CLI repository's own e2e harness does (ANON_KEY is deprecated upstream).
-Schema lives in `migrations/` and only data in `seed.sql` because the CLI applies the seed as a single batch whose statements are prepared before earlier ones execute, so DDL cannot ride with inserts that depend on it (SQLSTATE 42P01 on a fresh stack) - the same layout as the CLI repository's own e2e project.
-The script runs the CLI against a disposable `mktemp -d` copy of `integration-testing/` because the CLI writes scratch state (`supabase/.branches`, `supabase/.temp`) into whatever project directory it runs: the copy keeps committed trees pristine by construction and lets the harness run from a read-only checkout, while `stop` still finds the stack because the CLI identifies it by `config.toml`'s `project_id`, not by path.
-Every other unused service is disabled because this harness's startup time and flakiness set the floor for all future CI.
-A name-anchored `-run` filter (`^TestIntegration`) would spare the unit re-run, but its failure mode is silence: a tagged test named outside the anchor compiles cleanly, never runs and lets the suite pass vacuously, whereas the re-run it prevents is hermetic and costs seconds.
-The dedicated test-only package makes the consumer stance structural - every test package is external, so unexported access never exists to lose - and keeps the integration namespace decoupled from the unit test files, so suite selection never depends on function names and names never collide across suites.
+Every unused service stays disabled because this harness's startup time and flakiness set the floor for all future CI.
+Schema lives in `migrations/` and only data in `seed.sql` because the CLI applies the seed as a single batch whose statements are prepared before earlier ones execute, so DDL cannot ride with inserts that depend on it (SQLSTATE 42P01 on a fresh stack).
+A name-anchored `-run` filter (`^TestIntegration`) would spare the unit-tier re-run, but its failure mode is silence - a test named outside the anchor compiles cleanly, never runs and lets the suite pass vacuously - whereas the re-run it prevents is hermetic and costs seconds.
+The dedicated test-only package makes the consumer stance structural (every test package is external, so unexported access never exists to lose) and keeps suite selection independent of function names.
 The floor leg exists because only a live-stack run exercises the consumer floor end to end on the floor toolchain, and the legs run in parallel so wall-clock cost is unchanged.
 
 ## `X-Client-Info` resolution is verified by an out-of-tree consumer program
 
 **What**:  
-The `telemetrytest/` module is a stand-in consumer: it requires the SDK modules at fabricated, self-labeled versions (`v1.999.1-fabricated` supabase, `v1.999.2-fabricated` postgrest), `replace`s them to the local working tree and its main program asserts the exact `X-Client-Info` value each entry point sends to a local HTTP server.
-`scripts/telemetry-test.sh` runs it with `GOWORK=off` and the module is not listed in `go.work`.
-A second leg rebuilds the same program in GOPATH mode (`GO111MODULE=off`), where binaries carry build information without module records, and asserts the version-unknowable `0.0.0` fallback in every header.
-The `TELEMETRY_TEST_MODE` environment variable tells the program which expectations to hold.
-The check is part of the fast tier (`check-fast.sh`) and runs in CI as a step of the build-and-test job, on its floor + stable matrix.
-The probe is a plain program, not a `go test` suite.
+The `telemetrytest/` module is a stand-in consumer, outside `go.work`: it requires the SDK modules at fabricated, self-labeled versions (`v1.999.1-fabricated` supabase, `v1.999.2-fabricated` postgrest), `replace`s them to the local working tree and its main program asserts the exact `X-Client-Info` value each entry point sends to a local HTTP server, with `TELEMETRY_TEST_MODE` naming the expectations to hold.
+[`scripts/telemetry-test.sh`](scripts/telemetry-test.sh) runs that module-mode leg and a GOPATH-mode leg (`GO111MODULE=off`), where binaries carry build information without module records, asserting the version-unknowable `0.0.0` fallback in every header.
+The probe is a plain program, not a `go test` suite, and the check runs in the fast tier and on CI's floor + stable matrix.
 
 **Why**:  
-Every binary the in-repo suites produce has one of this repository's modules as its main module, so header resolution takes the in-tree branch and reports `(devel)`.
-The branch every published-module consumer exercises - reading client versions from build-information dependency records - is reachable only from a main module outside the SDK's module tree.
-It must be a plain program because `go build` and `go run` stamp dependency records into binaries while `go test` binaries record the main module and no dependencies (observed on go1.26), which rules out expressing the probe as a test suite.
-Workspace membership would defeat the vantage from the other side - a workspace build supplies the SDK modules as local source with no resolvable versions - so the module stays out of `go.work` and the script forces `GOWORK=off`.
-The fabricated versions are distinct from every sentinel the header can otherwise carry (`(devel)` in-tree, `0.0.0` without build information), so a pass is unambiguous provenance, and their `-fabricated` prerelease label keeps the header values in check output from reading as release claims.
-Each must outrank every other require of the same module path in this build so minimal version selection keeps it as the selected, recorded version: `1.999.x` outranks every real `v1` version, pre-releases included, and a `v2` would live at a new module path.
+Every binary the in-repo suites produce has one of this repository's modules as its main module, so header resolution takes the in-tree branch and reports `(devel)`: the branch every published-module consumer exercises - reading client versions from build-information dependency records - is reachable only from a main module outside the SDK's module tree.
+It must be a plain program because `go test` binaries record the main module and no dependencies (observed on go1.26), which rules out expressing the probe as a test suite.
+The fabricated versions are distinct from every sentinel the header can otherwise carry, outrank every real `v1` version under minimal version selection so they stay the selected, recorded versions, and their `-fabricated` prerelease label keeps the header values in check output from reading as release claims.
+The GOPATH leg exists because module-record-free binaries are otherwise not exercised at all (every matrix toolchain now stamps records even into test binaries), and the expected versions come from the environment rather than the binary's own build information, which would assert whatever branch actually ran and pass even when a leg lands in the wrong branch.
 The floor leg exists because the header is consumer-facing behavior, so it must hold at the consumer floor.
-The GOPATH leg exists because module-record-free binaries are otherwise not exercised at all - every matrix toolchain is now 1.24 or later, so even test binaries carry module records - while GOPATH mode produces them deterministically on every toolchain.
-The expected versions come from the environment rather than from the binary's own build information, which would assert whatever branch actually ran and pass even when a leg lands in the wrong branch.
 
 ## Module information is judged by `Main.Path`, not by `ReadBuildInfo`'s ok
 
@@ -694,8 +647,8 @@ Three sealed interfaces gate the executing functions: `RawQuery` for `CollectRaw
 The table write builders satisfy all three, a read builder satisfies `Query` and a void function call satisfies `Mutation` alone.
 
 **Why**:  
-In an early API design for this SDK `Mutation` embedded `Query`, encoding the claim that anything executable also decodes as rows, which every table write honored by returning its affected rows.
-A void function call is executable with nothing to decode, so the embed is dropped and the two promises become independent - `Collect` over a void call is now a compile error rather than a runtime decode of an empty body.
+Execute-ability and row-decoding are independent promises: a void function call is executable with nothing to decode, so a `Mutation` that embedded `Query` would force every executable to claim rows it may not have.
+Keeping them apart makes `Collect` over a void call a compile error rather than a runtime decode of an empty body.
 Go's structural typing forces the three accessors to carry distinct names, since one shared name would let a type satisfy an interface it should not.
 `CollectRaw` takes the weakest interface so one path reads a scalar function, a whole table array or any other whole body.
 
@@ -763,7 +716,7 @@ The Auth client sends each request once and ignores the `configuration.WithRetry
 
 **Why**:  
 Auth's requests are GETs and safe to repeat, so honoring the option was possible.
-Regardless, the decision was made not to honor that option because verification sits on the request-handling hot path of the caller's own server (in our anticipated, likely use-case for this SDK), where invisible backoff multiplies the latency of the inbound request being served.
+It is ignored because verification sits on the request-handling hot path of the caller's own server - this SDK's anticipated primary use - where invisible backoff multiplies the latency of the inbound request being served.
 
 ## The auth admin surface is one in-package type behind an accessor
 
@@ -772,15 +725,16 @@ Admin operations live on an `Admin` type in package `auth`, reached with `authCl
 There is no `auth/admin` package and no standalone admin constructor.
 
 **Why**:  
-Admin methods return `*auth.User` and `*auth.Error`, so a separate package would have to import `auth` while `auth.Client` offers the accessor - an import cycle.
+Admin methods return types defined in `auth` (`*auth.User` among them), so a separate package would have to import `auth` while `auth.Client` offers the accessor - an import cycle.
 The in-package service type is the cycle-free shape (go-github's service structs) and keeps domain navigation context-free, which is already this codebase's shape.
 Spelled-out method names keep one flat type unambiguous without the nested namespace objects the sibling SDKs lean on.
 
-## Admin request payloads are plain entity structs with wire-faithful fields
+## Admin payloads are plain entity structs where one grammar serves every verb
 
 **What**:  
-A flat admin payload is one exported struct per entity (`UserAttributes`), shared by every call that sends that entity, with `omitzero` on each field so a zero-valued field is not sent.
+An admin entity whose create and update calls read the same grammar is one exported payload struct (`UserAttributes`), shared by every call that sends that entity, with `omitzero` on each field so a zero-valued field is not sent.
 Each field's type mirrors how the Auth server reads it: plain where the server treats the zero value as absent, a pointer only where nil and the zero value differ on the wire.
+Where the server reads two grammars for one entity - custom provider creation validates per-type required fields its sparse update patch never reads - the shapes split instead: a creation builder (`NewCustomProvider`) beside update options (`CustomProviderOption`).
 
 **Why**:  
 A struct literal with named fields is how Go spells a record of named values, and a caller-built value the SDK reads once and never retains is contract-free, so it earns no accessor wrapper and no builder ceremony.
@@ -789,7 +743,6 @@ The write model stays a separate type from the read model (`UserAttributes` besi
 No embedded core struct dedupes the shared field names, because Go does not promote embedded fields in composite literals and the flat payload literal is this entry's point.
 The json tags sit on the public fields deliberately: a tag pins the field to the server's published wire name, which outlives every Go identifier here, so the tags bind this SDK to the platform's contract rather than exposing anything of this SDK's own.
 The tag-free alternatives - an internal mirror struct with a field-by-field copy, or a hand-written MarshalJSON - restate the same fields a second time, and their shared failure mode (a field added to one statement and not the other) drops a value from requests silently.
-Builders stay where ordering and phases carry meaning (queries), and functional options stay construction and execution overrides, per the entries above.
 
 ## Admin deletes return only error, and the delete mode is a per-call option
 
