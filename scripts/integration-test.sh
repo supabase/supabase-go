@@ -141,11 +141,23 @@ for example in $(enumerate_example_modules); do
   echo "==> ${example}"
   (
     cd "${example}"
-    GOWORK=off \
-    SUPABASE_URL="${API_URL}" \
-    SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
-    SUPABASE_SECRET_KEY="${SECRET_KEY}" \
-      go run .
+    export GOWORK=off \
+      SUPABASE_URL="${API_URL}" \
+      SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
+      SUPABASE_SECRET_KEY="${SECRET_KEY}"
+    case "${example}" in
+      examples/admin-provisioning)
+        # The operator tool does one lifecycle stage per invocation, so the
+        # harness walks all three verbs in order.
+        user="provisioning-$(date +%s)-$$@example.com"
+        go run . onboard "${user}"
+        go run . reconcile
+        go run . offboard "${user}"
+        ;;
+      *)
+        go run .
+        ;;
+    esac
   )
 done
 
