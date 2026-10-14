@@ -168,3 +168,47 @@ download_module_json() {
 module_hash_lines() {
   jq -r '"\(.Path) \(.Version) \(.Sum)", "\(.Path) \(.Version)/go.mod \(.GoModSum)"' "$@"
 }
+
+# Strip git ls-remote decoration from stdin, printing bare tag names: the
+# object SHA and tab go, the refs/tags/ prefix goes and an annotated tag's
+# peeled ^{} suffix goes, then duplicates collapse.
+tag_names() {
+  cut -f2 | sed -E 's|^refs/tags/||; s|\^\{\}$||' | sort -u
+}
+
+# Print the versions, prefix removed, of the stdin tag names formed of the
+# given prefix followed by a three-part version (prefix 'v' matches v7.0.0).
+# Other shapes - moving major tags like v7, pre-releases - are dropped.
+# $1 is the prefix.
+versions_with_prefix() {
+  awk -v prefix="$1" '
+    index($0, prefix) == 1 {
+      version = substr($0, length(prefix) + 1)
+      if (version ~ /^[0-9]+\.[0-9]+\.[0-9]+$/) print version
+    }'
+}
+
+# Print the newest of the three-part versions fed on stdin, one per line.
+# Numeric field sort rather than sort -V, which macOS's BSD sort lacks.
+newest_version() {
+  sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1
+}
+
+# Print the path of the script pinning the Supabase CLI for the integration
+# tests - the single source of truth for that pin: SUPABASE_CLI_VERSION plus
+# one cli_sha256 value per supported platform.
+supabase_cli_pin_file() {
+  printf '%s\n' 'scripts/integration-test.sh'
+}
+
+# Print the pinned Supabase CLI version declared in the pin file.
+pinned_supabase_cli_version() {
+  sed -nE 's/^SUPABASE_CLI_VERSION="([0-9.]+)"$/\1/p' "$(supabase_cli_pin_file)"
+}
+
+# Print the newest Supabase CLI release version, discovered from the version
+# tags on github.com/supabase/cli. Probes that live origin, so network access
+# is required.
+latest_supabase_cli_version() {
+  git ls-remote --tags https://github.com/supabase/cli 'v*' | tag_names | versions_with_prefix 'v' | newest_version
+}

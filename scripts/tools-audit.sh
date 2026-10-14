@@ -11,32 +11,9 @@
 # Requires git, curl, jq, go and npm. Run from the repository root.
 set -euo pipefail
 
+source "$(dirname "$0")/common.sh"
+
 echo "Tools Audit..."
-
-# Strip git ls-remote decoration from stdin, printing bare tag names: the
-# object SHA and tab go, the refs/tags/ prefix goes and an annotated tag's
-# peeled ^{} suffix goes, then duplicates collapse.
-tag_names() {
-  cut -f2 | sed -E 's|^refs/tags/||; s|\^\{\}$||' | sort -u
-}
-
-# Print the versions, prefix removed, of the stdin tag names formed of the
-# given prefix followed by a three-part version (prefix 'v' matches v7.0.0).
-# Other shapes - moving major tags like v7, pre-releases - are dropped.
-# $1 is the prefix.
-versions_with_prefix() {
-  awk -v prefix="$1" '
-    index($0, prefix) == 1 {
-      version = substr($0, length(prefix) + 1)
-      if (version ~ /^[0-9]+\.[0-9]+\.[0-9]+$/) print version
-    }'
-}
-
-# Print the newest of the three-part versions fed on stdin, one per line.
-# Numeric field sort rather than sort -V, which macOS's BSD sort lacks.
-newest_version() {
-  sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1
-}
 
 # Upgrade-available conclusions render bold red when stdout is a terminal,
 # and plain when piped or when NO_COLOR is set (https://no-color.org).
@@ -159,14 +136,14 @@ else
 fi
 
 echo
-echo "==> Supabase CLI pin (scripts/integration-test.sh)"
-pinned_cli_version="$(sed -nE 's/^SUPABASE_CLI_VERSION="([0-9.]+)"$/\1/p' scripts/integration-test.sh)"
-latest_cli_version="$(git ls-remote --tags https://github.com/supabase/cli 'v*' | tag_names | versions_with_prefix 'v' | newest_version)"
+echo "==> Supabase CLI pin ($(supabase_cli_pin_file))"
+pinned_cli_version="$(pinned_supabase_cli_version)"
+latest_cli_version="$(latest_supabase_cli_version)"
 if [ "${pinned_cli_version}" = "${latest_cli_version}" ]; then
   echo "  supabase/cli ${pinned_cli_version}: ✅ current"
 else
   echo "  supabase/cli ${pinned_cli_version}: ${highlight}${latest_cli_version} available${reset}"
-  echo "    procedure: DEVELOPMENT.md, 'Upgrading the pinned Supabase CLI'"
+  echo "    procedure: ./scripts/upgrade-to-latest-supabase-cli.sh (DEVELOPMENT.md, 'Upgrading the pinned Supabase CLI')"
   echo "    release notes: https://github.com/supabase/cli/releases"
 fi
 

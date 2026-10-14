@@ -331,17 +331,13 @@ Do not commit a `toolchain` line to `go.work` or a `go.mod` in response: under t
 
 ### Upgrading the pinned Supabase CLI
 
-Integration tests run against a version-pinned Supabase CLI release, fetched and SHA-256-verified by [`scripts/integration-test.sh`](scripts/integration-test.sh) on first use. That script is the single source of truth for the pin: `SUPABASE_CLI_VERSION` plus the four `cli_sha256` values for the platforms we support (Linux and macOS, on `amd64` and `arm64`). A bump touches only that one file.
-
-For example, upgrading from `2.109.1` to `2.114.0`:
+Integration tests run against a version-pinned Supabase CLI release, fetched and SHA-256-verified by [`scripts/integration-test.sh`](scripts/integration-test.sh) on first use. That script is the single source of truth for the pin: `SUPABASE_CLI_VERSION` plus the four `cli_sha256` values for the platforms we support (Linux and macOS, on `amd64` and `arm64`). A bump touches only that one file and is applied by:
 
 ```bash
-export VERSION=2.114.0
-curl -fsSL "https://github.com/supabase/cli/releases/download/v${VERSION}/checksums.txt" \
-  | grep -E "supabase_${VERSION}_(linux|darwin)_(amd64|arm64)\.tar\.gz$" | sort
+./scripts/upgrade-to-latest-supabase-cli.sh
 ```
 
-Copy each of the four SHA-256 values printed by that command into the matching `cli_sha256=` line of the `case "${cli_os}_${cli_arch}"` block in `scripts/integration-test.sh`, and set `SUPABASE_CLI_VERSION` to the new version (without the `v` prefix). Then run the integration tests to prove the pin fetches, verifies and starts the stack:
+It discovers the latest release from the version tags on [supabase/cli](https://github.com/supabase/cli), fetches that release's published `checksums.txt` and rewrites `SUPABASE_CLI_VERSION` and the four `cli_sha256` values in lockstep, each checksum looked up by its archive name. It is idempotent: when the pin already matches the latest release it reports that and changes nothing. After a bump, review the [release notes](https://github.com/supabase/cli/releases) for anything affecting [`integration-testing/supabase/config.toml`](integration-testing/supabase/config.toml) - which follows the pinned CLI, see [Auditing tool currency](#auditing-tool-currency) - then run the integration tests to prove the new pin fetches, verifies and starts the stack:
 
 ```bash
 ./scripts/integration-test.sh
