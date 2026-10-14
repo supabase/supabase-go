@@ -146,7 +146,7 @@ func bearerToken(request *http.Request) (string, bool) {
 	return value, true
 }
 
-// ExampleClient_Admin provisions a teammate account from a back-office job.
+// ExampleClient_Admin provisions a user account from a back-office job.
 // The secret key comes from the environment, never from source: it bypasses
 // Row Level Security, so it belongs to server configuration alone. Admin
 // creation sends no confirmation email - EmailConfirm marks the address
@@ -283,7 +283,7 @@ func ExampleAdmin_DeleteUser() {
 	fmt.Println("erased")
 }
 
-// ExampleAdmin_InviteUser brings a teammate into a workspace. The server
+// ExampleAdmin_InviteUser brings a new user into a workspace. The server
 // creates the account and sends the invitation email itself. The metadata
 // lands on the created user for the accept page to read, and the redirect
 // must be on the project's redirect allow list.
