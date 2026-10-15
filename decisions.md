@@ -742,7 +742,11 @@ Typing each field from the server's own params structs makes absent-versus-zero 
 The write model stays a separate type from the read model (`UserAttributes` beside `User`) because the server defines them as two wire messages whose fields largely differ - write-only passwords and confirm commands against read-only timestamps and identities - so the apparent repetition is two projections of one entity, not one piece of knowledge stated twice.
 No embedded core struct dedupes the shared field names, because Go does not promote embedded fields in composite literals and the flat payload literal is this entry's point.
 The json tags sit on the public fields deliberately: a tag pins the field to the server's published wire name, which outlives every Go identifier here, so the tags bind this SDK to the platform's contract rather than exposing anything of this SDK's own.
+The visibility also follows an authorship rule that holds across the SDK: a wire shape is exported only where the caller authors it, while server-authored shapes stay behind internal mirrors that decode only what this SDK consumes.
+Those mirrors own parse semantics a bare struct cannot state (e.g. the error-body generation precedence and the flat generate-link object split in two) so publishing them would export syntax while shedding meaning.
 The tag-free alternatives - an internal mirror struct with a field-by-field copy, or a hand-written MarshalJSON - restate the same fields a second time, and their shared failure mode (a field added to one statement and not the other) drops a value from requests silently.
+Hiding the tags would not stop `json.Marshal` accepting the exported struct - Go offers no way to revoke that - it would only swap the wire names for raw Go field names with no omission rule, a silent trap for anyone round-tripping attributes through their own JSON.
+The opposite shape, a public catalog of every wire struct in a per-module protocol package, serves raw REST callers no better: Go's JSON is structural, so anyone can declare the narrow struct they need, and such a catalog is either empty exactly where an escape hatch matters or a completeness promise tracking a server this SDK does not own.
 
 ## Admin deletes return only error, and the delete mode is a per-call option
 
