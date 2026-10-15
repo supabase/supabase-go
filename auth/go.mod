@@ -6,4 +6,4 @@ module github.com/supabase/supabase-go/auth
 // "Supported Go versions" in the repository README).
 go 1.26
 
-require github.com/supabase/supabase-go/core v0.1.0-alpha.1
+require github.com/supabase/supabase-go/core v0.1.0-alpha.2
