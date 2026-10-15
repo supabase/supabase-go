@@ -14,6 +14,9 @@ A release is therefore prepared by:
 
 Steps 1 and 2 are manually handled by a human operator (perhaps with AI assistance) positioning that human as the release gate where "sense checks" must be made. While we could automate these steps more, and perhaps we might in future, the release cadence and need for flexibility right now mean that this manual handling is the preferred operations method for now in this SDK.
 
+> [!TIP]
+> Most releases touch several modules at once, so the interactive wrapper described in [Cut a coordinated release](#cut-a-coordinated-release) is usually the preferred way to run them.
+
 ## Versions and tags
 
 A module's version lives in its Git tags.
