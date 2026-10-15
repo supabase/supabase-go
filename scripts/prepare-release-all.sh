@@ -388,7 +388,10 @@ for module in "${ordered_modules[@]}"; do
   done < <(sibling_requires "${module}")
 
   echo
-  ./scripts/prepare-release.sh "${module}" "${new_version}" ${pin_arguments[@]+"${pin_arguments[@]}"}
+  # Suppress prepare-release.sh's next-steps guidance: this script performs
+  # those steps itself, immediately below.
+  PREPARE_RELEASE_SUPPRESS_NEXT_STEPS=1 \
+    ./scripts/prepare-release.sh "${module}" "${new_version}" ${pin_arguments[@]+"${pin_arguments[@]}"}
   git add -A
   git commit --quiet --message="Prepare release ${module}/${new_version}."
   echo "==> committed: Prepare release ${module}/${new_version}."
