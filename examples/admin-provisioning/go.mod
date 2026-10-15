@@ -8,7 +8,7 @@ module github.com/supabase/supabase-go/examples/admin-provisioning
 go 1.26
 
 require (
-	github.com/supabase/supabase-go/auth v0.1.0-alpha.1
+	github.com/supabase/supabase-go/auth v0.1.0-alpha.2
 	github.com/supabase/supabase-go/core v0.1.0-alpha.2
 	github.com/supabase/supabase-go/postgrest v0.1.0-alpha.1
 	github.com/supabase/supabase-go/supabase v0.0.0-00010101000000-000000000000
