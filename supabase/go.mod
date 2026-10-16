@@ -7,7 +7,7 @@ module github.com/supabase/supabase-go/supabase
 go 1.26
 
 require (
-	github.com/supabase/supabase-go/auth v0.1.0-alpha.1
-	github.com/supabase/supabase-go/core v0.1.0-alpha.1
+	github.com/supabase/supabase-go/auth v0.1.0-alpha.2
+	github.com/supabase/supabase-go/core v0.1.0-alpha.2
 	github.com/supabase/supabase-go/postgrest v0.1.0-alpha.1
 )

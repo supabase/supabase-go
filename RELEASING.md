@@ -14,6 +14,9 @@ A release is therefore prepared by:
 
 Steps 1 and 2 are manually handled by a human operator (perhaps with AI assistance) positioning that human as the release gate where "sense checks" must be made. While we could automate these steps more, and perhaps we might in future, the release cadence and need for flexibility right now mean that this manual handling is the preferred operations method for now in this SDK.
 
+> [!TIP]
+> Most releases touch several modules at once, so the interactive wrapper described in [Cut a coordinated release](#cut-a-coordinated-release) is usually the preferred way to run them.
+
 ## Versions and tags
 
 A module's version lives in its Git tags.
@@ -86,6 +89,26 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
    Its hash lines must match step 6's byte for byte, proving the proxy serves exactly what GitHub serves.
 
    The tags carry everything both scripts need, so any release stays reachable from the current checkout - including one whose landing commit predates the scripts themselves, which no checkout requirement could ever serve.
+
+## Cut a coordinated release
+
+`scripts/prepare-release-all.sh` wraps steps 2 and 3 of [Cut a release](#cut-a-release) for the common case of releasing several modules together. It is interactive and commits as it goes - one commit per step, carrying the same messages the manual procedure instructs - but, like the script it drives, it never tags and never pushes.
+
+From a release branch (it refuses to run on `main`), run it with no arguments:
+
+```bash
+./scripts/prepare-release-all.sh
+```
+
+It gathers every module whose changelog holds `## Unreleased` entries, then walks the rest of the plan interactively, in dependency order throughout:
+
+1. A module with no changes of its own, requiring a sibling that is releasing, is offered - never forced - as a pins-only release. Declining is the norm and loses nothing: a `require` is a floor that [minimal version selection](https://go.dev/ref/mod#minimal-version-selection) resolves upward in consumer builds, so an older pin never goes stale and never blocks a newer sibling. Accept only when consumers should receive the new modules by upgrading that one module alone - the root `supabase` client's reason to exist, and rarely true of anything else.
+2. Each released module's new version is prompted for beneath the context that grades it: its own unreleased entries, or - for a pins-only release - the upgrades it would carry.
+3. The whole plan is shown - versions, every pin movement and the changelog sections to be written - behind one final confirmation before anything is touched.
+
+For a pins-only module the script writes the changelog section its release needs, one `Upgrades X from version Y to version Z.` bullet per upgraded sibling and nothing more: the substance lives in the sibling's own changelog, deliberately not repeated.
+
+It finishes by running the pre-flight check, leaving the branch ready at step 4 of [Cut a release](#cut-a-release): push, open the PR and continue from there.
 
 ## Troubleshooting
 

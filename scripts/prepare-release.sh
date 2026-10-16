@@ -138,6 +138,14 @@ changed_paths="$(git status --porcelain -- ${candidate_paths} | awk '{ print $NF
 
 echo
 echo "✅ Prepared ${module_dir} for ${version}. Nothing has been committed."
+
+# An orchestrator that itself performs the next steps - the commit, further
+# modules, the pre-flight check - sets this to suppress guidance that would
+# instruct the very steps it is about to take (scripts/prepare-release-all.sh).
+if [ -n "${PREPARE_RELEASE_SUPPRESS_NEXT_STEPS:-}" ]; then
+  exit 0
+fi
+
 echo
 echo "Review the changes, then run:"
 echo
