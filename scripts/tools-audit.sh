@@ -65,8 +65,21 @@ audit_go_tool_module() {
   local module_directory="$1"
   local module_updates tool_packages tool_modules direct_modules
   local declared_updates transitive_updates module_path current_version latest_version label
+  local module_go_line workspace_go_line
   echo
   echo "==> Go tooling (${module_directory}, pinned by go.mod + go.sum)"
+  # A go get can raise the module's go directive above the sibling go.work go
+  # line, which every workspace-mode load of this directory then refuses. The
+  # GOWORK=off commands here never perform such a load, so probe one. This is
+  # an early advisory for the upgrade session that starts from this report -
+  # the enforcing gate is scripts/check-workspace-consistency.sh, run by
+  # check-fast.sh and CI's repository-structure job.
+  if ! go -C "${module_directory}" list -m > /dev/null 2>&1; then
+    module_go_line="$(GOWORK=off go -C "${module_directory}" mod edit -json | jq -r '.Go')"
+    workspace_go_line="$(go -C "${module_directory}" work edit -json | jq -r '.Go')"
+    echo "  ${highlight}go.work go ${workspace_go_line} lags go.mod go ${module_go_line}${reset}"
+    echo "    fix: go -C ${module_directory} work use"
+  fi
   module_updates="$(GOWORK=off go -C "${module_directory}" list -m -u -f '{{if .Update}}{{.Path}} {{.Version}} {{.Update.Version}}{{end}}' all | sed '/^$/d')"
   if [ -z "${module_updates}" ]; then
     echo "  ✅ all current"
@@ -103,7 +116,7 @@ audit_go_tool_module() {
     fi
     echo "  bump every tool: GOWORK=off go -C ${module_directory} get tool && GOWORK=off go -C ${module_directory} mod tidy"
     echo "  bump one module: GOWORK=off go -C ${module_directory} get <module>@latest && GOWORK=off go -C ${module_directory} mod tidy"
-    echo "  afterwards run: ./scripts/lint.sh && ./scripts/vulncheck.sh"
+    echo "  afterwards run: go -C ${module_directory} work use && ./scripts/lint.sh && ./scripts/vulncheck.sh"
   fi
 }
 
