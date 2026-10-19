@@ -35,3 +35,6 @@ func (e HTTPError) Error() string {
 	}
 	return fmt.Sprintf("%s (code %s, HTTP %d)", e.Message, e.Code, e.HTTPStatus)
 }
+
+// The error form of HTTPError is the value, never the pointer.
+var _ error = HTTPError{}
