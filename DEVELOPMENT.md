@@ -119,7 +119,21 @@ The fast tier above needs only the repository's own toolchains (Go, plus Node fo
 
 The script starts the stack against a disposable copy of [`integration-testing/`](integration-testing/), running each `integrationtest` module's tests under `-race`. A plain `go test ./...` in a published module never runs these tests - each `integrationtest` directory is its own non-published module outside its parent's package pattern, and the tests are environment-gated besides - so the fast tier stays Docker-free by construction.
 
-Integration tests live in adjacent `integrationtest` modules - one beside each module with integration coverage, sharing fixtures (stack credentials, end-user signup) through the non-published [`integration-testing/testkit` module](integration-testing/testkit/) - and are selected by the module boundary alone: the script runs `./...` in each with no `-run` name filter, so a test there can never be silently skipped by its name. These modules sit outside the [`go.work`](go.work) workspace, which lists exactly the published set, so the script enters them with `GOWORK=off` and their `replace` directives resolve the SDK modules from the local tree; `./scripts/build-and-test.sh` gives the same modules a compile-only `go vet` pass, so integration code gets fast signal without Docker. Their sources are ordinary untagged Go, so editors need no build-tag configuration; running an integration test from the editor's test lens fails fast with the env guidance unless the stack is up and its variables are exported in the editor's environment.
+Integration tests live in adjacent `integrationtest` modules - one beside each module with integration coverage, sharing fixtures (stack credentials, end-user signup) through the non-published [`integration-testing/testkit` module](integration-testing/testkit/) - and are selected by the package boundary alone: the script runs every package `go list` finds in each, with no `-run` name filter, so a test there can never be silently skipped by its name. These modules sit outside the [`go.work`](go.work) workspace, which lists exactly the published set, so the script enters them with `GOWORK=off` and their `replace` directives resolve the SDK modules from the local tree; `./scripts/build-and-test.sh` gives the same modules a compile-only `go vet` pass, so integration code gets fast signal without Docker. Their sources are ordinary untagged Go, so editors need no build-tag configuration; running an integration test from the editor's test lens fails fast with the env guidance unless the stack is up and its variables are exported in the editor's environment.
+
+#### Two postures: `asuser` and `asproject`
+
+Every integration test package sits under one of two directories inside its `integrationtest` module, named for the posture of the client under test.
+
+- **A package under `asuser`** acts as a signed-in user, which is what any program you ship does: it holds the publishable key, and the script runs it with `SUPABASE_SECRET_KEY` unset.
+- **A package under `asproject`** acts as the project, which is what an operator tool or a privileged backend does: it holds the secret key, and the script hands it both keys.
+
+A test whose subject is the boundary itself, such as an admin revocation observed from the user's side, holds both keys and so lives under `asproject`.
+The script refuses a package under neither directory rather than run it, so a test cannot sit in an undeclared posture.
+
+The split makes the posture of a test a fact of its path. A test under `asuser` proves what a program holding the publishable key can do and cannot do: Row Level Security applies to every data-plane call it makes, and the admin surface refuses it. Nothing in the package can reach for the secret key to arrange a fixture or to assert an outcome, so the test cannot pass for a reason the program it models would not have. A test under `asproject` proves the privileged side. The SDK carries any key as an opaque credential and never checks which it holds, so the test tree is where the two postures become structural.
+
+Choose the directory by what the test holds. A test that needs only the publishable key belongs under `asuser`, even when its subject is the admin surface. A test that needs the secret key belongs under `asproject`. A test placed under `asuser` that reaches for the secret key fails in `testkit.SecretCredentials` with this rule, which is the first thing a misplaced test sees.
 
 ### Example programs
 

@@ -1,6 +1,8 @@
 aaguid
 apidiff
 apikey
+asproject
+asuser
 bcrypt
 bytea
 codegen

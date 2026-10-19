@@ -102,59 +102,97 @@ trap cleanup EXIT
 echo "==> starting local stack (pinned CLI $("${SUPABASE_CLI}" --version))"
 "${SUPABASE_CLI}" --workdir "${project_directory}" start
 
-# Export the stack's URL and key for the tests. `status -o env` prints
+# Read the stack's URL and keys for the tests. `status -o env` prints
 # KEY="value" lines. The stack's API keys - PUBLISHABLE_KEY included - are
 # emitted only while the auth service is enabled (verified in the pinned CLI's
 # status.go), which is why integration/supabase/config.toml keeps auth on.
 # PUBLISHABLE_KEY is the successor to the deprecated ANON_KEY and is what the
 # CLI repository's own e2e tests consume. SECRET_KEY is the privileged
-# counterpart the auth admin tests construct their client with.
+# counterpart. Neither is exported here: each is handed below only to the
+# code whose posture holds it.
 eval "$("${SUPABASE_CLI}" --workdir "${project_directory}" status -o env)"
 
 # The modules with an adjacent integrationtest module - deliberately a curated
 # subset of the workspace (core has none), so this is NOT derived from go.work
 # like the build/lint/vuln lists are. Each integrationtest directory is its own
 # non-published module outside the workspace, hence GOWORK=off with its replace
-# directives resolving the SDK modules from the local tree. Selection is the
-# module boundary alone - ./... with no -run name filter - so a test there can
-# never be silently skipped by its name.
+# directives resolving the SDK modules from the local tree.
 modules=(supabase postgrest auth)
 
+# Every package in an integrationtest module sits under one of two posture
+# directories, and the stack's keys reach a package by that posture alone. An
+# asuser package acts as a signed-in user: it gets the publishable key only,
+# with SUPABASE_SECRET_KEY unset in its environment by `env -u` so a key
+# exported by the developer's shell cannot leak in. An asproject package acts
+# as the project: it gets both keys. A package under neither directory is
+# refused here rather than run, so no test sits in an undeclared posture.
+# Selection is the package boundary alone - every package `go list` finds,
+# with no -run name filter - so a test can never be silently skipped by its
+# name. The listing is captured before the loop so a failing `go list` stops
+# the script under `set -e` instead of running nothing, and an empty array is
+# never expanded, which bash 3.2 (macOS) refuses under `set -u`.
 echo "==> running integration tests (-race)"
 for module in "${modules[@]}"; do
   echo "==> ${module}"
   (
     cd "${module}/integrationtest"
-    GOWORK=off \
-    SUPABASE_URL="${API_URL}" \
-    SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
-    SUPABASE_SECRET_KEY="${SECRET_KEY}" \
-      go test -v -race -shuffle=on ./...
+    export GOWORK=off
+    packages="$(go list ./...)"
+    if [[ -z "${packages}" ]]; then
+      echo "${module}/integrationtest: go list found no packages" >&2
+      exit 1
+    fi
+    asuser_packages=()
+    asproject_packages=()
+    while IFS= read -r package; do
+      case "${package}" in
+        */integrationtest/asuser | */integrationtest/asuser/*) asuser_packages+=("${package}") ;;
+        */integrationtest/asproject | */integrationtest/asproject/*) asproject_packages+=("${package}") ;;
+        *)
+          echo "${package}: an integration test package lives under asuser/ or asproject/ - see DEVELOPMENT.md, Integration tests" >&2
+          exit 1
+          ;;
+      esac
+    done <<< "${packages}"
+    if [[ "${#asuser_packages[@]}" -gt 0 ]]; then
+      echo "==> ${module}: as a signed-in user (publishable key only)"
+      SUPABASE_URL="${API_URL}" \
+      SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
+        env -u SUPABASE_SECRET_KEY go test -v -race -shuffle=on "${asuser_packages[@]}"
+    fi
+    if [[ "${#asproject_packages[@]}" -gt 0 ]]; then
+      echo "==> ${module}: as the project (secret key)"
+      SUPABASE_URL="${API_URL}" \
+      SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
+      SUPABASE_SECRET_KEY="${SECRET_KEY}" \
+        go test -v -race -shuffle=on "${asproject_packages[@]}"
+    fi
   )
 done
 
 # The example programs are consumer-shaped documentation: each must actually
 # run against the stack, not merely compile, so a drifted example fails here
-# rather than in a reader's hands.
+# rather than in a reader's hands. Each is handed the one key its posture
+# holds, as its own documentation states: the operator tool the secret key,
+# every other example the publishable key.
 echo "==> running example programs"
 for example in $(enumerate_example_modules); do
   echo "==> ${example}"
   (
     cd "${example}"
-    export GOWORK=off \
-      SUPABASE_URL="${API_URL}" \
-      SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}" \
-      SUPABASE_SECRET_KEY="${SECRET_KEY}"
+    export GOWORK=off SUPABASE_URL="${API_URL}"
     case "${example}" in
       examples/admin-provisioning)
         # The operator tool does one lifecycle stage per invocation, so the
         # harness walks all three verbs in order.
+        export SUPABASE_SECRET_KEY="${SECRET_KEY}"
         user="provisioning-$(date +%s)-$$@example.com"
         go run . onboard "${user}"
         go run . reconcile
         go run . offboard "${user}"
         ;;
       *)
+        export SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}"
         go run .
         ;;
     esac

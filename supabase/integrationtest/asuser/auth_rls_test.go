@@ -1,4 +1,4 @@
-package integrationtest
+package asuser
 
 import (
 	"context"
@@ -23,7 +23,7 @@ type practiceLog struct {
 // configured root client: a backend verifies an inbound end-user token with
 // the Auth client, then issues a database call as that user, and Row Level
 // Security confines the result to the user's own rows. Standalone-module
-// coverage of the same flow lives in auth/integrationtest.
+// coverage of the same flow lives in auth/integrationtest/asuser.
 func TestVerifiedTokenScopesRLSQuery(t *testing.T) {
 	projectURL, apiKey := testkit.Credentials(t)
 	user := testkit.SignUpUser(t, projectURL, apiKey)

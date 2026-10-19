@@ -102,7 +102,7 @@ Test-module import paths stay under the parent module's path (`…/postgrest/int
 A shared fixtures package can live nowhere inside the published set: a published module must not require a never-published path (`scripts/check-module-paths.sh` fails exactly that, because a consumer could not resolve it), and a copy per module drifts.
 Adjacent modules keep every published `go.mod` consumer-resolvable while the test tier composes freely.
 The nested import path preserves `internal` package access, which is prefix-based and indifferent to module boundaries.
-The module boundary already isolates integration code from every `./...` a published module runs, so a build tag would gate nothing extra and editors need no build-tag configuration; the symbol extractor likewise skips directories carrying their own `go.mod`, so the `integrationtest` package name recurring across the repository cannot trip its package-name uniqueness guard.
+The module boundary already isolates integration code from every `./...` a published module runs, so a build tag would gate nothing extra and editors need no build-tag configuration; the symbol extractor likewise skips directories carrying their own `go.mod`, subtree included, so the `asuser` and `asproject` package names recurring across the repository cannot trip its package-name uniqueness guard.
 
 ## Error model
 
@@ -501,7 +501,7 @@ Distinguishing "the server answered with an error" (`*Error`) from "we never got
 
 **What**:  
 CI's integration job and local runs share [`scripts/integration-test.sh`](scripts/integration-test.sh): a pinned, checksum-verified Supabase CLI release binary starts a disposable local stack from committed configuration (minimal `config.toml`, schema migrations, data-only `seed.sql`), then env-gated integration tests run under `-race` on the same floor + stable matrix as build-and-test.
-The tests live in `integrationtest` modules beside the code they exercise, consuming only the public API, and selection is by the module boundary alone: the script runs `./...` in each with no `-run` name filter, while the fast tier additionally vets the modules for compile signal.
+The tests live in `integrationtest` modules beside the code they exercise, consuming only the public API, and selection is by the package boundary alone: the script runs every package in each, with no `-run` name filter, under the key posture its `asuser` or `asproject` directory declares, while the fast tier additionally vets the modules for compile signal.
 The mechanics whose reasons concern single files - the CLI fetch route, the disposable project-directory copy, which services run - carry those reasons as comments in the script and in [`config.toml`](integration-testing/supabase/config.toml).
 
 **Why**:  
