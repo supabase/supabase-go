@@ -1,5 +1,11 @@
 // Package testkit provides the fixtures the SDK modules' integration tests
 // share: the local Supabase stack's credentials and end-user signup.
+//
+// scripts/integration-test.sh hands a test package the stack's keys by the
+// posture its directory declares: a package under asuser acts as a signed-in
+// user and receives the publishable key only, with SUPABASE_SECRET_KEY unset
+// in its environment, and a package under asproject acts as the project and
+// receives both keys.
 package testkit
 
 import (
@@ -29,13 +35,18 @@ func Credentials(t *testing.T) (projectURL, apiKey string) {
 
 // SecretCredentials returns the local stack's project URL and secret key from
 // the environment scripts/integration-test.sh exports, failing the test when
-// either is absent.
+// either is absent. When the stack is up but the secret key is not in the
+// environment, the failure names the posture rule: only a package under an
+// asproject directory receives it.
 func SecretCredentials(t *testing.T) (projectURL, apiKey string) {
 	t.Helper()
 	projectURL = os.Getenv("SUPABASE_URL")
 	apiKey = os.Getenv("SUPABASE_SECRET_KEY")
-	if projectURL == "" || apiKey == "" {
+	if projectURL == "" {
 		t.Fatal("SUPABASE_URL and SUPABASE_SECRET_KEY must be set for integration tests - run scripts/integration-test.sh")
+	}
+	if apiKey == "" {
+		t.Fatal("SUPABASE_SECRET_KEY is absent: only a test package under an asproject directory receives the secret key, so a test that holds it belongs there - see DEVELOPMENT.md, Integration tests")
 	}
 	return projectURL, apiKey
 }

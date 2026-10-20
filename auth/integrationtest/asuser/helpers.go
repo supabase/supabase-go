@@ -1,6 +1,8 @@
-// Package integrationtest exercises the auth module against the live local
-// Supabase stack that scripts/integration-test.sh starts.
-package integrationtest
+// Package asuser exercises the auth module against the live local Supabase
+// stack that scripts/integration-test.sh starts, as a signed-in user: every
+// client here holds the publishable key, and the secret key is absent from the
+// package's environment.
+package asuser
 
 import (
 	"encoding/base64"

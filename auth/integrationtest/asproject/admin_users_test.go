@@ -1,4 +1,4 @@
-package integrationtest
+package asproject
 
 import (
 	"errors"
@@ -325,45 +325,5 @@ func TestAdminListUsersPagination(t *testing.T) {
 		if err := admin.DeleteUser(t.Context(), identifier); err != nil {
 			t.Errorf("DeleteUser(%s): %v", identifier, err)
 		}
-	}
-}
-
-// TestAdminRejectsPublishableKey proves the trust boundary: the same calls on
-// a publishable-key client are rejected by the server as unauthorized.
-func TestAdminRejectsPublishableKey(t *testing.T) {
-	projectURL, publishableKey := testkit.Credentials(t)
-	client, err := auth.New(projectURL, publishableKey)
-	if err != nil {
-		t.Fatalf("auth.New: %v", err)
-	}
-	admin := client.Admin()
-
-	operations := []struct {
-		name string
-		call func() error
-	}{
-		{"CreateUser", func() error {
-			_, err := admin.CreateUser(t.Context(), auth.UserAttributes{Email: uniqueEmail(t)})
-			return err
-		}},
-		{"GetUser", func() error {
-			_, err := admin.GetUser(t.Context(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
-			return err
-		}},
-		{"DeleteUser", func() error {
-			return admin.DeleteUser(t.Context(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
-		}},
-	}
-	for _, operation := range operations {
-		t.Run(operation.name, func(t *testing.T) {
-			err := operation.call()
-			var serverError *auth.Error
-			if !errors.As(err, &serverError) {
-				t.Fatalf("%s = %v, want *auth.Error", operation.name, err)
-			}
-			if serverError.HTTPStatus != http.StatusUnauthorized && serverError.HTTPStatus != http.StatusForbidden {
-				t.Errorf("HTTPStatus = %d, want 401 or 403", serverError.HTTPStatus)
-			}
-		})
 	}
 }
