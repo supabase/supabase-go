@@ -56,7 +56,13 @@ The published module graph is guarded too: every first-party `require` in a work
 ./scripts/check-module-paths.sh
 ```
 
-To run the whole fast tier before pushing - build and unit test plus the module-path guard, lint, vulnerabilities and spelling - use the aggregate:
+Nested workspaces are guarded too: each `go.work` below the repository root - the tool modules under [`tools/go`](tools/go/) - must load, which requires its `go` line to be at least as new as the `go` directive of every module it uses. The `GOWORK=off` tool-bump routes never load those workspaces, so a bump that raises a module's `go` directive can otherwise leave the sibling `go.work` behind:
+
+```bash
+./scripts/check-workspace-consistency.sh
+```
+
+To run the whole fast tier before pushing - build and unit test plus the module-path and workspace-consistency guards, lint, vulnerabilities and spelling - use the aggregate:
 
 ```bash
 ./scripts/check-fast.sh
@@ -77,9 +83,12 @@ It probes live websites, so it is deliberately not part of `./scripts/check-fast
 [CI](.github/workflows/ci.yml) proves consumer-facing behavior on two toolchains: the published floor (the oldest Go a consumer may hold us to - see [Supported Go versions](README.md#supported-go-versions)) and current stable. A local run uses whatever Go is installed, so to reproduce the floor legs name the toolchain for that run:
 
 ```bash
-GOTOOLCHAIN=go1.26.8 ./scripts/check-fast.sh
+GOTOOLCHAIN=go1.26.8 ./scripts/build-and-test.sh
+GOTOOLCHAIN=go1.26.8 ./scripts/telemetry-test.sh
 GOTOOLCHAIN=go1.26.8 ./scripts/integration-test.sh
 ```
+
+Pin the toolchain this way only for those three scripts - they are exactly what CI runs at the floor. Do not pin it for the remaining checks, nor for the `check-fast.sh` aggregate that includes them: `lint.sh` and `check-workspace-consistency.sh` build and load the developer tooling under [`tools/go`](tools/go/), which may legitimately require a newer Go than the SDK supports for consumers (gopls already does), so under an old pinned toolchain those scripts fail with Go version errors that say nothing about consumer compatibility.
 
 You can discover the current, full version number for a particular major version of Go (in this example, for Go `1.26`):
 

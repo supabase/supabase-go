@@ -1,4 +1,4 @@
-go 1.26.0
+go 1.27.0
 
 // This use set is the gopls tool module alone, so go commands run from this directory never resolve through the repository root go.work.
 // Dependabot's "Dependency Graph" job runs `go mod graph` here without GOWORK=off.
