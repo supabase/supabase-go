@@ -53,7 +53,9 @@ func (c *Client) Admin() *Admin {
 // UserAttributes describes a user to [Admin.CreateUser] and
 // [Admin.UpdateUser]. A zero-valued field is not sent on the wire: creating
 // from the zero value describes nothing, which the server rejects for want
-// of an email or phone number, and updating with it changes nothing.
+// of an email or phone number, and updating with it changes nothing. A call
+// reads the value once when it is made and never retains it, so the caller
+// may reuse or mutate the value freely once the call returns.
 type UserAttributes struct {
 	// Email is the user's email address.
 	Email string `json:"email,omitzero"`
