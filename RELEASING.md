@@ -88,6 +88,8 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
 
    Its hash lines must match step 6's byte for byte, proving the proxy serves exactly what GitHub serves.
 
+   A `404 Not Found` here naming an "unknown revision", minutes after the merge, is the most anticipated failure at this step: see [Troubleshooting](#troubleshooting).
+
    The tags carry everything both scripts need, so any release stays reachable from the current checkout - including one whose landing commit predates the scripts themselves, which no checkout requirement could ever serve.
 
 ## Cut a coordinated release
@@ -112,7 +114,7 @@ It finishes by running the pre-flight check, leaving the branch ready at step 4 
 
 ## Troubleshooting
 
-The first entry below is the one expected failure, met part-way through cutting a release, and needs no recovery.
+The first two entries below are the expected failures and need no recovery: one met part-way through cutting a release, the other met while seeding the proxy with every tag already in place.
 Every other entry concerns a merged release PR, which puts `main` into a state that cannot regress: its landing commit permanently declares the release, through each released module's newest changelog heading and pinned `require` lines.
 
 Tags are the only artifact that can be missing.
@@ -130,6 +132,15 @@ Fix: nothing needs recovering - finish the sequence.
 Prepare and commit the remaining modules, and the last pin written turns the check green, which is why [Cut a release](#cut-a-release) places the pre-flight after every module is prepared.
 CI never sees the intermediate states: the branch is pushed once carrying all its commits, CI checks its tip and the release-tags workflow checks the landing commit on `main`.
 The intermediate commits stay inconsistent in history, visible only to a `git bisect` that runs the check across the release PR's commits, an inherent and accepted cost of preparing each module in its own commit.
+
+### The proxy returned 404 for a freshly tagged version
+
+State: `seed-module-proxy.sh` fails reading a version's `.info` from proxy.golang.org with `404 Not Found` and a server response calling the freshly pushed tag an "unknown revision", even though the release-tags run succeeded, `git ls-remote --tags origin` shows every tag and `verify-release.sh` has already verified the same versions straight from GitHub.
+The release is sound: the mirror answers from a cached view of the repository that predates the tag push, and a version requested before its tag was visible can hold the stale answer in place for a while.
+
+Fix: wait, then re-run `./scripts/seed-module-proxy.sh` until it succeeds - a failed attempt seeds nothing, and the script is safe to repeat.
+The proxy's [FAQ](https://proxy.golang.org/) expects a new version within a minute of an explicit request but allows up to 30 minutes for a cached stale answer to expire, and one release of this repository took about an hour from tag push to a successful seed.
+If the 404 outlives that by hours, [file a Go issue](https://github.com/golang/go/issues) titled with the prefix "proxy.golang.org:", as that FAQ asks.
 
 ### Establish the state
 
