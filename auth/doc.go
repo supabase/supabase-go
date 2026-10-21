@@ -8,11 +8,11 @@
 // token's decoded [JWTHeader] and signature bytes, having checked that
 // signature against the project's signing keys:
 //
-//	claims, _, _, err := client.GetClaims(ctx, token)
+//	result, err := client.GetClaims(ctx, token)
 //	if err != nil {
 //	    // reject the request
 //	}
-//	// claims.Subject() is the verified user ID
+//	// result.Claims().Subject() is the verified user ID
 //
 // A token signed with one of the Supabase project's asymmetric [signing keys]
 // (ES256, RS256 or EdDSA) is verified against a locally cached copy of the key

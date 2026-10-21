@@ -34,11 +34,11 @@ func TestVerifiedTokenScopesRLSQuery(t *testing.T) {
 	}
 
 	// 1. Verify the token the way backend middleware would.
-	claims, _, _, err := client.Auth().GetClaims(t.Context(), user.AccessToken)
+	result, err := client.Auth().GetClaims(t.Context(), user.AccessToken)
 	if err != nil {
 		t.Fatalf("GetClaims: %v", err)
 	}
-	if claims.Subject() != user.ID {
+	if claims := result.Claims(); claims.Subject() != user.ID {
 		t.Fatalf("verified subject = %q, want %q", claims.Subject(), user.ID)
 	}
 

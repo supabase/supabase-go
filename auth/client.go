@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
 
 	"github.com/supabase/supabase-go/auth/internal/cache"
@@ -99,8 +100,9 @@ func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.F
 	}
 }
 
-// GetClaims verifies jwt and returns its claims together with the token's
-// decoded header and raw signature bytes. A token signed with one of the
+// GetClaims verifies jwt and answers one [GetClaimsResult] carrying its
+// claims together with the token's decoded header and raw signature bytes. A
+// token signed with one of the
 // project's asymmetric signing keys (ES256, RS256 or EdDSA) is verified locally
 // against the project's published key set, fetched from the
 // /.well-known/jwks.json discovery endpoint and cached for ten minutes; a token
@@ -108,8 +110,7 @@ func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.F
 // or carrying an unrecognized key id - is verified by the Auth server instead,
 // exactly as [Client.GetUser] verifies. Claims are returned only after one of
 // those verifications succeeds, with the [JWTHeader] and signature describing
-// the token envelope on both routes. The signature is a copy the caller may
-// retain and modify freely.
+// the token envelope on both routes.
 //
 // Verification establishes authenticity - the token was signed for this
 // project and has not expired - not authorization. Policy over claim values
@@ -131,21 +132,21 @@ func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.F
 //
 // A server-verified rejection surfaces as [*Error] with the Auth server's
 // response, and a JWK Set discovery failure is returned wrapped.
-func (c *Client) GetClaims(ctx context.Context, jwt string) (*Claims, JWTHeader, []byte, error) {
+func (c *Client) GetClaims(ctx context.Context, jwt string) (*GetClaimsResult, error) {
 	if jwt == "" {
-		return nil, JWTHeader{}, nil, ErrMissingJWT
+		return nil, ErrMissingJWT
 	}
 
 	decoded, err := token.Decode(jwt)
 	if err != nil {
-		return nil, JWTHeader{}, nil, ErrMalformedJWT
+		return nil, ErrMalformedJWT
 	}
 	claims, err := decoded.Claims()
 	if err != nil {
-		return nil, JWTHeader{}, nil, ErrMalformedJWT
+		return nil, ErrMalformedJWT
 	}
 	if claims.ExpiresAt().IsZero() || !claims.ExpiresAt().After(c.now()) {
-		return nil, JWTHeader{}, nil, ErrExpiredJWT
+		return nil, ErrExpiredJWT
 	}
 	header := JWTHeader{inner: decoded.Header()}
 
@@ -154,30 +155,48 @@ func (c *Client) GetClaims(ctx context.Context, jwt string) (*Claims, JWTHeader,
 	// which trusts the returned claims only when it answers 200.
 	if !key.Supported(header.Algorithm()) || header.KeyID() == "" {
 		if _, err := c.GetUser(ctx, jwt); err != nil {
-			return nil, JWTHeader{}, nil, err
+			return nil, err
 		}
-		return &Claims{inner: claims}, header, decoded.Signature(), nil
+		return &GetClaimsResult{claims: &Claims{inner: claims}, header: header, signature: decoded.Signature()}, nil
 	}
 
 	signingKey, found, err := c.keys.Key(ctx, header.KeyID(), c.now())
 	if err != nil {
-		return nil, JWTHeader{}, nil, err
+		return nil, err
 	}
 	// A key id absent from the published set - a token from outside the project,
 	// or a key the server knows but the discovery endpoint has not yet
 	// advertised - defers to server verification rather than failing locally.
 	if !found {
 		if _, err := c.GetUser(ctx, jwt); err != nil {
-			return nil, JWTHeader{}, nil, err
+			return nil, err
 		}
-		return &Claims{inner: claims}, header, decoded.Signature(), nil
+		return &GetClaimsResult{claims: &Claims{inner: claims}, header: header, signature: decoded.Signature()}, nil
 	}
 
 	if err := signingKey.Verify(decoded.SigningInput(), decoded.Signature()); err != nil {
-		return nil, JWTHeader{}, nil, ErrInvalidSignature
+		return nil, ErrInvalidSignature
 	}
-	return &Claims{inner: claims}, header, decoded.Signature(), nil
+	return &GetClaimsResult{claims: &Claims{inner: claims}, header: header, signature: decoded.Signature()}, nil
 }
+
+// GetClaimsResult is [Client.GetClaims]'s answer: the verified claims and the
+// [JWTHeader] and signature describing the token envelope.
+type GetClaimsResult struct {
+	claims    *Claims
+	header    JWTHeader
+	signature []byte
+}
+
+// Claims returns the verified claims.
+func (r *GetClaimsResult) Claims() *Claims { return r.claims }
+
+// Header returns the token's decoded header.
+func (r *GetClaimsResult) Header() JWTHeader { return r.header }
+
+// Signature returns the token's raw signature bytes. The result is a copy the
+// caller may retain and modify freely.
+func (r *GetClaimsResult) Signature() []byte { return slices.Clone(r.signature) }
 
 // GetUser fetches the profile of the user jwt authenticates from the Auth
 // server, which verifies the token as part of serving the request. Every call
@@ -187,7 +206,7 @@ func (c *Client) GetClaims(ctx context.Context, jwt string) (*Claims, JWTHeader,
 //
 // The server also rejects an unexpired token whose session no longer exists,
 // after sign-out for example, or whose user no longer exists or is banned.
-func (c *Client) GetUser(ctx context.Context, jwt string) (*User, error) {
+func (c *Client) GetUser(ctx context.Context, jwt string) (*GetUserResult, error) {
 	if jwt == "" {
 		return nil, ErrMissingJWT
 	}
@@ -216,5 +235,5 @@ func (c *Client) GetUser(ctx context.Context, jwt string) (*User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("auth: decoding user: %w", err)
 	}
-	return &User{inner: user}, nil
+	return &GetUserResult{user: &User{inner: user}}, nil
 }

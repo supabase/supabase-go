@@ -81,7 +81,7 @@ func ExampleClient_Auth() {
 	// Authorization: Bearer header.
 	token := "END_USER_ACCESS_TOKEN"
 
-	claims, _, _, err := supabase.Auth().GetClaims(context.Background(), token)
+	verified, err := supabase.Auth().GetClaims(context.Background(), token)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -99,5 +99,5 @@ func ExampleClient_Auth() {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(claims.Subject(), len(logs))
+	fmt.Println(verified.Claims().Subject(), len(logs))
 }

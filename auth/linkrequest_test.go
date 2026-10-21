@@ -88,7 +88,7 @@ func TestLinkRequestForksDoNotAlias(t *testing.T) {
 	}
 }
 
-func TestGeneratedLinkParsing(t *testing.T) {
+func TestGenerateLinkResultParsing(t *testing.T) {
 	recorder := newAdminServer(t)
 	recorder.body = `{
 		"action_link": "http://stack.local/verify?token=hashed-token-value&type=signup&redirect_to=https://app.example.com/welcome",
@@ -102,26 +102,26 @@ func TestGeneratedLinkParsing(t *testing.T) {
 	}`
 	admin := recorder.admin(t)
 
-	generated, err := admin.GenerateLink(context.Background(), auth.NewLinkRequest("ada@example.com").Signup("correct horse battery staple"))
+	result, err := admin.GenerateLink(context.Background(), auth.NewLinkRequest("ada@example.com").Signup("correct horse battery staple"))
 	if err != nil {
 		t.Fatalf("GenerateLink: %v", err)
 	}
-	if generated.ActionLink() != "http://stack.local/verify?token=hashed-token-value&type=signup&redirect_to=https://app.example.com/welcome" {
-		t.Errorf("ActionLink = %q, want the wire's action_link", generated.ActionLink())
+	if result.ActionLink() != "http://stack.local/verify?token=hashed-token-value&type=signup&redirect_to=https://app.example.com/welcome" {
+		t.Errorf("ActionLink = %q, want the wire's action_link", result.ActionLink())
 	}
-	if generated.EmailOTP() != "123456" {
-		t.Errorf("EmailOTP = %q, want 123456", generated.EmailOTP())
+	if result.EmailOTP() != "123456" {
+		t.Errorf("EmailOTP = %q, want 123456", result.EmailOTP())
 	}
-	if generated.HashedToken() != "hashed-token-value" {
-		t.Errorf("HashedToken = %q, want the wire's hashed_token", generated.HashedToken())
+	if result.HashedToken() != "hashed-token-value" {
+		t.Errorf("HashedToken = %q, want the wire's hashed_token", result.HashedToken())
 	}
-	if generated.RedirectTo() != "https://app.example.com/welcome" {
-		t.Errorf("RedirectTo = %q, want the wire's redirect_to", generated.RedirectTo())
+	if result.RedirectTo() != "https://app.example.com/welcome" {
+		t.Errorf("RedirectTo = %q, want the wire's redirect_to", result.RedirectTo())
 	}
-	if generated.VerificationType() != "signup" {
-		t.Errorf("VerificationType = %q, want signup", generated.VerificationType())
+	if result.VerificationType() != "signup" {
+		t.Errorf("VerificationType = %q, want signup", result.VerificationType())
 	}
-	user := generated.User()
+	user := result.User()
 	if user.ID() != "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d" || user.Email() != "ada@example.com" {
 		t.Errorf("User = (%q, %q), want the flattened user's id and email", user.ID(), user.Email())
 	}

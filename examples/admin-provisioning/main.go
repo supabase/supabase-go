@@ -86,7 +86,7 @@ func main() {
 // the address trusted on arrival, and the account's first password arrives
 // through the recovery link, so none is set here.
 func onboard(ctx context.Context, admin *auth.Admin, email string) error {
-	user, err := admin.CreateUser(ctx, auth.UserAttributes{
+	result, err := admin.CreateUser(ctx, auth.UserAttributes{
 		Email:        email,
 		EmailConfirm: true,
 		AppMetadata:  map[string]any{"role": "support"},
@@ -94,6 +94,7 @@ func onboard(ctx context.Context, admin *auth.Admin, email string) error {
 	if err != nil {
 		return fmt.Errorf("creating user: %w", err)
 	}
+	user := result.User()
 	fmt.Println("provisioned", user.Email(), "as", user.AppMetadata()["role"])
 
 	// Following the link proves the address and has the user choose
@@ -156,7 +157,7 @@ func offboard(ctx context.Context, admin *auth.Admin, database *postgrest.Client
 	if _, err := admin.UpdateUser(ctx, user.ID, auth.UserAttributes{BanDuration: "24h"}); err != nil {
 		return fmt.Errorf("banning user: %w", err)
 	}
-	if err := admin.DeleteUser(ctx, user.ID); err != nil {
+	if _, err := admin.DeleteUser(ctx, user.ID); err != nil {
 		return fmt.Errorf("deleting user: %w", err)
 	}
 	fmt.Println("offboarded", email)

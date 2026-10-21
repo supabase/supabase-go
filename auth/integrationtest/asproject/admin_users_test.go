@@ -42,7 +42,7 @@ func TestAdminUserLifecycle(t *testing.T) {
 	admin := newAdmin(t)
 	email := uniqueEmail(t)
 
-	created, err := admin.CreateUser(t.Context(), auth.UserAttributes{
+	createResult, err := admin.CreateUser(t.Context(), auth.UserAttributes{
 		Email:        email,
 		Password:     "integration-password",
 		EmailConfirm: true,
@@ -52,6 +52,7 @@ func TestAdminUserLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
+	created := createResult.User()
 	if created.ID() == "" {
 		t.Fatal("created user has no id")
 	}
@@ -68,10 +69,11 @@ func TestAdminUserLifecycle(t *testing.T) {
 		t.Errorf("AppMetadata = %v, want team integration", created.AppMetadata())
 	}
 
-	fetched, err := admin.GetUser(t.Context(), created.ID())
+	fetchResult, err := admin.GetUser(t.Context(), created.ID())
 	if err != nil {
 		t.Fatalf("GetUser: %v", err)
 	}
+	fetched := fetchResult.User()
 	if fetched.ID() != created.ID() || fetched.Email() != email {
 		t.Errorf("fetched = (%q, %q), want the created user", fetched.ID(), fetched.Email())
 	}
@@ -80,7 +82,7 @@ func TestAdminUserLifecycle(t *testing.T) {
 		t.Errorf("Identities = %d entries, want one email identity carrying %q", len(identities), email)
 	}
 
-	if err := admin.DeleteUser(t.Context(), created.ID()); err != nil {
+	if _, err := admin.DeleteUser(t.Context(), created.ID()); err != nil {
 		t.Fatalf("DeleteUser: %v", err)
 	}
 
@@ -103,7 +105,7 @@ func TestAdminSoftDeleteUser(t *testing.T) {
 	admin := newAdmin(t)
 	email := uniqueEmail(t)
 
-	created, err := admin.CreateUser(t.Context(), auth.UserAttributes{
+	createResult, err := admin.CreateUser(t.Context(), auth.UserAttributes{
 		Email:        email,
 		Password:     "integration-password",
 		EmailConfirm: true,
@@ -111,18 +113,20 @@ func TestAdminSoftDeleteUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
+	created := createResult.User()
 	if !created.DeletedAt().IsZero() {
 		t.Fatalf("DeletedAt = %v on the created user, want the zero time", created.DeletedAt())
 	}
 
-	if err := admin.DeleteUser(t.Context(), created.ID(), userdelete.WithSoftDelete()); err != nil {
+	if _, err := admin.DeleteUser(t.Context(), created.ID(), userdelete.WithSoftDelete()); err != nil {
 		t.Fatalf("DeleteUser(WithSoftDelete): %v", err)
 	}
 
-	deactivated, err := admin.GetUser(t.Context(), created.ID())
+	deactivatedResult, err := admin.GetUser(t.Context(), created.ID())
 	if err != nil {
 		t.Fatalf("GetUser after soft delete: %v", err)
 	}
+	deactivated := deactivatedResult.User()
 	if deactivated.DeletedAt().IsZero() {
 		t.Error("DeletedAt is zero, want it set")
 	}
@@ -130,13 +134,14 @@ func TestAdminSoftDeleteUser(t *testing.T) {
 		t.Errorf("Email = %q, want it obfuscated away from the created address", deactivated.Email())
 	}
 
-	if err := admin.DeleteUser(t.Context(), created.ID(), userdelete.WithSoftDelete()); err != nil {
+	if _, err := admin.DeleteUser(t.Context(), created.ID(), userdelete.WithSoftDelete()); err != nil {
 		t.Errorf("repeat soft delete = %v, want success", err)
 	}
-	unchanged, err := admin.GetUser(t.Context(), created.ID())
+	unchangedResult, err := admin.GetUser(t.Context(), created.ID())
 	if err != nil {
 		t.Fatalf("GetUser after repeat soft delete: %v", err)
 	}
+	unchanged := unchangedResult.User()
 	if !unchanged.DeletedAt().Equal(deactivated.DeletedAt()) {
 		t.Errorf("DeletedAt = %v after the repeat, want %v unchanged", unchanged.DeletedAt(), deactivated.DeletedAt())
 	}
@@ -144,7 +149,7 @@ func TestAdminSoftDeleteUser(t *testing.T) {
 		t.Errorf("Email = %q after the repeat, want %q unchanged", unchanged.Email(), deactivated.Email())
 	}
 
-	if err := admin.DeleteUser(t.Context(), created.ID()); err != nil {
+	if _, err := admin.DeleteUser(t.Context(), created.ID()); err != nil {
 		t.Fatalf("DeleteUser after soft delete: %v", err)
 	}
 	_, err = admin.GetUser(t.Context(), created.ID())
@@ -165,7 +170,7 @@ func TestAdminUpdateUser(t *testing.T) {
 	admin := newAdmin(t)
 	email := uniqueEmail(t)
 
-	created, err := admin.CreateUser(t.Context(), auth.UserAttributes{
+	createResult, err := admin.CreateUser(t.Context(), auth.UserAttributes{
 		Email:        email,
 		Password:     "integration-password",
 		EmailConfirm: true,
@@ -174,22 +179,24 @@ func TestAdminUpdateUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
+	created := createResult.User()
 
 	updatedEmail := "updated-" + email
-	afterEmail, err := admin.UpdateUser(t.Context(), created.ID(), auth.UserAttributes{Email: updatedEmail})
+	afterEmailResult, err := admin.UpdateUser(t.Context(), created.ID(), auth.UserAttributes{Email: updatedEmail})
 	if err != nil {
 		t.Fatalf("UpdateUser(email): %v", err)
 	}
-	if afterEmail.Email() != updatedEmail {
+	if afterEmail := afterEmailResult.User(); afterEmail.Email() != updatedEmail {
 		t.Errorf("Email = %q, want %q", afterEmail.Email(), updatedEmail)
 	}
 
-	afterMerge, err := admin.UpdateUser(t.Context(), created.ID(), auth.UserAttributes{
+	afterMergeResult, err := admin.UpdateUser(t.Context(), created.ID(), auth.UserAttributes{
 		UserMetadata: map[string]any{"display_name": "After"},
 	})
 	if err != nil {
 		t.Fatalf("UpdateUser(metadata merge): %v", err)
 	}
+	afterMerge := afterMergeResult.User()
 	if afterMerge.UserMetadata()["display_name"] != "After" {
 		t.Errorf("display_name = %v, want After", afterMerge.UserMetadata()["display_name"])
 	}
@@ -197,12 +204,13 @@ func TestAdminUpdateUser(t *testing.T) {
 		t.Errorf("locale = %v, want the untouched en - an update merges rather than replaces", afterMerge.UserMetadata()["locale"])
 	}
 
-	afterDelete, err := admin.UpdateUser(t.Context(), created.ID(), auth.UserAttributes{
+	afterDeleteResult, err := admin.UpdateUser(t.Context(), created.ID(), auth.UserAttributes{
 		UserMetadata: map[string]any{"locale": nil},
 	})
 	if err != nil {
 		t.Fatalf("UpdateUser(metadata key delete): %v", err)
 	}
+	afterDelete := afterDeleteResult.User()
 	if _, present := afterDelete.UserMetadata()["locale"]; present {
 		t.Errorf("locale = %v, want the key deleted by its nil value", afterDelete.UserMetadata()["locale"])
 	}
@@ -210,13 +218,14 @@ func TestAdminUpdateUser(t *testing.T) {
 		t.Errorf("display_name = %v, want After surviving the delete", afterDelete.UserMetadata()["display_name"])
 	}
 
-	afterRole, err := admin.UpdateUser(t.Context(), created.ID(), auth.UserAttributes{
+	afterRoleResult, err := admin.UpdateUser(t.Context(), created.ID(), auth.UserAttributes{
 		Role:        "editor",
 		AppMetadata: map[string]any{"team": "integration"},
 	})
 	if err != nil {
 		t.Fatalf("UpdateUser(role and app metadata): %v", err)
 	}
+	afterRole := afterRoleResult.User()
 	if afterRole.Role() != "editor" {
 		t.Errorf("Role = %q, want editor", afterRole.Role())
 	}
@@ -224,31 +233,31 @@ func TestAdminUpdateUser(t *testing.T) {
 		t.Errorf("AppMetadata = %v, want team integration", afterRole.AppMetadata())
 	}
 
-	banned, err := admin.UpdateUser(t.Context(), created.ID(), auth.UserAttributes{BanDuration: "876000h"})
+	bannedResult, err := admin.UpdateUser(t.Context(), created.ID(), auth.UserAttributes{BanDuration: "876000h"})
 	if err != nil {
 		t.Fatalf("UpdateUser(ban): %v", err)
 	}
-	if !banned.BannedUntil().After(time.Now()) {
+	if banned := bannedResult.User(); !banned.BannedUntil().After(time.Now()) {
 		t.Errorf("BannedUntil = %v, want a future instant", banned.BannedUntil())
 	}
 
-	lifted, err := admin.UpdateUser(t.Context(), created.ID(), auth.UserAttributes{BanDuration: "none"})
+	liftedResult, err := admin.UpdateUser(t.Context(), created.ID(), auth.UserAttributes{BanDuration: "none"})
 	if err != nil {
 		t.Fatalf("UpdateUser(ban lift): %v", err)
 	}
-	if !lifted.BannedUntil().IsZero() {
+	if lifted := liftedResult.User(); !lifted.BannedUntil().IsZero() {
 		t.Errorf("BannedUntil = %v after the lift, want the zero time", lifted.BannedUntil())
 	}
 
-	fetched, err := admin.GetUser(t.Context(), created.ID())
+	fetchResult, err := admin.GetUser(t.Context(), created.ID())
 	if err != nil {
 		t.Fatalf("GetUser: %v", err)
 	}
-	if fetched.Email() != updatedEmail || fetched.Role() != "editor" {
+	if fetched := fetchResult.User(); fetched.Email() != updatedEmail || fetched.Role() != "editor" {
 		t.Errorf("fetched = (%q, %q), want the updated email and role", fetched.Email(), fetched.Role())
 	}
 
-	if err := admin.DeleteUser(t.Context(), created.ID()); err != nil {
+	if _, err := admin.DeleteUser(t.Context(), created.ID()); err != nil {
 		t.Fatalf("DeleteUser: %v", err)
 	}
 }
@@ -265,7 +274,7 @@ func TestAdminListUsersPagination(t *testing.T) {
 	identifiers := make([]string, 0, 3)
 	for i := range 3 {
 		email := fmt.Sprintf("%s-%d@example.com", prefix, i)
-		user, err := admin.CreateUser(t.Context(), auth.UserAttributes{
+		result, err := admin.CreateUser(t.Context(), auth.UserAttributes{
 			Email:        email,
 			Password:     "integration-password",
 			EmailConfirm: true,
@@ -274,7 +283,7 @@ func TestAdminListUsersPagination(t *testing.T) {
 			t.Fatalf("CreateUser(%d): %v", i, err)
 		}
 		seen[email] = false
-		identifiers = append(identifiers, user.ID())
+		identifiers = append(identifiers, result.User().ID())
 	}
 
 	first, err := admin.ListUsers(t.Context(), pagination.WithSize(2))
@@ -323,7 +332,7 @@ func TestAdminListUsersPagination(t *testing.T) {
 	}
 
 	for _, identifier := range identifiers {
-		if err := admin.DeleteUser(t.Context(), identifier); err != nil {
+		if _, err := admin.DeleteUser(t.Context(), identifier); err != nil {
 			t.Errorf("DeleteUser(%s): %v", identifier, err)
 		}
 	}

@@ -748,14 +748,26 @@ The tag-free alternatives - an internal mirror struct with a field-by-field copy
 Hiding the tags would not stop `json.Marshal` accepting the exported struct - Go offers no way to revoke that - it would only swap the wire names for raw Go field names with no omission rule, a silent trap for anyone round-tripping attributes through their own JSON.
 The opposite shape, a public catalog of every wire struct in a per-module protocol package, serves raw REST callers no better: Go's JSON is structural, so anyone can declare the narrow struct they need, and such a catalog is either empty exactly where an escape hatch matters or a completeness promise tracking a server this SDK does not own.
 
-## Admin deletes return only error, and the delete mode is a per-call option
+## Admin deletes return an empty result, and the delete mode is a per-call option
 
 **What**:  
-`Admin.DeleteUser(ctx, userID, options...)` returns `error` alone.
+`Admin.DeleteUser(ctx, userID, options...)` returns `(*DeleteUserResult, error)`, the result empty today.
 A bare call sends no request body, so the server's documented default governs (the hard delete), and `WithSoftDelete()` sends `{"should_soft_delete": true}`.
 
 **Why**:  
-The server answers a user delete with an empty JSON object, so there is no value to return, and the capability spec pins that contract ([delete_user spec](https://github.com/supabase/sdk/blob/main/packages/capability-matrix/specs/auth/admin/delete_user.md)).
+The server answers a user delete with an empty JSON object, so the result carries nothing yet, and the capability spec pins that contract ([delete_user spec](https://github.com/supabase/sdk/blob/main/packages/capability-matrix/specs/auth/admin/delete_user.md)).
 A request that states only what the caller chose is the `omitzero` posture applied to the whole body: the wire stays minimal, the server's default stays the server's, and future delete parameters arrive as new options without a signature change.
 The handler reads the body only when one is present, so the bodiless bare call is a supported shape, not an accident.
 The sibling SDKs always send the flag, so this SDK alone would follow a changed server default - accepted, since such a flip would break every raw API consumer too and the functional option is the house shape for a per-call override (`configuration.WithRetry` and family).
+
+## Every operation returns one result value, named for the operation
+
+**What**:  
+An operation returns exactly one `<Operation>Result` pointer plus `error`, fields behind accessors, and the result is empty where the operation's wire success is bodiless today, as `SignOutResult` is.
+
+**Why**:  
+Go offers no compatible way to change a published function signature, so every return shape shipped at GA is permanent: the password grant's optional weak-password advisory is a wire field a bare `(*Session, error)` would have nowhere to put.
+The envelope makes response growth additive - a new accessor, never a second method beside the first - and an empty result reserves the same room on bodiless calls, where a bare `error` can never widen.
+The sibling precedent does not transfer: supabase-js returns `{ error }` from its bodiless calls and can add fields to that object compatibly, while a Go return cannot, so this SDK alone needs the vessel in place before a field arrives.
+The stdlib's naked-tuple idiom lost the weighing: the ceremony costs one `_,` per action call, and an increasing share of calling code is written by builders (human+robot pairs), which emit one mechanical rule more reliably than a per-call judgement.
+The derivation term is operation rather than method, which is overloaded between a Go method and an HTTP method, and an operation that orchestrates more than one endpoint keeps a well-formed result name.
