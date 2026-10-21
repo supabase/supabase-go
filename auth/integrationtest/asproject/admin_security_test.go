@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/supabase/supabase-go/auth"
+	"github.com/supabase/supabase-go/auth/mfafactor"
+	"github.com/supabase/supabase-go/auth/signout"
 	"github.com/supabase/supabase-go/integration-testing/testkit"
 )
 
@@ -64,7 +66,7 @@ func TestAdminSignOut(t *testing.T) {
 		t.Fatalf("GetUser before sign-out: %v", err)
 	}
 
-	if err := admin.SignOut(t.Context(), user.AccessToken, auth.WithOthersScope()); err != nil {
+	if err := admin.SignOut(t.Context(), user.AccessToken, signout.WithOthersScope()); err != nil {
 		t.Fatalf("SignOut others: %v", err)
 	}
 	if _, err := client.GetUser(t.Context(), user.AccessToken); err != nil {
@@ -86,7 +88,7 @@ func TestAdminSignOut(t *testing.T) {
 
 	// The local scope ends the presented session itself.
 	second := testkit.SignUpUser(t, projectURL, apiKey)
-	if err := admin.SignOut(t.Context(), second.AccessToken, auth.WithLocalScope()); err != nil {
+	if err := admin.SignOut(t.Context(), second.AccessToken, signout.WithLocalScope()); err != nil {
 		t.Fatalf("SignOut local: %v", err)
 	}
 	if _, err := client.GetUser(t.Context(), second.AccessToken); err == nil {
@@ -154,7 +156,7 @@ func TestAdminMFAFactors(t *testing.T) {
 		t.Errorf("User.Factors = %d entries, want the enrolled factor mirrored on the user resource", len(mirrored))
 	}
 
-	renamed, err := admin.UpdateMFAFactor(t.Context(), user.ID, factorID, auth.WithFriendlyName("Recognized device"))
+	renamed, err := admin.UpdateMFAFactor(t.Context(), user.ID, factorID, mfafactor.WithFriendlyName("Recognized device"))
 	if err != nil {
 		t.Fatalf("UpdateMFAFactor: %v", err)
 	}
@@ -170,7 +172,7 @@ func TestAdminMFAFactors(t *testing.T) {
 
 	// A phone number on a TOTP factor is ignored, success and all, as the
 	// option documents.
-	unchanged, err := admin.UpdateMFAFactor(t.Context(), user.ID, factorID, auth.WithPhone("+15555550123"))
+	unchanged, err := admin.UpdateMFAFactor(t.Context(), user.ID, factorID, mfafactor.WithPhone("+15555550123"))
 	if err != nil {
 		t.Fatalf("UpdateMFAFactor with WithPhone: %v", err)
 	}

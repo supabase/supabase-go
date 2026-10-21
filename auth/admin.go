@@ -6,14 +6,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"net/http"
 	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/supabase/supabase-go/auth/customprovider"
 	"github.com/supabase/supabase-go/auth/internal/profile"
+	"github.com/supabase/supabase-go/auth/mfafactor"
+	"github.com/supabase/supabase-go/auth/signout"
+	"github.com/supabase/supabase-go/auth/userdelete"
+	"github.com/supabase/supabase-go/auth/userinvite"
 	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/core/pagination"
 )
@@ -158,42 +162,23 @@ func (a *Admin) UpdateUser(ctx context.Context, userID string, attributes UserAt
 // request is sent.
 //
 // [Deleting users]: https://supabase.com/docs/guides/auth/managing-user-data#deleting-users
-func (a *Admin) DeleteUser(ctx context.Context, userID string, options ...DeleteUserOption) error {
+func (a *Admin) DeleteUser(ctx context.Context, userID string, options ...userdelete.Option) error {
 	if !isCanonicalUUID(userID) {
 		return ErrInvalidUserID
 	}
 	var payload any
-	if len(options) > 0 {
-		var request deleteUserRequest
-		for _, option := range options {
-			option(&request)
-		}
-		payload = request
+	if userdelete.Resolve(options...).SoftDelete() {
+		payload = deleteUserPayload{ShouldSoftDelete: true}
 	}
 	_, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID), payload)
 	return err
 }
 
-// deleteUserRequest is the admin user-delete request body, built and sent
+// deleteUserPayload is the admin user-delete request body, built and sent
 // only when options chose something, so a bare delete states nothing and the
 // server's defaults apply.
-type deleteUserRequest struct {
+type deleteUserPayload struct {
 	ShouldSoftDelete bool `json:"should_soft_delete"`
-}
-
-// DeleteUserOption adjusts how one [Admin.DeleteUser] call deletes. Options
-// are applied in the order they are supplied.
-type DeleteUserOption func(*deleteUserRequest)
-
-// WithSoftDelete deactivates the user instead of removing them: sign-ins are
-// disabled, every session and factor ends, the email and phone are replaced
-// with obfuscated values, and the user stays readable through [Admin.GetUser]
-// with [User.DeletedAt] set. A repeat soft delete succeeds and changes
-// nothing.
-func WithSoftDelete() DeleteUserOption {
-	return func(request *deleteUserRequest) {
-		request.ShouldSoftDelete = true
-	}
 }
 
 // ListUsers fetches one page of the project's users. A bare call sends no
@@ -303,111 +288,50 @@ func pageLink(header http.Header, rel string) (int, bool) {
 // InviteUser creates the user and has the server email them an invitation
 // link. An email already confirmed is the server's rejection, an [*Error]
 // whose HTTPStatus is 422, and an invited-but-unaccepted one is re-invited.
-func (a *Admin) InviteUser(ctx context.Context, email string, options ...InviteUserOption) (*User, error) {
-	var request inviteRequest
-	for _, option := range options {
-		option(&request)
-	}
+func (a *Admin) InviteUser(ctx context.Context, email string, options ...userinvite.Option) (*User, error) {
+	parameters := userinvite.Resolve(options...)
 	endpoint := a.baseURL.JoinPath("invite")
-	if request.redirectTo != "" {
+	if redirectTo := parameters.RedirectTo(); redirectTo != "" {
 		query := url.Values{}
-		query.Set("redirect_to", request.redirectTo)
+		query.Set("redirect_to", redirectTo)
 		endpoint.RawQuery = query.Encode()
 	}
-	body, err := a.send(ctx, http.MethodPost, endpoint, invitePayload{Email: email, Data: request.data})
+	body, err := a.send(ctx, http.MethodPost, endpoint, invitePayload{Email: email, Data: parameters.UserMetadata()})
 	if err != nil {
 		return nil, err
 	}
 	return parseUser(body)
 }
 
-// inviteRequest collects what one invite call's options chose. The redirect
-// is kept apart from the payload because the server reads it from the query
-// string, not the body.
-type inviteRequest struct {
-	data       map[string]any
-	redirectTo string
-}
-
-// invitePayload is the invite request body.
+// invitePayload is the invite request body. The redirect rides the query
+// string instead, as the server reads it there, not from the body.
 type invitePayload struct {
 	Email string         `json:"email"`
 	Data  map[string]any `json:"data,omitzero"`
 }
 
-// InviteUserOption adjusts how one [Admin.InviteUser] call invites. Options
-// are applied in the order they are supplied.
-type InviteUserOption func(*inviteRequest)
-
-// WithUserMetadata stores metadata on the invited user, where the
-// invitation's accept page can read it.
-func WithUserMetadata(metadata map[string]any) InviteUserOption {
-	return func(request *inviteRequest) {
-		request.data = metadata
-	}
-}
-
-// WithRedirectTo names where the accepted invitation lands. A URL that is
-// not on the project's redirect allow list is ignored in favor of the
-// project's defaults rather than rejected.
-func WithRedirectTo(redirectURL string) InviteUserOption {
-	return func(request *inviteRequest) {
-		request.redirectTo = redirectURL
-	}
-}
-
 // SignOut revokes sessions of the user jwt authenticates. A bare call sends
 // no scope, so the server's default governs, and that default is revoking
-// every session the user holds; [WithLocalScope] and [WithOthersScope] narrow
-// the revocation. The jwt is the end user's access token - the one admin
+// every session the user holds; [signout.WithLocalScope] and
+// [signout.WithOthersScope] narrow the revocation. The jwt is the end user's access token - the one admin
 // request that carries a user token, naming whose sessions to revoke - and an
 // empty jwt returns [ErrMissingJWT] before any request is sent.
 //
 // Revocation ends sessions, not tokens: a revoked session's unexpired access
 // tokens still verify locally with [Client.GetClaims] until they expire, but
 // fail [Client.GetUser], which consults the session.
-func (a *Admin) SignOut(ctx context.Context, jwt string, options ...SignOutOption) error {
+func (a *Admin) SignOut(ctx context.Context, jwt string, options ...signout.Option) error {
 	if jwt == "" {
 		return ErrMissingJWT
 	}
-	var request signOutRequest
-	for _, option := range options {
-		option(&request)
-	}
 	endpoint := a.baseURL.JoinPath("logout")
-	if request.scope != "" {
+	if scope := signout.Resolve(options...).Scope(); scope != "" {
 		query := url.Values{}
-		query.Set("scope", request.scope)
+		query.Set("scope", scope)
 		endpoint.RawQuery = query.Encode()
 	}
 	_, _, err := a.exchange(ctx, http.MethodPost, endpoint, nil, jwt)
 	return err
-}
-
-// signOutRequest collects what one sign-out call's options chose. The scope
-// rides the query string, built and sent only when an option narrowed it, so
-// a bare sign-out states nothing and the server's default applies.
-type signOutRequest struct {
-	scope string
-}
-
-// SignOutOption narrows which of the user's sessions [Admin.SignOut] revokes.
-// Options are applied in the order they are supplied, the later wins.
-type SignOutOption func(*signOutRequest)
-
-// WithLocalScope revokes only the session the presented token belongs to.
-func WithLocalScope() SignOutOption {
-	return func(request *signOutRequest) {
-		request.scope = "local"
-	}
-}
-
-// WithOthersScope revokes every session except the one the presented token
-// belongs to.
-func WithOthersScope() SignOutOption {
-	return func(request *signOutRequest) {
-		request.scope = "others"
-	}
 }
 
 // ListMFAFactors fetches the user's enrolled MFA factors. The id must be a
@@ -431,17 +355,15 @@ func (a *Admin) ListMFAFactors(ctx context.Context, userID string) ([]Factor, er
 // or [ErrInvalidUserID] or [ErrInvalidFactorID] is returned before any
 // request is sent. An unknown id is the server's rejection, an [*Error] whose
 // HTTPStatus is 404.
-func (a *Admin) UpdateMFAFactor(ctx context.Context, userID, factorID string, options ...MFAFactorOption) (*Factor, error) {
+func (a *Admin) UpdateMFAFactor(ctx context.Context, userID, factorID string, options ...mfafactor.Option) (*Factor, error) {
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
 	}
 	if !isCanonicalUUID(factorID) {
 		return nil, ErrInvalidFactorID
 	}
-	var request updateMFAFactorRequest
-	for _, option := range options {
-		option(&request)
-	}
+	parameters := mfafactor.Resolve(options...)
+	request := updateMFAFactorRequest{FriendlyName: parameters.FriendlyName(), Phone: parameters.Phone()}
 	body, err := a.send(ctx, http.MethodPut, a.adminBaseURL.JoinPath("users", userID, "factors", factorID), request)
 	if err != nil {
 		return nil, err
@@ -455,26 +377,6 @@ func (a *Admin) UpdateMFAFactor(ctx context.Context, userID, factorID string, op
 type updateMFAFactorRequest struct {
 	FriendlyName string `json:"friendly_name,omitzero"`
 	Phone        string `json:"phone,omitzero"`
-}
-
-// MFAFactorOption sets one field on an [Admin.UpdateMFAFactor] call. Options
-// are applied in the order they are supplied.
-type MFAFactorOption func(*updateMFAFactorRequest)
-
-// WithFriendlyName renames the factor.
-func WithFriendlyName(name string) MFAFactorOption {
-	return func(request *updateMFAFactorRequest) {
-		request.FriendlyName = name
-	}
-}
-
-// WithPhone moves a phone factor to a new number, in E.164 format, which the
-// server validates. On any other factor type the server ignores the number
-// while still answering with success.
-func WithPhone(phone string) MFAFactorOption {
-	return func(request *updateMFAFactorRequest) {
-		request.Phone = phone
-	}
 }
 
 // DeleteMFAFactor removes one of userID's factors, ending the second-factor
@@ -494,11 +396,11 @@ func (a *Admin) DeleteMFAFactor(ctx context.Context, userID, factorID string) er
 }
 
 // CreateCustomProvider registers a custom OAuth 2.0 or OIDC provider for
-// users to sign in through, built with [NewCustomProvider], and returns the
+// users to sign in through, built with [customprovider.New], and returns the
 // provider as stored. An identifier already registered is the server's
 // rejection, an [*Error] whose Code is "conflict".
-func (a *Admin) CreateCustomProvider(ctx context.Context, definition CustomProviderDefinition) (*CustomProvider, error) {
-	body, err := a.send(ctx, http.MethodPost, a.adminBaseURL.JoinPath("custom-providers"), definition.providerDefinition().Payload())
+func (a *Admin) CreateCustomProvider(ctx context.Context, definition customprovider.Definition) (*CustomProvider, error) {
+	body, err := a.send(ctx, http.MethodPost, a.adminBaseURL.JoinPath("custom-providers"), definition)
 	if err != nil {
 		return nil, err
 	}
@@ -521,17 +423,13 @@ func (a *Admin) GetCustomProvider(ctx context.Context, identifier string) (*Cust
 }
 
 // ListCustomProviders fetches the project's custom providers. A bare call
-// lists every provider; [WithOIDCOnly] and [WithOAuth2Only] narrow the
-// listing to one type.
-func (a *Admin) ListCustomProviders(ctx context.Context, options ...ListCustomProvidersOption) ([]CustomProvider, error) {
-	var request listCustomProvidersRequest
-	for _, option := range options {
-		option(&request)
-	}
+// lists every provider; [customprovider.WithOIDCOnly] and
+// [customprovider.WithOAuth2Only] narrow the listing to one type.
+func (a *Admin) ListCustomProviders(ctx context.Context, options ...customprovider.ListOption) ([]CustomProvider, error) {
 	endpoint := a.adminBaseURL.JoinPath("custom-providers")
-	if request.providerType != "" {
+	if providerType := customprovider.ResolveList(options...).ProviderType(); providerType != "" {
 		query := url.Values{}
-		query.Set("type", request.providerType)
+		query.Set("type", providerType)
 		endpoint.RawQuery = query.Encode()
 	}
 	body, err := a.send(ctx, http.MethodGet, endpoint, nil)
@@ -541,31 +439,6 @@ func (a *Admin) ListCustomProviders(ctx context.Context, options ...ListCustomPr
 	return parseCustomProviderList(body)
 }
 
-// listCustomProvidersRequest collects what one listing call's options chose.
-// The type filter rides the query string, built and sent only when an option
-// narrowed it, so a bare listing states nothing and every provider answers.
-type listCustomProvidersRequest struct {
-	providerType string
-}
-
-// ListCustomProvidersOption narrows which providers [Admin.ListCustomProviders]
-// lists. Options are applied in the order they are supplied, the later wins.
-type ListCustomProvidersOption func(*listCustomProvidersRequest)
-
-// WithOIDCOnly narrows the listing to OIDC providers.
-func WithOIDCOnly() ListCustomProvidersOption {
-	return func(request *listCustomProvidersRequest) {
-		request.providerType = "oidc"
-	}
-}
-
-// WithOAuth2Only narrows the listing to OAuth 2.0 providers.
-func WithOAuth2Only() ListCustomProvidersOption {
-	return func(request *listCustomProvidersRequest) {
-		request.providerType = "oauth2"
-	}
-}
-
 // UpdateCustomProvider changes what the options set on one custom provider,
 // addressed by its "custom:"-prefixed identifier, and returns the provider as
 // stored. A call with no options changes nothing and still succeeds. The type
@@ -573,15 +446,11 @@ func WithOAuth2Only() ListCustomProvidersOption {
 // fixes both at creation. An empty identifier returns [ErrMissingIdentifier]
 // before any request is sent, and an unknown or unprefixed one is the
 // server's rejection, an [*Error] whose HTTPStatus is 404 or 400.
-func (a *Admin) UpdateCustomProvider(ctx context.Context, identifier string, options ...CustomProviderOption) (*CustomProvider, error) {
+func (a *Admin) UpdateCustomProvider(ctx context.Context, identifier string, options ...customprovider.Option) (*CustomProvider, error) {
 	if identifier == "" {
 		return nil, ErrMissingIdentifier
 	}
-	var request updateCustomProviderRequest
-	for _, option := range options {
-		option(&request)
-	}
-	body, err := a.send(ctx, http.MethodPut, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), request)
+	body, err := a.send(ctx, http.MethodPut, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), customprovider.Resolve(options...))
 	if err != nil {
 		return nil, err
 	}
@@ -599,192 +468,6 @@ func (a *Admin) DeleteCustomProvider(ctx context.Context, identifier string) err
 	}
 	_, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), nil)
 	return err
-}
-
-// updateCustomProviderRequest is the custom provider update request body:
-// only what the options set is sent, and a bare call sends the empty object
-// the server answers without changing anything. Deviating booleans are
-// pointers because the field's absence, not falseness, is what leaves the
-// stored value alone.
-type updateCustomProviderRequest struct {
-	Name                  string            `json:"name,omitzero"`
-	ClientID              string            `json:"client_id,omitzero"`
-	ClientSecret          string            `json:"client_secret,omitzero"`
-	Scopes                []string          `json:"scopes,omitzero"`
-	AcceptableClientIDs   []string          `json:"acceptable_client_ids,omitzero"`
-	CustomClaimsAllowlist []string          `json:"custom_claims_allowlist,omitzero"`
-	AttributeMapping      map[string]any    `json:"attribute_mapping,omitzero"`
-	AuthorizationParams   map[string]string `json:"authorization_params,omitzero"`
-	PKCEEnabled           *bool             `json:"pkce_enabled,omitzero"`
-	Enabled               *bool             `json:"enabled,omitzero"`
-	EmailOptional         *bool             `json:"email_optional,omitzero"`
-	Issuer                string            `json:"issuer,omitzero"`
-	DiscoveryURL          string            `json:"discovery_url,omitzero"`
-	SkipNonceCheck        *bool             `json:"skip_nonce_check,omitzero"`
-	AuthorizationURL      string            `json:"authorization_url,omitzero"`
-	TokenURL              string            `json:"token_url,omitzero"`
-	UserinfoURL           string            `json:"userinfo_url,omitzero"`
-	JwksURI               string            `json:"jwks_uri,omitzero"`
-}
-
-// CustomProviderOption sets one field on an [Admin.UpdateCustomProvider]
-// call: an option carried is an instruction, an option absent leaves the
-// stored value alone. Options are applied in the order they are supplied. An
-// option for the other type's fields - [WithIssuer] on an OAuth 2.0 provider,
-// [WithTokenURL] on an OIDC one - is ignored by the server, which still
-// answers with success.
-type CustomProviderOption func(*updateCustomProviderRequest)
-
-// WithName renames the provider.
-func WithName(name string) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.Name = name
-	}
-}
-
-// WithClientID replaces the OAuth client id registered with the provider.
-func WithClientID(clientID string) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.ClientID = clientID
-	}
-}
-
-// WithClientSecret rotates the provider's client secret. The server encrypts
-// it at rest and never serves it back.
-func WithClientSecret(clientSecret string) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.ClientSecret = clientSecret
-	}
-}
-
-// WithScopes replaces the scopes requested at authorization. A call with no
-// arguments clears the list, and the server keeps "openid" present on OIDC
-// providers either way.
-func WithScopes(scopes ...string) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.Scopes = append([]string{}, scopes...)
-	}
-}
-
-// WithAcceptableClientIDs replaces the additional client ids accepted in the
-// provider's tokens. A call with no arguments clears the list.
-func WithAcceptableClientIDs(ids ...string) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.AcceptableClientIDs = append([]string{}, ids...)
-	}
-}
-
-// WithCustomClaimsAllowlist replaces the provider claim keys copied verbatim
-// into the user's custom claims. A call with no arguments clears the list.
-func WithCustomClaimsAllowlist(claims ...string) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.CustomClaimsAllowlist = append([]string{}, claims...)
-	}
-}
-
-// WithAttributeMapping replaces the mapping of provider claims to user
-// attributes. A nil or empty map clears the stored mapping. The request holds
-// its own clone of the map.
-func WithAttributeMapping(mapping map[string]any) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.AttributeMapping = clonedOrEmpty(mapping)
-	}
-}
-
-// WithAuthorizationParams replaces the extra parameters the authorization
-// request carries. A nil or empty map clears the stored parameters. The
-// request holds its own clone of the map.
-func WithAuthorizationParams(params map[string]string) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.AuthorizationParams = clonedOrEmpty(params)
-	}
-}
-
-// WithPKCEEnabled turns PKCE on or off for the provider's authorization flow.
-func WithPKCEEnabled(enabled bool) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.PKCEEnabled = &enabled
-	}
-}
-
-// WithEnabled turns sign-ins through the provider on or off, the kill switch
-// that keeps the configuration while the provider is distrusted.
-func WithEnabled(enabled bool) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.Enabled = &enabled
-	}
-}
-
-// WithEmailOptional sets whether users may sign in through the provider
-// without an email claim.
-func WithEmailOptional(optional bool) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.EmailOptional = &optional
-	}
-}
-
-// WithIssuer moves an OIDC provider to a new issuer URL. The server fetches
-// and validates the new issuer's discovery document before storing it.
-func WithIssuer(issuer string) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.Issuer = issuer
-	}
-}
-
-// WithDiscoveryURL states where an OIDC provider's discovery document lives
-// when it is not at the issuer's well-known location. The server fetches and
-// validates the document before storing the URL.
-func WithDiscoveryURL(discoveryURL string) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.DiscoveryURL = discoveryURL
-	}
-}
-
-// WithSkipNonceCheck sets whether an OIDC provider skips ID token nonce
-// verification.
-func WithSkipNonceCheck(skip bool) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.SkipNonceCheck = &skip
-	}
-}
-
-// WithAuthorizationURL replaces an OAuth 2.0 provider's authorization
-// endpoint.
-func WithAuthorizationURL(authorizationURL string) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.AuthorizationURL = authorizationURL
-	}
-}
-
-// WithTokenURL replaces an OAuth 2.0 provider's token endpoint.
-func WithTokenURL(tokenURL string) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.TokenURL = tokenURL
-	}
-}
-
-// WithUserinfoURL replaces an OAuth 2.0 provider's userinfo endpoint.
-func WithUserinfoURL(userinfoURL string) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.UserinfoURL = userinfoURL
-	}
-}
-
-// WithJWKSURI replaces where an OAuth 2.0 provider publishes its signing
-// keys.
-func WithJWKSURI(jwksURI string) CustomProviderOption {
-	return func(request *updateCustomProviderRequest) {
-		request.JwksURI = jwksURI
-	}
-}
-
-// clonedOrEmpty clones a caller's map, normalizing nil to an empty map so an
-// option carried always sends its field: on the wire an empty object clears
-// where an absent key keeps.
-func clonedOrEmpty[V any](source map[string]V) map[string]V {
-	cloned := make(map[string]V, len(source))
-	maps.Copy(cloned, source)
-	return cloned
 }
 
 // send executes one admin request through exchange for the calls that read

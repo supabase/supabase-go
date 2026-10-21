@@ -734,7 +734,7 @@ Spelled-out method names keep one flat type unambiguous without the nested names
 **What**:  
 An admin entity whose create and update calls read the same grammar is one exported payload struct (`UserAttributes`), shared by every call that sends that entity, with `omitzero` on each field so a zero-valued field is not sent.
 Each field's type mirrors how the Auth server reads it: plain where the server treats the zero value as absent, a pointer only where nil and the zero value differ on the wire.
-Where the server reads two grammars for one entity - custom provider creation validates per-type required fields its sparse update patch never reads - the shapes split instead: a creation builder (`NewCustomProvider`) beside update options (`CustomProviderOption`).
+Where the server reads two grammars for one entity - custom provider creation validates per-type required fields its sparse update patch never reads - the shapes split instead: a creation builder (`customprovider.New`) beside update options (`customprovider.Option`).
 
 **Why**:  
 A struct literal with named fields is how Go spells a record of named values, and a caller-built value the SDK reads once and never retains is contract-free, so it earns no accessor wrapper and no builder ceremony.

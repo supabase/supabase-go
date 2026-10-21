@@ -1,6 +1,6 @@
 # Developing the Supabase Go SDK
 
-<!-- cSpell:ignore darwin libc linux mvdan startswith -->
+<!-- cSpell:ignore darwin deleteuser libc linux mvdan startswith -->
 
 This file holds the Go/SDK-specific guidance for working in this repository.
 General, organization-wide contribution policy lives in our [shared `.github` repository](https://github.com/supabase/.github)'s CONTRIBUTING.md file.
@@ -244,6 +244,7 @@ We spell identifiers out in full. Clarity for every reader - including those new
   - single letters for pure loop indices (`i`, `j`);
   - the `Err` prefix on exported sentinel error values (for example `ErrMissingURL`) - the universal Go convention that pairs with `errors.Is`; `Error`-prefixed names would be actively non-idiomatic.
 - **Method receivers are short (1-2 characters) and consistent**, following the Go standard style (for example `func (c *Configuration)`). This is the one place Go's own style guide mandates brevity, and our tooling and every Go reader expect it, so we follow it rather than fight it. Pick a receiver per type and use it on every method of that type.
+- **Call-scoped functional options live in a package per call family.** An option family serving one call (or one tight family of calls) is a package of its own under its module, named for the call family in lowercase - entity then verb where the family is one call on one entity (`userinvite`, `userdelete`, never bare `invite` or verb-first `deleteuser`, which future organization- or team-scoped concepts could contest), the domain noun alone where it is already unmistakable (`signout`, `mfafactor`, `customprovider`, `pagination`) - exporting `Option`, its `With*` constructors and the resolved `Parameters` the consuming module reads. The package qualifier carries the context, so constructors stay unprefixed and two families can own the same constructor name without contention. Options that configure a module across calls (`configuration.Option`, `postgrest.Option`) stay with their module.
 - **Filenames are spelled out too, with one canonical exception.** Use `configuration.go`, not `config.go`. The exception is `doc.go` - the long-established Go convention for a package's documentation file, which tooling and readers expect by that exact name, so we keep it rather than renaming it to `documentation.go`. (The `_test.go` suffix is a required toolchain convention, not a naming choice.)
 
 This is a deliberately strong stance. It keeps almost the entire surface in plain words while still reading as idiomatic Go, because the only short names left are the ones Go itself treats as conventional.
