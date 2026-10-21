@@ -16,6 +16,11 @@ Keeping the surface under tight first-party control through the hardening window
 - Bug reports and reproductions via GitHub issues.
 - Feedback on the API surface and developer experience via GitHub issues.
 
+## `standard.md` is frozen
+
+[`standard.md`](standard.md) is the ratified definition of what good looks like for this SDK and changes only by explicit maintainer decision - treat it as read-only.
+Nothing lands there as a side effect of other work: a new or sharpened convention belongs here in `DEVELOPMENT.md`, a decision's rationale belongs in [`decisions.md`](decisions.md) and anything that genuinely reads as a change to the standard itself is proposed to the maintainer rather than written.
+
 ## Building locally
 
 The repository is a multi-module monorepo. Intra-repo dependencies are resolved by the committed `go.work` workspace, so each module builds against the local sources of the others without any published tags.
