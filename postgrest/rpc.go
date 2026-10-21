@@ -51,7 +51,9 @@ type RPCBuilder[T any] struct {
 // single-unnamed-parameter call. PostgREST accepts an array body only when
 // every element is an object carrying one shared key set, rejecting others
 // with code PGRST102. Omitting Arguments runs the function on its parameter
-// defaults. A later Arguments replaces an earlier one.
+// defaults. A later Arguments replaces an earlier one. The call holds the
+// value unread until it executes, so what is sent reflects the value as it
+// stands at execution.
 func (r RPCBuilder[T]) Arguments(arguments any) RPCBuilder[T] {
 	r.arguments = arguments
 	return r

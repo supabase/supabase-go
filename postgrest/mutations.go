@@ -43,7 +43,9 @@ func Execute[Row any](ctx context.Context, client *Client, mutation Mutation[Row
 // in a POST request. Each row marshals with [encoding/json], so its struct
 // tags choose the columns sent, and every row must marshal to the same set of
 // keys - the server rejects a ragged batch with code PGRST102. Calling Insert
-// with no rows sends the empty array, left for the server to rule on.
+// with no rows sends the empty array, left for the server to rule on. Insert
+// reads the rows once, at this call, and never retains them, so a row
+// mutated afterwards does not change what executes.
 //
 // The executing function chooses what the database returns: [Execute] applies
 // the insert and reads nothing back, while [Collect] and its kin return the
@@ -56,7 +58,8 @@ func (q QueryBuilder[T]) Insert(rows ...T) MutationBuilder[T] {
 // Upsert creates the given rows, updating any existing row a new one collides
 // with instead of failing, sent as a POST request carrying
 // Prefer: resolution=merge-duplicates. Rows travel exactly as
-// [QueryBuilder.Insert] sends them. Collisions are judged on the table's
+// [QueryBuilder.Insert] sends them, read once at this call and never
+// retained. Collisions are judged on the table's
 // primary key columns, so each row must carry all of them, unless
 // [UpsertBuilder.OnConflict] names a different unique constraint. A relation
 // with no unique constraint has nothing to collide on, so every call appends
@@ -98,7 +101,9 @@ func (q QueryBuilder[T]) marshalRows(rows []T, operation string) request.Request
 // map[string]any is the recommended shape, where a key carrying nil clears
 // that column to SQL null and an absent key leaves the column untouched. A
 // struct works too, with the caution that every marshaled field is assigned,
-// its zero value included.
+// its zero value included. Update reads the changes value once, at this
+// call, and never retains it, so mutating the value afterwards does not
+// change what executes.
 //
 // The executing function chooses what the database returns, exactly as it does
 // for an insert: [Execute] applies the update and reads nothing back, while
