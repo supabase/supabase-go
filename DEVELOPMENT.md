@@ -16,6 +16,11 @@ Keeping the surface under tight first-party control through the hardening window
 - Bug reports and reproductions via GitHub issues.
 - Feedback on the API surface and developer experience via GitHub issues.
 
+## `standard.md` is frozen
+
+[`standard.md`](standard.md) is the ratified definition of what good looks like for this SDK and changes only by explicit maintainer decision - treat it as read-only.
+Nothing lands there as a side effect of other work: a new or sharpened convention belongs here in `DEVELOPMENT.md`, a decision's rationale belongs in [`decisions.md`](decisions.md) and anything that genuinely reads as a change to the standard itself is proposed to the maintainer rather than written.
+
 ## Building locally
 
 The repository is a multi-module monorepo. Intra-repo dependencies are resolved by the committed `go.work` workspace, so each module builds against the local sources of the others without any published tags.
@@ -245,6 +250,7 @@ We spell identifiers out in full. Clarity for every reader - including those new
   - the `Err` prefix on exported sentinel error values (for example `ErrMissingURL`) - the universal Go convention that pairs with `errors.Is`; `Error`-prefixed names would be actively non-idiomatic.
 - **Method receivers are short (1-2 characters) and consistent**, following the Go standard style (for example `func (c *Configuration)`). This is the one place Go's own style guide mandates brevity, and our tooling and every Go reader expect it, so we follow it rather than fight it. Pick a receiver per type and use it on every method of that type.
 - **Call-scoped functional options live in a package per call family.** An option family serving one call (or one tight family of calls) is a package of its own under its module, named for the call family in lowercase - entity then verb where the family is one call on one entity (`userinvite`, `userdelete`, never bare `invite` or verb-first `deleteuser`, which future organization- or team-scoped concepts could contest), the domain noun alone where it is already unmistakable (`signout`, `mfafactor`, `customprovider`, `pagination`) - exporting `Option`, its `With*` constructors and the resolved `Parameters` the consuming module reads. The package qualifier carries the context, so constructors stay unprefixed and two families can own the same constructor name without contention. Options that configure a module across calls (`configuration.Option`, `postgrest.Option`) stay with their module.
+- **Operation results are named `<Operation>Result`.** Every operation returns one result value plus `error`, the result type taking the operation's name with the `Result` suffix (`GetClaimsResult`, `ListUsersResult`, `SignOutResult`), so every return shape's name is derivable from the call it serves. The derivation term is operation rather than method, since the word "method" is overloaded between a Go method and an HTTP method and a future operation may orchestrate more than one endpoint. A result whose wire success is bodiless today exports no members yet: the type reserves the room, and a response body the server later grows arrives as accessors rather than as a new method beside the old one.
 - **Filenames are spelled out too, with one canonical exception.** Use `configuration.go`, not `config.go`. The exception is `doc.go` - the long-established Go convention for a package's documentation file, which tooling and readers expect by that exact name, so we keep it rather than renaming it to `documentation.go`. (The `_test.go` suffix is a required toolchain convention, not a naming choice.)
 
 This is a deliberately strong stance. It keeps almost the entire surface in plain words while still reading as idiomatic Go, because the only short names left are the ones Go itself treats as conventional.

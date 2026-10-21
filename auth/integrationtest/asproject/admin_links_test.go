@@ -18,12 +18,13 @@ func TestAdminInviteUser(t *testing.T) {
 	admin := newAdmin(t)
 	email := uniqueEmail(t)
 
-	user, err := admin.InviteUser(t.Context(), email,
+	result, err := admin.InviteUser(t.Context(), email,
 		userinvite.WithUserMetadata(map[string]any{"workspace": "integration"}))
 	if err != nil {
 		t.Fatalf("InviteUser: %v", err)
 	}
 
+	user := result.User()
 	if user.Email() != email {
 		t.Errorf("Email = %q, want %q", user.Email(), email)
 	}
@@ -37,7 +38,7 @@ func TestAdminInviteUser(t *testing.T) {
 		t.Errorf("UserMetadata = %v, want workspace integration", user.UserMetadata())
 	}
 
-	if err := admin.DeleteUser(t.Context(), user.ID()); err != nil {
+	if _, err := admin.DeleteUser(t.Context(), user.ID()); err != nil {
 		t.Errorf("DeleteUser: %v", err)
 	}
 }
@@ -122,7 +123,7 @@ func TestAdminGenerateLinks(t *testing.T) {
 		t.Errorf("VerificationType = %q, want email_change_new", toNew.VerificationType())
 	}
 
-	if err := admin.DeleteUser(ctx, signup.User().ID()); err != nil {
+	if _, err := admin.DeleteUser(ctx, signup.User().ID()); err != nil {
 		t.Errorf("DeleteUser: %v", err)
 	}
 }
