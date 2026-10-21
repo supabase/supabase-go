@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/supabase/supabase-go/auth"
+	"github.com/supabase/supabase-go/auth/userdelete"
 	"github.com/supabase/supabase-go/core/pagination"
 	"github.com/supabase/supabase-go/integration-testing/testkit"
 )
@@ -114,7 +115,7 @@ func TestAdminSoftDeleteUser(t *testing.T) {
 		t.Fatalf("DeletedAt = %v on the created user, want the zero time", created.DeletedAt())
 	}
 
-	if err := admin.DeleteUser(t.Context(), created.ID(), auth.WithSoftDelete()); err != nil {
+	if err := admin.DeleteUser(t.Context(), created.ID(), userdelete.WithSoftDelete()); err != nil {
 		t.Fatalf("DeleteUser(WithSoftDelete): %v", err)
 	}
 
@@ -129,7 +130,7 @@ func TestAdminSoftDeleteUser(t *testing.T) {
 		t.Errorf("Email = %q, want it obfuscated away from the created address", deactivated.Email())
 	}
 
-	if err := admin.DeleteUser(t.Context(), created.ID(), auth.WithSoftDelete()); err != nil {
+	if err := admin.DeleteUser(t.Context(), created.ID(), userdelete.WithSoftDelete()); err != nil {
 		t.Errorf("repeat soft delete = %v, want success", err)
 	}
 	unchanged, err := admin.GetUser(t.Context(), created.ID())

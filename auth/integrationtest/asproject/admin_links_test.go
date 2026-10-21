@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/supabase/supabase-go/auth"
+	"github.com/supabase/supabase-go/auth/userinvite"
 )
 
 // TestAdminInviteUser proves invite creates the user and marks the
@@ -18,7 +19,7 @@ func TestAdminInviteUser(t *testing.T) {
 	email := uniqueEmail(t)
 
 	user, err := admin.InviteUser(t.Context(), email,
-		auth.WithUserMetadata(map[string]any{"workspace": "integration"}))
+		userinvite.WithUserMetadata(map[string]any{"workspace": "integration"}))
 	if err != nil {
 		t.Fatalf("InviteUser: %v", err)
 	}

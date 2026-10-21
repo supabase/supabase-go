@@ -5,6 +5,18 @@ All notable changes to this module will be documented in this file.
 This module is one of a number of modules defined in a multi-module repository.
 Refer to [GitHub `../CHANGELOG.md`](https://github.com/supabase/supabase-go/blob/main/CHANGELOG.md) for further details on structure, format and sibling modules.
 
+## Unreleased
+
+### Changed
+
+Call-scoped functional options moved from the package root into per-family packages, each owning its `Option` type and constructors:
+
+- `auth/userinvite` serves `Admin.InviteUser` (was `InviteUserOption` with `WithUserMetadata` and `WithRedirectTo`)
+- `auth/signout` serves `Admin.SignOut` (was `SignOutOption` with `WithLocalScope` and `WithOthersScope`)
+- `auth/userdelete` serves `Admin.DeleteUser` (was `DeleteUserOption` with `WithSoftDelete`)
+- `auth/mfafactor` serves `Admin.UpdateMFAFactor` (was `MFAFactorOption` with `WithFriendlyName` and `WithPhone`)
+- `auth/customprovider` serves the custom provider calls: update options as `Option` (was `CustomProviderOption` with its eighteen constructors), listing filters as `ListOption` (was `ListCustomProvidersOption` with `WithOIDCOnly` and `WithOAuth2Only`) and the creation builder as `New`, `Builder`, `OIDCDefinition`, `OAuth2Definition` and `Definition` (were `NewCustomProvider`, `CustomProviderBuilder`, `OIDCProviderDefinition`, `OAuth2ProviderDefinition` and `CustomProviderDefinition`)
+
 ## `v0.1.0-alpha.2` (2026-10-15)
 
 ### Added

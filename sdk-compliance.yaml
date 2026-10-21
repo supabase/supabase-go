@@ -148,32 +148,34 @@ features:
     symbols:
       - auth.Admin.CreateCustomProvider
     supporting_symbols:
-      - auth.CustomProviderBuilder
-      - auth.CustomProviderBuilder.OAuth2
-      - auth.CustomProviderBuilder.OIDC
-      - auth.CustomProviderDefinition
-      - auth.NewCustomProvider
-      - auth.OAuth2ProviderDefinition
-      - auth.OAuth2ProviderDefinition.AcceptableClientIDs
-      - auth.OAuth2ProviderDefinition.AttributeMapping
-      - auth.OAuth2ProviderDefinition.AuthorizationParams
-      - auth.OAuth2ProviderDefinition.CustomClaimsAllowlist
-      - auth.OAuth2ProviderDefinition.EmailOptional
-      - auth.OAuth2ProviderDefinition.JWKSURI
-      - auth.OAuth2ProviderDefinition.Scopes
-      - auth.OAuth2ProviderDefinition.StartDisabled
-      - auth.OAuth2ProviderDefinition.WithoutPKCE
-      - auth.OIDCProviderDefinition
-      - auth.OIDCProviderDefinition.AcceptableClientIDs
-      - auth.OIDCProviderDefinition.AttributeMapping
-      - auth.OIDCProviderDefinition.AuthorizationParams
-      - auth.OIDCProviderDefinition.CustomClaimsAllowlist
-      - auth.OIDCProviderDefinition.DiscoveryURL
-      - auth.OIDCProviderDefinition.EmailOptional
-      - auth.OIDCProviderDefinition.Scopes
-      - auth.OIDCProviderDefinition.SkipNonceCheck
-      - auth.OIDCProviderDefinition.StartDisabled
-      - auth.OIDCProviderDefinition.WithoutPKCE
+      - auth/customprovider.Builder
+      - auth/customprovider.Builder.OAuth2
+      - auth/customprovider.Builder.OIDC
+      - auth/customprovider.Definition
+      - auth/customprovider.New
+      - auth/customprovider.OAuth2Definition
+      - auth/customprovider.OAuth2Definition.AcceptableClientIDs
+      - auth/customprovider.OAuth2Definition.AttributeMapping
+      - auth/customprovider.OAuth2Definition.AuthorizationParams
+      - auth/customprovider.OAuth2Definition.CustomClaimsAllowlist
+      - auth/customprovider.OAuth2Definition.EmailOptional
+      - auth/customprovider.OAuth2Definition.JWKSURI
+      - auth/customprovider.OAuth2Definition.MarshalJSON
+      - auth/customprovider.OAuth2Definition.Scopes
+      - auth/customprovider.OAuth2Definition.StartDisabled
+      - auth/customprovider.OAuth2Definition.WithoutPKCE
+      - auth/customprovider.OIDCDefinition
+      - auth/customprovider.OIDCDefinition.AcceptableClientIDs
+      - auth/customprovider.OIDCDefinition.AttributeMapping
+      - auth/customprovider.OIDCDefinition.AuthorizationParams
+      - auth/customprovider.OIDCDefinition.CustomClaimsAllowlist
+      - auth/customprovider.OIDCDefinition.DiscoveryURL
+      - auth/customprovider.OIDCDefinition.EmailOptional
+      - auth/customprovider.OIDCDefinition.MarshalJSON
+      - auth/customprovider.OIDCDefinition.Scopes
+      - auth/customprovider.OIDCDefinition.SkipNonceCheck
+      - auth/customprovider.OIDCDefinition.StartDisabled
+      - auth/customprovider.OIDCDefinition.WithoutPKCE
   auth.admin.create_user:
     status: implemented
     symbols:
@@ -191,8 +193,11 @@ features:
     symbols:
       - auth.Admin.DeleteUser
     supporting_symbols:
-      - auth.DeleteUserOption
-      - auth.WithSoftDelete
+      - auth/userdelete.Option
+      - auth/userdelete.Parameters
+      - auth/userdelete.Parameters.SoftDelete
+      - auth/userdelete.Resolve
+      - auth/userdelete.WithSoftDelete
   auth.admin.generate_link:
     status: implemented
     symbols:
@@ -236,9 +241,13 @@ features:
     symbols:
       - auth.Admin.InviteUser
     supporting_symbols:
-      - auth.InviteUserOption
-      - auth.WithRedirectTo
-      - auth.WithUserMetadata
+      - auth/userinvite.Option
+      - auth/userinvite.Parameters
+      - auth/userinvite.Parameters.RedirectTo
+      - auth/userinvite.Parameters.UserMetadata
+      - auth/userinvite.Resolve
+      - auth/userinvite.WithRedirectTo
+      - auth/userinvite.WithUserMetadata
   auth.admin.list_mfa_factors:
     status: implemented
     symbols:
@@ -248,9 +257,12 @@ features:
     symbols:
       - auth.Admin.ListCustomProviders
     supporting_symbols:
-      - auth.ListCustomProvidersOption
-      - auth.WithOAuth2Only
-      - auth.WithOIDCOnly
+      - auth/customprovider.ListOption
+      - auth/customprovider.ListParameters
+      - auth/customprovider.ListParameters.ProviderType
+      - auth/customprovider.ResolveList
+      - auth/customprovider.WithOAuth2Only
+      - auth/customprovider.WithOIDCOnly
   auth.admin.list_users:
     status: implemented
     note: |
@@ -269,41 +281,51 @@ features:
     symbols:
       - auth.Admin.SignOut
     supporting_symbols:
-      - auth.SignOutOption
-      - auth.WithLocalScope
-      - auth.WithOthersScope
+      - auth/signout.Option
+      - auth/signout.Parameters
+      - auth/signout.Parameters.Scope
+      - auth/signout.Resolve
+      - auth/signout.WithLocalScope
+      - auth/signout.WithOthersScope
   auth.admin.update_mfa_factor:
     status: implemented
     symbols:
       - auth.Admin.UpdateMFAFactor
     supporting_symbols:
-      - auth.MFAFactorOption
-      - auth.WithFriendlyName
-      - auth.WithPhone
+      - auth/mfafactor.Option
+      - auth/mfafactor.Parameters
+      - auth/mfafactor.Parameters.FriendlyName
+      - auth/mfafactor.Parameters.Phone
+      - auth/mfafactor.Resolve
+      - auth/mfafactor.WithFriendlyName
+      - auth/mfafactor.WithPhone
   auth.admin.update_provider:
     status: implemented
     symbols:
       - auth.Admin.UpdateCustomProvider
     supporting_symbols:
-      - auth.CustomProviderOption
-      - auth.WithAcceptableClientIDs
-      - auth.WithAttributeMapping
-      - auth.WithAuthorizationParams
-      - auth.WithAuthorizationURL
-      - auth.WithClientID
-      - auth.WithClientSecret
-      - auth.WithCustomClaimsAllowlist
-      - auth.WithDiscoveryURL
-      - auth.WithEmailOptional
-      - auth.WithEnabled
-      - auth.WithIssuer
-      - auth.WithJWKSURI
-      - auth.WithName
-      - auth.WithPKCEEnabled
-      - auth.WithScopes
-      - auth.WithSkipNonceCheck
-      - auth.WithTokenURL
-      - auth.WithUserinfoURL
+      - auth/customprovider.Option
+      - auth/customprovider.Parameters
+      - auth/customprovider.Parameters.MarshalJSON
+      - auth/customprovider.Resolve
+      - auth/customprovider.WithAcceptableClientIDs
+      - auth/customprovider.WithAttributeMapping
+      - auth/customprovider.WithAuthorizationParams
+      - auth/customprovider.WithAuthorizationURL
+      - auth/customprovider.WithClientID
+      - auth/customprovider.WithClientSecret
+      - auth/customprovider.WithCustomClaimsAllowlist
+      - auth/customprovider.WithDiscoveryURL
+      - auth/customprovider.WithEmailOptional
+      - auth/customprovider.WithEnabled
+      - auth/customprovider.WithIssuer
+      - auth/customprovider.WithJWKSURI
+      - auth/customprovider.WithName
+      - auth/customprovider.WithPKCEEnabled
+      - auth/customprovider.WithScopes
+      - auth/customprovider.WithSkipNonceCheck
+      - auth/customprovider.WithTokenURL
+      - auth/customprovider.WithUserinfoURL
   auth.admin.update_user:
     status: implemented
     symbols:
