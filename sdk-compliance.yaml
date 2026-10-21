@@ -84,27 +84,32 @@ supporting_symbols:
   - auth.UserAttributes.PhoneConfirm
   - auth.UserAttributes.Role
   - auth.UserAttributes.UserMetadata
-  - configuration.Configuration
-  - configuration.Configuration.BaseURL
-  - configuration.Configuration.HTTPClient
-  - configuration.ErrInvalidURL
-  - configuration.ErrMissingKey
-  - configuration.ErrMissingURL
-  - configuration.HTTPClient
-  - configuration.HTTPClient.Do
-  - configuration.New
-  - configuration.Option
   - core.ModulePath
   - core.ModulePathAuth
   - core.ModulePathPostgrest
   - core.ModulePathRoot
-  - pagination.Option
-  - pagination.Parameters
-  - pagination.Parameters.Page
-  - pagination.Parameters.Size
-  - pagination.Resolve
-  - pagination.WithPage
-  - pagination.WithSize
+  - core/configuration.Configuration
+  - core/configuration.Configuration.BaseURL
+  - core/configuration.Configuration.HTTPClient
+  - core/configuration.ErrInvalidURL
+  - core/configuration.ErrMissingKey
+  - core/configuration.ErrMissingURL
+  - core/configuration.HTTPClient
+  - core/configuration.HTTPClient.Do
+  - core/configuration.New
+  - core/configuration.Option
+  - core/pagination.Option
+  - core/pagination.Parameters
+  - core/pagination.Parameters.Page
+  - core/pagination.Parameters.Size
+  - core/pagination.Resolve
+  - core/pagination.WithPage
+  - core/pagination.WithSize
+  - core/responses.HTTPError
+  - core/responses.HTTPError.Code
+  - core/responses.HTTPError.Error
+  - core/responses.HTTPError.HTTPStatus
+  - core/responses.HTTPError.Message
   - postgrest.Client
   - postgrest.EmptyRange
   - postgrest.ErrMissingClient
@@ -132,11 +137,6 @@ supporting_symbols:
   - postgrest.Response
   - postgrest.Response.Count
   - postgrest.Response.HTTPStatus
-  - responses.HTTPError
-  - responses.HTTPError.Code
-  - responses.HTTPError.Error
-  - responses.HTTPError.HTTPStatus
-  - responses.HTTPError.Message
   - supabase.Client
   - supabase.Client.Auth
   - supabase.Client.Database
@@ -391,7 +391,7 @@ features:
       discard logger, and credentials, bodies, query strings and header
       values are never logged.
     symbols:
-      - configuration.WithLogger
+      - core/configuration.WithLogger
   client.observability.trace_propagation:
     status: implemented
     note: |
@@ -404,30 +404,30 @@ features:
       because the injected transport serves only this SDK's requests to the
       project URL.
     symbols:
-      - configuration.WithHTTPClient
+      - core/configuration.WithHTTPClient
   client.request_configuration.custom_http_client:
     status: implemented
     symbols:
-      - configuration.WithHTTPClient
+      - core/configuration.WithHTTPClient
   client.request_configuration.global_headers:
     status: implemented
     symbols:
-      - configuration.WithHeader
+      - core/configuration.WithHeader
   database.configuration.access_token:
     status: implemented
     symbols:
       - postgrest.Client.WithAccessTokenProvider
       - postgrest.WithAccessTokenProvider
     supporting_symbols:
-      - configuration.AccessTokenProvider
+      - core/configuration.AccessTokenProvider
       - postgrest.ErrMissingAccessToken
   database.configuration.auto_retry:
     status: implemented
     symbols:
-      - configuration.WithRetry
+      - core/configuration.WithRetry
       - postgrest.WithRetry
     supporting_symbols:
-      - configuration.Configuration.Retry
+      - core/configuration.Configuration.Retry
       - postgrest.Option
   database.configuration.request_timeout:
     status: implemented
@@ -437,7 +437,7 @@ features:
       preserves the field and the deadline cancels in-flight requests,
       response-body reads included.
     symbols:
-      - configuration.WithHTTPClient
+      - core/configuration.WithHTTPClient
   database.mutate.delete:
     status: implemented
     symbols:
