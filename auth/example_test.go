@@ -9,6 +9,10 @@ import (
 	"strings"
 
 	"github.com/supabase/supabase-go/auth"
+	"github.com/supabase/supabase-go/auth/customprovider"
+	"github.com/supabase/supabase-go/auth/mfafactor"
+	"github.com/supabase/supabase-go/auth/userdelete"
+	"github.com/supabase/supabase-go/auth/userinvite"
 	"github.com/supabase/supabase-go/core/pagination"
 )
 
@@ -270,7 +274,7 @@ func ExampleAdmin_DeleteUser() {
 	admin := client.Admin()
 	ctx := context.Background()
 
-	if err := admin.DeleteUser(ctx, "USER_ID", auth.WithSoftDelete()); err != nil {
+	if err := admin.DeleteUser(ctx, "USER_ID", userdelete.WithSoftDelete()); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -296,8 +300,8 @@ func ExampleAdmin_InviteUser() {
 	admin := client.Admin()
 
 	user, err := admin.InviteUser(context.Background(), "grace@example.com",
-		auth.WithUserMetadata(map[string]any{"workspace": "platform", "invited_by": "ada@example.com"}),
-		auth.WithRedirectTo("https://app.example.com/accept-invite"))
+		userinvite.WithUserMetadata(map[string]any{"workspace": "platform", "invited_by": "ada@example.com"}),
+		userinvite.WithRedirectTo("https://app.example.com/accept-invite"))
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -333,9 +337,9 @@ func ExampleAdmin_GenerateLink() {
 
 // ExampleAdmin_SignOut responds to a reported credential leak by revoking
 // every session the user holds. The token names whose sessions to revoke, and
-// the bare call is the server's default scope - all of them. WithOthersScope
-// would spare the session the token belongs to, WithLocalScope would end that
-// session alone.
+// the bare call is the server's default scope - all of them.
+// signout.WithOthersScope would spare the session the token belongs to,
+// signout.WithLocalScope would end that session alone.
 func ExampleAdmin_SignOut() {
 	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_secret_...")
 	if err != nil {
@@ -363,7 +367,7 @@ func ExampleAdmin_UpdateMFAFactor() {
 	admin := client.Admin()
 
 	factor, err := admin.UpdateMFAFactor(context.Background(), "USER_ID", "FACTOR_ID",
-		auth.WithFriendlyName("Personal phone"))
+		mfafactor.WithFriendlyName("Personal phone"))
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -415,7 +419,7 @@ func ExampleAdmin_CreateCustomProvider() {
 	}
 	admin := client.Admin()
 
-	definition := auth.NewCustomProvider(
+	definition := customprovider.New(
 		"custom:acme-corp",
 		"Acme Corp SSO",
 		"CLIENT_ID_FROM_THE_CUSTOMER",
@@ -443,7 +447,7 @@ func ExampleAdmin_UpdateCustomProvider() {
 	}
 	admin := client.Admin()
 
-	provider, err := admin.UpdateCustomProvider(context.Background(), "custom:acme-corp", auth.WithEnabled(false))
+	provider, err := admin.UpdateCustomProvider(context.Background(), "custom:acme-corp", customprovider.WithEnabled(false))
 	if err != nil {
 		fmt.Println(err)
 		return

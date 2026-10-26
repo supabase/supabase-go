@@ -13,6 +13,11 @@ import (
 	"time"
 
 	"github.com/supabase/supabase-go/auth"
+	"github.com/supabase/supabase-go/auth/customprovider"
+	"github.com/supabase/supabase-go/auth/mfafactor"
+	"github.com/supabase/supabase-go/auth/signout"
+	"github.com/supabase/supabase-go/auth/userdelete"
+	"github.com/supabase/supabase-go/auth/userinvite"
 	"github.com/supabase/supabase-go/core/pagination"
 )
 
@@ -203,7 +208,7 @@ func TestAdminRejectsMalformedUserID(t *testing.T) {
 			return err
 		}},
 		{"DeleteUser", func(id string) error { return admin.DeleteUser(context.Background(), id) }},
-		{"DeleteUser with WithSoftDelete", func(id string) error { return admin.DeleteUser(context.Background(), id, auth.WithSoftDelete()) }},
+		{"DeleteUser with WithSoftDelete", func(id string) error { return admin.DeleteUser(context.Background(), id, userdelete.WithSoftDelete()) }},
 		{"ListMFAFactors", func(id string) error { _, err := admin.ListMFAFactors(context.Background(), id); return err }},
 		{"UpdateMFAFactor", func(id string) error {
 			_, err := admin.UpdateMFAFactor(context.Background(), id, "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918")
@@ -236,7 +241,7 @@ func TestAdminRejectsMalformedFactorID(t *testing.T) {
 		call func(id string) error
 	}{
 		{"UpdateMFAFactor", func(id string) error {
-			_, err := admin.UpdateMFAFactor(context.Background(), userID, id, auth.WithFriendlyName("Renamed"))
+			_, err := admin.UpdateMFAFactor(context.Background(), userID, id, mfafactor.WithFriendlyName("Renamed"))
 			return err
 		}},
 		{"DeleteMFAFactor", func(id string) error { return admin.DeleteMFAFactor(context.Background(), userID, id) }},
@@ -256,11 +261,11 @@ func TestAdminRejectsMalformedFactorID(t *testing.T) {
 func TestAdminDeleteUserRequestShape(t *testing.T) {
 	cases := []struct {
 		name    string
-		options []auth.DeleteUserOption
+		options []userdelete.Option
 		want    map[string]any // nil wants no body at all, so the server's default governs
 	}{
 		{name: "a bare delete sends no body, leaving the mode to the server's default"},
-		{name: "WithSoftDelete sends the flag true", options: []auth.DeleteUserOption{auth.WithSoftDelete()}, want: map[string]any{"should_soft_delete": true}},
+		{name: "WithSoftDelete sends the flag true", options: []userdelete.Option{userdelete.WithSoftDelete()}, want: map[string]any{"should_soft_delete": true}},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -317,7 +322,7 @@ func TestAdminErrorSurface(t *testing.T) {
 			return admin.DeleteUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
 		}},
 		{"DeleteUser with WithSoftDelete", func(admin *auth.Admin) error {
-			return admin.DeleteUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", auth.WithSoftDelete())
+			return admin.DeleteUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", userdelete.WithSoftDelete())
 		}},
 		{"UpdateUser", func(admin *auth.Admin) error {
 			_, err := admin.UpdateUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", auth.UserAttributes{Role: "editor"})
@@ -333,21 +338,21 @@ func TestAdminErrorSurface(t *testing.T) {
 			return err
 		}},
 		{"SignOut", func(admin *auth.Admin) error {
-			return admin.SignOut(context.Background(), "end-user-jwt", auth.WithLocalScope())
+			return admin.SignOut(context.Background(), "end-user-jwt", signout.WithLocalScope())
 		}},
 		{"ListMFAFactors", func(admin *auth.Admin) error {
 			_, err := admin.ListMFAFactors(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
 			return err
 		}},
 		{"UpdateMFAFactor", func(admin *auth.Admin) error {
-			_, err := admin.UpdateMFAFactor(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918", auth.WithFriendlyName("Renamed"))
+			_, err := admin.UpdateMFAFactor(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918", mfafactor.WithFriendlyName("Renamed"))
 			return err
 		}},
 		{"DeleteMFAFactor", func(admin *auth.Admin) error {
 			return admin.DeleteMFAFactor(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918")
 		}},
 		{"CreateCustomProvider", func(admin *auth.Admin) error {
-			_, err := admin.CreateCustomProvider(context.Background(), auth.NewCustomProvider("custom:acme", "Acme", "client-id", "client-secret").OIDC("https://id.acme.example"))
+			_, err := admin.CreateCustomProvider(context.Background(), customprovider.New("custom:acme", "Acme", "client-id", "client-secret").OIDC("https://id.acme.example"))
 			return err
 		}},
 		{"GetCustomProvider", func(admin *auth.Admin) error {
@@ -355,11 +360,11 @@ func TestAdminErrorSurface(t *testing.T) {
 			return err
 		}},
 		{"ListCustomProviders", func(admin *auth.Admin) error {
-			_, err := admin.ListCustomProviders(context.Background(), auth.WithOIDCOnly())
+			_, err := admin.ListCustomProviders(context.Background(), customprovider.WithOIDCOnly())
 			return err
 		}},
 		{"UpdateCustomProvider", func(admin *auth.Admin) error {
-			_, err := admin.UpdateCustomProvider(context.Background(), "custom:acme", auth.WithEnabled(false))
+			_, err := admin.UpdateCustomProvider(context.Background(), "custom:acme", customprovider.WithEnabled(false))
 			return err
 		}},
 		{"DeleteCustomProvider", func(admin *auth.Admin) error {
@@ -540,13 +545,13 @@ func TestAdminListUsersRequestShape(t *testing.T) {
 func TestInviteUserRequestShape(t *testing.T) {
 	cases := []struct {
 		name      string
-		options   []auth.InviteUserOption
+		options   []userinvite.Option
 		want      map[string]any
 		wantQuery string
 	}{
 		{name: "a bare invite sends the email alone", want: map[string]any{"email": "ada@example.com"}},
-		{name: "WithUserMetadata adds the data field", options: []auth.InviteUserOption{auth.WithUserMetadata(map[string]any{"workspace": "platform"})}, want: map[string]any{"email": "ada@example.com", "data": map[string]any{"workspace": "platform"}}},
-		{name: "WithRedirectTo rides the query string, never the body", options: []auth.InviteUserOption{auth.WithRedirectTo("https://app.example.com/accept")}, want: map[string]any{"email": "ada@example.com"}, wantQuery: "redirect_to=" + url.QueryEscape("https://app.example.com/accept")},
+		{name: "WithUserMetadata adds the data field", options: []userinvite.Option{userinvite.WithUserMetadata(map[string]any{"workspace": "platform"})}, want: map[string]any{"email": "ada@example.com", "data": map[string]any{"workspace": "platform"}}},
+		{name: "WithRedirectTo rides the query string, never the body", options: []userinvite.Option{userinvite.WithRedirectTo("https://app.example.com/accept")}, want: map[string]any{"email": "ada@example.com"}, wantQuery: "redirect_to=" + url.QueryEscape("https://app.example.com/accept")},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -667,13 +672,13 @@ func TestAdminUserPageParsing(t *testing.T) {
 func TestAdminSignOutRequestShape(t *testing.T) {
 	scopes := []struct {
 		name    string
-		options []auth.SignOutOption
+		options []signout.Option
 		query   string
 	}{
 		{"a bare call sends no scope, leaving the server's default global revocation", nil, ""},
-		{"WithLocalScope narrows to the presented session", []auth.SignOutOption{auth.WithLocalScope()}, "scope=local"},
-		{"WithOthersScope spares the presented session", []auth.SignOutOption{auth.WithOthersScope()}, "scope=others"},
-		{"of two scopes the later wins", []auth.SignOutOption{auth.WithLocalScope(), auth.WithOthersScope()}, "scope=others"},
+		{"WithLocalScope narrows to the presented session", []signout.Option{signout.WithLocalScope()}, "scope=local"},
+		{"WithOthersScope spares the presented session", []signout.Option{signout.WithOthersScope()}, "scope=others"},
+		{"of two scopes the later wins", []signout.Option{signout.WithLocalScope(), signout.WithOthersScope()}, "scope=others"},
 	}
 	for _, testCase := range scopes {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -764,15 +769,15 @@ func TestAdminMFARequestShapes(t *testing.T) {
 
 	updates := []struct {
 		name    string
-		options []auth.MFAFactorOption
+		options []mfafactor.Option
 		want    map[string]any
 	}{
 		{name: "a bare update sends an empty object, changing nothing", want: map[string]any{}},
-		{name: "WithFriendlyName sends only the name", options: []auth.MFAFactorOption{auth.WithFriendlyName("Work laptop")}, want: map[string]any{"friendly_name": "Work laptop"}},
-		{name: "WithPhone sends only the phone", options: []auth.MFAFactorOption{auth.WithPhone("+15551234567")}, want: map[string]any{"phone": "+15551234567"}},
+		{name: "WithFriendlyName sends only the name", options: []mfafactor.Option{mfafactor.WithFriendlyName("Work laptop")}, want: map[string]any{"friendly_name": "Work laptop"}},
+		{name: "WithPhone sends only the phone", options: []mfafactor.Option{mfafactor.WithPhone("+15551234567")}, want: map[string]any{"phone": "+15551234567"}},
 		{
 			name:    "both options send both fields",
-			options: []auth.MFAFactorOption{auth.WithFriendlyName("Work laptop"), auth.WithPhone("+15551234567")},
+			options: []mfafactor.Option{mfafactor.WithFriendlyName("Work laptop"), mfafactor.WithPhone("+15551234567")},
 			want:    map[string]any{"friendly_name": "Work laptop", "phone": "+15551234567"},
 		},
 	}
@@ -906,12 +911,12 @@ func TestFactorParsing(t *testing.T) {
 func TestAdminCreateCustomProviderRequestShape(t *testing.T) {
 	cases := []struct {
 		name       string
-		definition auth.CustomProviderDefinition
+		definition customprovider.Definition
 		want       map[string]any
 	}{
 		{
 			name: "a minimal OIDC definition sends the required fields and leaves every default unstated",
-			definition: auth.NewCustomProvider("custom:acme", "Acme Corp SSO", "client-id-1", "client-secret-1").
+			definition: customprovider.New("custom:acme", "Acme Corp SSO", "client-id-1", "client-secret-1").
 				OIDC("https://id.acme.example"),
 			want: map[string]any{
 				"provider_type": "oidc",
@@ -924,7 +929,7 @@ func TestAdminCreateCustomProviderRequestShape(t *testing.T) {
 		},
 		{
 			name: "every OIDC refinement maps to its wire name",
-			definition: auth.NewCustomProvider("custom:acme", "Acme Corp SSO", "client-id-1", "client-secret-1").
+			definition: customprovider.New("custom:acme", "Acme Corp SSO", "client-id-1", "client-secret-1").
 				OIDC("https://id.acme.example").
 				Scopes("openid", "email").
 				AcceptableClientIDs("client-id-2").
@@ -957,7 +962,7 @@ func TestAdminCreateCustomProviderRequestShape(t *testing.T) {
 		},
 		{
 			name: "an OAuth2 definition carries its three endpoints and the JWKS URI",
-			definition: auth.NewCustomProvider("custom:legacy", "Legacy IdP", "client-id-9", "client-secret-9").
+			definition: customprovider.New("custom:legacy", "Legacy IdP", "client-id-9", "client-secret-9").
 				OAuth2("https://id.example/authorize", "https://id.example/token", "https://id.example/userinfo").
 				JWKSURI("https://id.example/jwks").
 				Scopes("profile"),
@@ -1017,7 +1022,7 @@ func TestCustomProviderBuilderCopySemantics(t *testing.T) {
 
 	// Refining a definition must fork it, never reach back into the value it
 	// forked from.
-	base := auth.NewCustomProvider("custom:acme", "Acme", "client-id", "client-secret").OIDC("https://id.acme.example")
+	base := customprovider.New("custom:acme", "Acme", "client-id", "client-secret").OIDC("https://id.acme.example")
 	refined := base.Scopes("openid")
 
 	// A caller's later writes to a supplied map must not reach a definition
@@ -1026,7 +1031,7 @@ func TestCustomProviderBuilderCopySemantics(t *testing.T) {
 	mapped := base.AttributeMapping(mapping)
 	mapping["full_name"] = "mutated"
 
-	for _, definition := range []auth.CustomProviderDefinition{base, refined, mapped} {
+	for _, definition := range []customprovider.Definition{base, refined, mapped} {
 		if _, err := admin.CreateCustomProvider(context.Background(), definition); err != nil {
 			t.Fatalf("CreateCustomProvider: %v", err)
 		}
@@ -1055,34 +1060,34 @@ func TestCustomProviderBuilderCopySemantics(t *testing.T) {
 func TestAdminUpdateCustomProviderSendsOnlyChosenFields(t *testing.T) {
 	cases := []struct {
 		name    string
-		options []auth.CustomProviderOption
+		options []customprovider.Option
 		want    map[string]any
 	}{
 		{"a bare call sends an empty object, the server's no-op", nil, map[string]any{}},
-		{"an option carried is an instruction", []auth.CustomProviderOption{auth.WithEnabled(false)}, map[string]any{"enabled": false}},
-		{"a no-argument scopes call clears the list", []auth.CustomProviderOption{auth.WithScopes()}, map[string]any{"scopes": []any{}}},
-		{"a nil mapping clears rather than keeps", []auth.CustomProviderOption{auth.WithAttributeMapping(nil)}, map[string]any{"attribute_mapping": map[string]any{}}},
+		{"an option carried is an instruction", []customprovider.Option{customprovider.WithEnabled(false)}, map[string]any{"enabled": false}},
+		{"a no-argument scopes call clears the list", []customprovider.Option{customprovider.WithScopes()}, map[string]any{"scopes": []any{}}},
+		{"a nil mapping clears rather than keeps", []customprovider.Option{customprovider.WithAttributeMapping(nil)}, map[string]any{"attribute_mapping": map[string]any{}}},
 		{
 			name: "every option maps to its wire name",
-			options: []auth.CustomProviderOption{
-				auth.WithName("Acme Corp SSO"),
-				auth.WithClientID("client-id-2"),
-				auth.WithClientSecret("client-secret-2"),
-				auth.WithScopes("openid", "profile"),
-				auth.WithAcceptableClientIDs("client-id-3"),
-				auth.WithCustomClaimsAllowlist("department"),
-				auth.WithAttributeMapping(map[string]any{"full_name": "name"}),
-				auth.WithAuthorizationParams(map[string]string{"prompt": "consent"}),
-				auth.WithPKCEEnabled(true),
-				auth.WithEnabled(true),
-				auth.WithEmailOptional(false),
-				auth.WithIssuer("https://id.acme.example"),
-				auth.WithDiscoveryURL("https://id.acme.example/.well-known/openid-configuration"),
-				auth.WithSkipNonceCheck(false),
-				auth.WithAuthorizationURL("https://id.example/authorize"),
-				auth.WithTokenURL("https://id.example/token"),
-				auth.WithUserinfoURL("https://id.example/userinfo"),
-				auth.WithJWKSURI("https://id.example/jwks"),
+			options: []customprovider.Option{
+				customprovider.WithName("Acme Corp SSO"),
+				customprovider.WithClientID("client-id-2"),
+				customprovider.WithClientSecret("client-secret-2"),
+				customprovider.WithScopes("openid", "profile"),
+				customprovider.WithAcceptableClientIDs("client-id-3"),
+				customprovider.WithCustomClaimsAllowlist("department"),
+				customprovider.WithAttributeMapping(map[string]any{"full_name": "name"}),
+				customprovider.WithAuthorizationParams(map[string]string{"prompt": "consent"}),
+				customprovider.WithPKCEEnabled(true),
+				customprovider.WithEnabled(true),
+				customprovider.WithEmailOptional(false),
+				customprovider.WithIssuer("https://id.acme.example"),
+				customprovider.WithDiscoveryURL("https://id.acme.example/.well-known/openid-configuration"),
+				customprovider.WithSkipNonceCheck(false),
+				customprovider.WithAuthorizationURL("https://id.example/authorize"),
+				customprovider.WithTokenURL("https://id.example/token"),
+				customprovider.WithUserinfoURL("https://id.example/userinfo"),
+				customprovider.WithJWKSURI("https://id.example/jwks"),
 			},
 			want: map[string]any{
 				"name":                    "Acme Corp SSO",
@@ -1136,13 +1141,13 @@ func TestAdminUpdateCustomProviderSendsOnlyChosenFields(t *testing.T) {
 func TestAdminListCustomProvidersFilter(t *testing.T) {
 	cases := []struct {
 		name    string
-		options []auth.ListCustomProvidersOption
+		options []customprovider.ListOption
 		query   string
 	}{
 		{"a bare call sends no filter, listing every provider", nil, ""},
-		{"WithOIDCOnly narrows to OIDC", []auth.ListCustomProvidersOption{auth.WithOIDCOnly()}, "type=oidc"},
-		{"WithOAuth2Only narrows to OAuth 2.0", []auth.ListCustomProvidersOption{auth.WithOAuth2Only()}, "type=oauth2"},
-		{"of two filters the later wins", []auth.ListCustomProvidersOption{auth.WithOIDCOnly(), auth.WithOAuth2Only()}, "type=oauth2"},
+		{"WithOIDCOnly narrows to OIDC", []customprovider.ListOption{customprovider.WithOIDCOnly()}, "type=oidc"},
+		{"WithOAuth2Only narrows to OAuth 2.0", []customprovider.ListOption{customprovider.WithOAuth2Only()}, "type=oauth2"},
+		{"of two filters the later wins", []customprovider.ListOption{customprovider.WithOIDCOnly(), customprovider.WithOAuth2Only()}, "type=oauth2"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -1342,7 +1347,7 @@ func TestCustomProviderIdentifierEscaping(t *testing.T) {
 			return err
 		}},
 		{"UpdateCustomProvider", func() error {
-			_, err := admin.UpdateCustomProvider(context.Background(), identifier, auth.WithName("Renamed"))
+			_, err := admin.UpdateCustomProvider(context.Background(), identifier, customprovider.WithName("Renamed"))
 			return err
 		}},
 		{"DeleteCustomProvider", func() error { return admin.DeleteCustomProvider(context.Background(), identifier) }},
@@ -1371,7 +1376,7 @@ func TestAdminRejectsMissingIdentifier(t *testing.T) {
 			return err
 		}},
 		{"UpdateCustomProvider", func() error {
-			_, err := admin.UpdateCustomProvider(context.Background(), "", auth.WithName("Renamed"))
+			_, err := admin.UpdateCustomProvider(context.Background(), "", customprovider.WithName("Renamed"))
 			return err
 		}},
 		{"DeleteCustomProvider", func() error { return admin.DeleteCustomProvider(context.Background(), "") }},

@@ -51,6 +51,7 @@ jwks
 JWKSURI
 ldflags
 magiclink
+mfafactor
 mistargeted
 mockability
 modcache
@@ -80,6 +81,7 @@ reauthentication
 rebalance
 RSASSA
 scrypt
+signout
 signup
 SLSA
 SQLSTATE
@@ -101,7 +103,9 @@ typestate
 unrepresentable
 upsert
 urls
+userdelete
 userinfo
+userinvite
 vcs
 vulncheck
 webauthn

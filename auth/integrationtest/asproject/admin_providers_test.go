@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/supabase/supabase-go/auth"
+	"github.com/supabase/supabase-go/auth/customprovider"
 )
 
 // uniqueIdentifier builds a provider identifier that no earlier run can have
@@ -27,7 +28,7 @@ func TestAdminCustomProviderLifecycle(t *testing.T) {
 	admin := newAdmin(t)
 	identifier := uniqueIdentifier(t)
 
-	definition := auth.NewCustomProvider(identifier, "Go SDK Lifecycle", "client-id-1", "client-secret-1").
+	definition := customprovider.New(identifier, "Go SDK Lifecycle", "client-id-1", "client-secret-1").
 		OAuth2("https://example.com/authorize", "https://example.com/token", "https://example.com/userinfo").
 		Scopes("profile", "email")
 	created, err := admin.CreateCustomProvider(t.Context(), definition)
@@ -66,7 +67,7 @@ func TestAdminCustomProviderLifecycle(t *testing.T) {
 	if !containsProvider(listed, identifier) {
 		t.Errorf("listing does not contain %q, want it present", identifier)
 	}
-	oidcOnly, err := admin.ListCustomProviders(t.Context(), auth.WithOIDCOnly())
+	oidcOnly, err := admin.ListCustomProviders(t.Context(), customprovider.WithOIDCOnly())
 	if err != nil {
 		t.Fatalf("ListCustomProviders with WithOIDCOnly: %v", err)
 	}
@@ -75,7 +76,7 @@ func TestAdminCustomProviderLifecycle(t *testing.T) {
 	}
 
 	updated, err := admin.UpdateCustomProvider(t.Context(), identifier,
-		auth.WithName("Go SDK Lifecycle (disabled)"), auth.WithEnabled(false))
+		customprovider.WithName("Go SDK Lifecycle (disabled)"), customprovider.WithEnabled(false))
 	if err != nil {
 		t.Fatalf("UpdateCustomProvider: %v", err)
 	}
@@ -117,7 +118,7 @@ func containsProvider(providers []auth.CustomProvider, identifier string) bool {
 func TestAdminCreateOIDCProviderValidationFailure(t *testing.T) {
 	admin := newAdmin(t)
 
-	definition := auth.NewCustomProvider(uniqueIdentifier(t), "No Discovery Here", "client-id", "client-secret").
+	definition := customprovider.New(uniqueIdentifier(t), "No Discovery Here", "client-id", "client-secret").
 		OIDC("https://example.com")
 	_, err := admin.CreateCustomProvider(t.Context(), definition)
 	var serverError *auth.Error
@@ -135,7 +136,7 @@ func TestAdminCreateCustomProviderDuplicateIdentifier(t *testing.T) {
 	admin := newAdmin(t)
 	identifier := uniqueIdentifier(t)
 
-	definition := auth.NewCustomProvider(identifier, "Go SDK Duplicate", "client-id", "client-secret").
+	definition := customprovider.New(identifier, "Go SDK Duplicate", "client-id", "client-secret").
 		OAuth2("https://example.com/authorize", "https://example.com/token", "https://example.com/userinfo")
 	if _, err := admin.CreateCustomProvider(t.Context(), definition); err != nil {
 		t.Fatalf("CreateCustomProvider: %v", err)
