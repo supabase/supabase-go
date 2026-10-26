@@ -159,3 +159,13 @@ func (i Identity) LastSignInAt() time.Time { return i.inner.LastSignInAt() }
 
 // UpdatedAt returns when the identity was last updated.
 func (i Identity) UpdatedAt() time.Time { return i.inner.UpdatedAt() }
+
+// GetUserResult is the server's answer to [Client.GetUser] and
+// [Admin.GetUser]: one type serves both, the two operations sharing their
+// name and their shape.
+type GetUserResult struct {
+	user *User
+}
+
+// User returns the fetched user's profile.
+func (r *GetUserResult) User() *User { return r.user }

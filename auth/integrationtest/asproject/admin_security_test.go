@@ -66,7 +66,7 @@ func TestAdminSignOut(t *testing.T) {
 		t.Fatalf("GetUser before sign-out: %v", err)
 	}
 
-	if err := admin.SignOut(t.Context(), user.AccessToken, signout.WithOthersScope()); err != nil {
+	if _, err := admin.SignOut(t.Context(), user.AccessToken, signout.WithOthersScope()); err != nil {
 		t.Fatalf("SignOut others: %v", err)
 	}
 	if _, err := client.GetUser(t.Context(), user.AccessToken); err != nil {
@@ -74,7 +74,7 @@ func TestAdminSignOut(t *testing.T) {
 	}
 
 	// The bare call is the server's default: global revocation.
-	if err := admin.SignOut(t.Context(), user.AccessToken); err != nil {
+	if _, err := admin.SignOut(t.Context(), user.AccessToken); err != nil {
 		t.Fatalf("SignOut: %v", err)
 	}
 	_, err := client.GetUser(t.Context(), user.AccessToken)
@@ -88,7 +88,7 @@ func TestAdminSignOut(t *testing.T) {
 
 	// The local scope ends the presented session itself.
 	second := testkit.SignUpUser(t, projectURL, apiKey)
-	if err := admin.SignOut(t.Context(), second.AccessToken, signout.WithLocalScope()); err != nil {
+	if _, err := admin.SignOut(t.Context(), second.AccessToken, signout.WithLocalScope()); err != nil {
 		t.Fatalf("SignOut local: %v", err)
 	}
 	if _, err := client.GetUser(t.Context(), second.AccessToken); err == nil {
@@ -96,7 +96,7 @@ func TestAdminSignOut(t *testing.T) {
 	}
 
 	for _, id := range []string{user.ID, second.ID} {
-		if err := admin.DeleteUser(t.Context(), id); err != nil {
+		if _, err := admin.DeleteUser(t.Context(), id); err != nil {
 			t.Errorf("DeleteUser(%s): %v", id, err)
 		}
 	}
@@ -113,10 +113,11 @@ func TestAdminMFAFactors(t *testing.T) {
 
 	factorID := enrollTOTPFactor(t, projectURL, apiKey, user.AccessToken, "Original authenticator")
 
-	factors, err := admin.ListMFAFactors(t.Context(), user.ID)
+	listResult, err := admin.ListMFAFactors(t.Context(), user.ID)
 	if err != nil {
 		t.Fatalf("ListMFAFactors: %v", err)
 	}
+	factors := listResult.Factors()
 	if len(factors) != 1 {
 		t.Fatalf("ListMFAFactors = %d factors, want the one enrolled", len(factors))
 	}
@@ -147,19 +148,20 @@ func TestAdminMFAFactors(t *testing.T) {
 	}
 
 	// The user resource mirrors the enrolled factor.
-	fetched, err := admin.GetUser(t.Context(), user.ID)
+	fetchResult, err := admin.GetUser(t.Context(), user.ID)
 	if err != nil {
 		t.Fatalf("GetUser: %v", err)
 	}
-	mirrored := fetched.Factors()
+	mirrored := fetchResult.User().Factors()
 	if len(mirrored) != 1 || mirrored[0].ID() != factorID || mirrored[0].Type() != "totp" {
 		t.Errorf("User.Factors = %d entries, want the enrolled factor mirrored on the user resource", len(mirrored))
 	}
 
-	renamed, err := admin.UpdateMFAFactor(t.Context(), user.ID, factorID, mfafactor.WithFriendlyName("Recognized device"))
+	renameResult, err := admin.UpdateMFAFactor(t.Context(), user.ID, factorID, mfafactor.WithFriendlyName("Recognized device"))
 	if err != nil {
 		t.Fatalf("UpdateMFAFactor: %v", err)
 	}
+	renamed := renameResult.Factor()
 	if renamed.FriendlyName() != "Recognized device" {
 		t.Errorf("FriendlyName = %q, want the new label", renamed.FriendlyName())
 	}
@@ -172,36 +174,36 @@ func TestAdminMFAFactors(t *testing.T) {
 
 	// A phone number on a TOTP factor is ignored, success and all, as the
 	// option documents.
-	unchanged, err := admin.UpdateMFAFactor(t.Context(), user.ID, factorID, mfafactor.WithPhone("+15555550123"))
+	unchangedResult, err := admin.UpdateMFAFactor(t.Context(), user.ID, factorID, mfafactor.WithPhone("+15555550123"))
 	if err != nil {
 		t.Fatalf("UpdateMFAFactor with WithPhone: %v", err)
 	}
-	if unchanged.Phone() != "" {
+	if unchanged := unchangedResult.Factor(); unchanged.Phone() != "" {
 		t.Errorf("Phone = %q, want the number ignored on a TOTP factor", unchanged.Phone())
 	}
 
 	// A bare update changes nothing and still succeeds.
-	untouched, err := admin.UpdateMFAFactor(t.Context(), user.ID, factorID)
+	untouchedResult, err := admin.UpdateMFAFactor(t.Context(), user.ID, factorID)
 	if err != nil {
 		t.Fatalf("bare UpdateMFAFactor: %v", err)
 	}
-	if untouched.FriendlyName() != "Recognized device" {
+	if untouched := untouchedResult.Factor(); untouched.FriendlyName() != "Recognized device" {
 		t.Errorf("FriendlyName = %q, want the rename to have held", untouched.FriendlyName())
 	}
 
-	if err := admin.DeleteMFAFactor(t.Context(), user.ID, factorID); err != nil {
+	if _, err := admin.DeleteMFAFactor(t.Context(), user.ID, factorID); err != nil {
 		t.Fatalf("DeleteMFAFactor: %v", err)
 	}
-	factors, err = admin.ListMFAFactors(t.Context(), user.ID)
+	afterDelete, err := admin.ListMFAFactors(t.Context(), user.ID)
 	if err != nil {
 		t.Fatalf("ListMFAFactors after delete: %v", err)
 	}
-	if len(factors) != 0 {
+	if factors := afterDelete.Factors(); len(factors) != 0 {
 		t.Errorf("factors = %d, want none after the delete", len(factors))
 	}
 
 	// A second delete is the server's 404 with its MFA code.
-	err = admin.DeleteMFAFactor(t.Context(), user.ID, factorID)
+	_, err = admin.DeleteMFAFactor(t.Context(), user.ID, factorID)
 	var serverError *auth.Error
 	if !errors.As(err, &serverError) {
 		t.Fatalf("second DeleteMFAFactor = %v, want *auth.Error", err)
@@ -210,7 +212,7 @@ func TestAdminMFAFactors(t *testing.T) {
 		t.Errorf("rejection = HTTP %d code %q, want 404 mfa_factor_not_found", serverError.HTTPStatus, serverError.Code)
 	}
 
-	if err := admin.DeleteUser(t.Context(), user.ID); err != nil {
+	if _, err := admin.DeleteUser(t.Context(), user.ID); err != nil {
 		t.Errorf("DeleteUser: %v", err)
 	}
 }

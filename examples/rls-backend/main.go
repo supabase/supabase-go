@@ -48,7 +48,7 @@ func practiceLogsHandler(client *supabase.Client) http.Handler {
 			return
 		}
 
-		if _, _, _, err := client.Auth().GetClaims(request.Context(), token); err != nil {
+		if _, err := client.Auth().GetClaims(request.Context(), token); err != nil {
 			status := http.StatusUnauthorized
 			var rejection *auth.Error
 			if !errors.Is(err, auth.ErrExpiredJWT) &&

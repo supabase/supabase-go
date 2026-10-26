@@ -7,7 +7,7 @@ The following documents will be helpful:
 
 | Document | For |
 | -------- | --- |
-| [`standard.md`](../../../standard.md) | The coverage requirement: runnable Example functions accompany doc comments where apt, compiled and verified by go test. |
+| [`standard.md`](../../../standard.md) | The coverage requirement: runnable Example functions accompany doc comments where apt, compiled and verified by go test. Frozen: consult it, never edit it (see `DEVELOPMENT.md`). |
 | [`DEVELOPMENT.md`](../../../DEVELOPMENT.md) | The Commentary section's exception letting a runnable example frame a convention that signatures cannot show. |
 | [`decisions.md`](../../../decisions.md) | The records "Placeholder credentials in rendered examples name the real key type" and "Example programs are non-published modules run by the integration tier". |
 

@@ -59,7 +59,7 @@ func (c *Client) Database() *postgrest.Client {
 // Auth returns the composed Auth client, which verifies end-user access
 // tokens and fetches the profiles they authenticate:
 //
-//	claims, _, _, err := supabase.Auth().GetClaims(ctx, token)
+//	result, err := supabase.Auth().GetClaims(ctx, token)
 func (c *Client) Auth() *auth.Client {
 	return c.auth
 }

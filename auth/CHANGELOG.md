@@ -17,6 +17,16 @@ Call-scoped functional options moved from the package root into per-family packa
 - `auth/mfafactor` serves `Admin.UpdateMFAFactor` (was `MFAFactorOption` with `WithFriendlyName` and `WithPhone`)
 - `auth/customprovider` serves the custom provider calls: update options as `Option` (was `CustomProviderOption` with its eighteen constructors), listing filters as `ListOption` (was `ListCustomProvidersOption` with `WithOIDCOnly` and `WithOAuth2Only`) and the creation builder as `New`, `Builder`, `OIDCDefinition`, `OAuth2Definition` and `Definition` (were `NewCustomProvider`, `CustomProviderBuilder`, `OIDCProviderDefinition`, `OAuth2ProviderDefinition` and `CustomProviderDefinition`)
 
+Every operation now returns exactly one result value plus `error`, the result type named `<Operation>Result`, so future response data arrives as new accessors rather than as changed signatures:
+
+- `GetClaims` folds its four-value tuple into `*GetClaimsResult`, carrying `Claims()`, `Header()` and `Signature()`
+- `Client.GetUser` and `Admin.GetUser` answer `*GetUserResult` (were `*User`)
+- `CreateUser`, `UpdateUser` and `InviteUser` answer `*CreateUserResult`, `*UpdateUserResult` and `*InviteUserResult` (were `*User`)
+- `UserPage` is renamed `ListUsersResult` and `GeneratedLink` is renamed `GenerateLinkResult`, their accessors unchanged
+- `ListMFAFactors` answers `*ListMFAFactorsResult` (was `[]Factor`) and `UpdateMFAFactor` answers `*UpdateMFAFactorResult` (was `*Factor`)
+- the custom provider operations answer `*CreateCustomProviderResult`, `*GetCustomProviderResult`, `*ListCustomProvidersResult` and `*UpdateCustomProviderResult` (were `*CustomProvider` and `[]CustomProvider`)
+- the bodiless operations `DeleteUser`, `SignOut`, `DeleteMFAFactor` and `DeleteCustomProvider` answer empty results that carry nothing, allowing for future population if the protocol changes to provide result detail (were bare `error`)
+
 ## `v0.1.0-alpha.2` (2026-10-15)
 
 ### Added

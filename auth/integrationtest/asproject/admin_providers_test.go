@@ -31,10 +31,11 @@ func TestAdminCustomProviderLifecycle(t *testing.T) {
 	definition := customprovider.New(identifier, "Go SDK Lifecycle", "client-id-1", "client-secret-1").
 		OAuth2("https://example.com/authorize", "https://example.com/token", "https://example.com/userinfo").
 		Scopes("profile", "email")
-	created, err := admin.CreateCustomProvider(t.Context(), definition)
+	createResult, err := admin.CreateCustomProvider(t.Context(), definition)
 	if err != nil {
 		t.Fatalf("CreateCustomProvider: %v", err)
 	}
+	created := createResult.CustomProvider()
 	if created.Identifier() != identifier || created.Type() != "oauth2" {
 		t.Errorf("created = (%q, %q), want the registered identifier typed oauth2", created.Identifier(), created.Type())
 	}
@@ -52,11 +53,11 @@ func TestAdminCustomProviderLifecycle(t *testing.T) {
 		t.Error("CreatedAt is zero, want the registration timestamp set")
 	}
 
-	fetched, err := admin.GetCustomProvider(t.Context(), identifier)
+	fetchResult, err := admin.GetCustomProvider(t.Context(), identifier)
 	if err != nil {
 		t.Fatalf("GetCustomProvider: %v", err)
 	}
-	if fetched.ID() != created.ID() {
+	if fetched := fetchResult.CustomProvider(); fetched.ID() != created.ID() {
 		t.Errorf("fetched ID = %q, want the created provider %q", fetched.ID(), created.ID())
 	}
 
@@ -64,22 +65,23 @@ func TestAdminCustomProviderLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListCustomProviders: %v", err)
 	}
-	if !containsProvider(listed, identifier) {
+	if !containsProvider(listed.CustomProviders(), identifier) {
 		t.Errorf("listing does not contain %q, want it present", identifier)
 	}
 	oidcOnly, err := admin.ListCustomProviders(t.Context(), customprovider.WithOIDCOnly())
 	if err != nil {
 		t.Fatalf("ListCustomProviders with WithOIDCOnly: %v", err)
 	}
-	if containsProvider(oidcOnly, identifier) {
+	if containsProvider(oidcOnly.CustomProviders(), identifier) {
 		t.Errorf("OIDC-only listing contains the oauth2 provider %q, want it filtered out", identifier)
 	}
 
-	updated, err := admin.UpdateCustomProvider(t.Context(), identifier,
+	updateResult, err := admin.UpdateCustomProvider(t.Context(), identifier,
 		customprovider.WithName("Go SDK Lifecycle (disabled)"), customprovider.WithEnabled(false))
 	if err != nil {
 		t.Fatalf("UpdateCustomProvider: %v", err)
 	}
+	updated := updateResult.CustomProvider()
 	if updated.Name() != "Go SDK Lifecycle (disabled)" || updated.Enabled() {
 		t.Errorf("updated = (%q, enabled %t), want the new name with sign-ins off", updated.Name(), updated.Enabled())
 	}
@@ -87,7 +89,7 @@ func TestAdminCustomProviderLifecycle(t *testing.T) {
 		t.Errorf("ClientID = %q, want the unchosen field left alone", updated.ClientID())
 	}
 
-	if err := admin.DeleteCustomProvider(t.Context(), identifier); err != nil {
+	if _, err := admin.DeleteCustomProvider(t.Context(), identifier); err != nil {
 		t.Fatalf("DeleteCustomProvider: %v", err)
 	}
 	_, err = admin.GetCustomProvider(t.Context(), identifier)
@@ -151,7 +153,7 @@ func TestAdminCreateCustomProviderDuplicateIdentifier(t *testing.T) {
 		t.Errorf("Code = %q, want conflict", serverError.Code)
 	}
 
-	if err := admin.DeleteCustomProvider(t.Context(), identifier); err != nil {
+	if _, err := admin.DeleteCustomProvider(t.Context(), identifier); err != nil {
 		t.Errorf("DeleteCustomProvider: %v", err)
 	}
 }

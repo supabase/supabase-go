@@ -27,7 +27,8 @@ func TestAdminRejectsPublishableKey(t *testing.T) {
 			return err
 		}},
 		{"DeleteUser", func() error {
-			return admin.DeleteUser(t.Context(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
+			_, err := admin.DeleteUser(t.Context(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
+			return err
 		}},
 	}
 	for _, operation := range operations {

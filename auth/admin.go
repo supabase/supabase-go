@@ -113,19 +113,31 @@ type UserAttributes struct {
 // confirmation email is sent: the EmailConfirm and PhoneConfirm attributes
 // decide whether the user starts confirmed. The server requires at least an
 // email or a phone number.
-func (a *Admin) CreateUser(ctx context.Context, attributes UserAttributes) (*User, error) {
+func (a *Admin) CreateUser(ctx context.Context, attributes UserAttributes) (*CreateUserResult, error) {
 	body, err := a.send(ctx, http.MethodPost, a.adminBaseURL.JoinPath("users"), attributes)
 	if err != nil {
 		return nil, err
 	}
-	return parseUser(body)
+	user, err := parseUser(body)
+	if err != nil {
+		return nil, err
+	}
+	return &CreateUserResult{user: user}, nil
 }
+
+// CreateUserResult is the server's answer to [Admin.CreateUser].
+type CreateUserResult struct {
+	user *User
+}
+
+// User returns the created user as the server stored it.
+func (r *CreateUserResult) User() *User { return r.user }
 
 // GetUser fetches one user by id. The id must be a UUID in its canonical
 // hyphenated form, or [ErrInvalidUserID] is returned before any request is
 // sent. An unknown id is the server's rejection, an [*Error] whose HTTPStatus
 // is 404.
-func (a *Admin) GetUser(ctx context.Context, userID string) (*User, error) {
+func (a *Admin) GetUser(ctx context.Context, userID string) (*GetUserResult, error) {
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
 	}
@@ -133,7 +145,11 @@ func (a *Admin) GetUser(ctx context.Context, userID string) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parseUser(body)
+	user, err := parseUser(body)
+	if err != nil {
+		return nil, err
+	}
+	return &GetUserResult{user: user}, nil
 }
 
 // UpdateUser changes the fields attributes sets and leaves the rest as they
@@ -141,7 +157,7 @@ func (a *Admin) GetUser(ctx context.Context, userID string) (*User, error) {
 // canonical hyphenated form, or [ErrInvalidUserID] is returned before any
 // request is sent. An unknown id is the server's rejection, an [*Error] whose
 // HTTPStatus is 404.
-func (a *Admin) UpdateUser(ctx context.Context, userID string, attributes UserAttributes) (*User, error) {
+func (a *Admin) UpdateUser(ctx context.Context, userID string, attributes UserAttributes) (*UpdateUserResult, error) {
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
 	}
@@ -149,8 +165,20 @@ func (a *Admin) UpdateUser(ctx context.Context, userID string, attributes UserAt
 	if err != nil {
 		return nil, err
 	}
-	return parseUser(body)
+	user, err := parseUser(body)
+	if err != nil {
+		return nil, err
+	}
+	return &UpdateUserResult{user: user}, nil
 }
+
+// UpdateUserResult is the server's answer to [Admin.UpdateUser].
+type UpdateUserResult struct {
+	user *User
+}
+
+// User returns the user as stored after the update.
+func (r *UpdateUserResult) User() *User { return r.user }
 
 // DeleteUser removes the user, together with the identities, sessions and
 // factors the Auth service holds for them, unless an option chooses a gentler
@@ -162,17 +190,23 @@ func (a *Admin) UpdateUser(ctx context.Context, userID string, attributes UserAt
 // request is sent.
 //
 // [Deleting users]: https://supabase.com/docs/guides/auth/managing-user-data#deleting-users
-func (a *Admin) DeleteUser(ctx context.Context, userID string, options ...userdelete.Option) error {
+func (a *Admin) DeleteUser(ctx context.Context, userID string, options ...userdelete.Option) (*DeleteUserResult, error) {
 	if !isCanonicalUUID(userID) {
-		return ErrInvalidUserID
+		return nil, ErrInvalidUserID
 	}
 	var payload any
 	if userdelete.Resolve(options...).SoftDelete() {
 		payload = deleteUserPayload{ShouldSoftDelete: true}
 	}
-	_, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID), payload)
-	return err
+	if _, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID), payload); err != nil {
+		return nil, err
+	}
+	return &DeleteUserResult{}, nil
 }
+
+// DeleteUserResult is the server's answer to [Admin.DeleteUser], whose wire
+// success is bodiless today: the result carries nothing until the wire does.
+type DeleteUserResult struct{}
 
 // deleteUserPayload is the admin user-delete request body, built and sent
 // only when options chose something, so a bare delete states nothing and the
@@ -185,7 +219,7 @@ type deleteUserPayload struct {
 // pagination parameters, so the server's documented defaults govern;
 // [pagination.WithPage] and [pagination.WithSize] choose a page and its size
 // explicitly.
-func (a *Admin) ListUsers(ctx context.Context, options ...pagination.Option) (*UserPage, error) {
+func (a *Admin) ListUsers(ctx context.Context, options ...pagination.Option) (*ListUsersResult, error) {
 	endpoint := a.adminBaseURL.JoinPath("users")
 	parameters := pagination.Resolve(options...)
 	query := url.Values{}
@@ -201,11 +235,12 @@ func (a *Admin) ListUsers(ctx context.Context, options ...pagination.Option) (*U
 	if err != nil {
 		return nil, err
 	}
-	return parseUserPage(body, header)
+	return parseListUsersResult(body, header)
 }
 
-// UserPage is one page of the project's users, answered by [Admin.ListUsers].
-type UserPage struct {
+// ListUsersResult is one page of the project's users, the server's answer to
+// [Admin.ListUsers].
+type ListUsersResult struct {
 	users    []User
 	total    int
 	nextPage int
@@ -216,27 +251,27 @@ type UserPage struct {
 
 // Users returns the page's users. The result is a copy the caller may retain
 // and modify freely.
-func (p *UserPage) Users() []User { return slices.Clone(p.users) }
+func (p *ListUsersResult) Users() []User { return slices.Clone(p.users) }
 
 // Total returns how many users match across every page, the response's
 // X-Total-Count header.
-func (p *UserPage) Total() int { return p.total }
+func (p *ListUsersResult) Total() int { return p.total }
 
 // NextPage returns the number of the page after this one, reporting false
 // from the last page. A walk passes it to the next call with
 // [pagination.WithPage], restating its page size when it chose one, because
 // the server computes page boundaries from the size each request states.
-func (p *UserPage) NextPage() (int, bool) { return p.nextPage, p.hasNext }
+func (p *ListUsersResult) NextPage() (int, bool) { return p.nextPage, p.hasNext }
 
 // LastPage returns the number of the final page, reporting false when the
 // server sent no Link header.
-func (p *UserPage) LastPage() (int, bool) { return p.lastPage, p.hasLast }
+func (p *ListUsersResult) LastPage() (int, bool) { return p.lastPage, p.hasLast }
 
-// parseUserPage decodes one admin list response: the users from the body and
-// the page numbers from the X-Total-Count and Link headers. A header that is
-// absent or unreadable leaves its accessor reporting absence rather than
-// failing the page.
-func parseUserPage(body []byte, header http.Header) (*UserPage, error) {
+// parseListUsersResult decodes one admin list response: the users from the
+// body and the page numbers from the X-Total-Count and Link headers. A header
+// that is absent or unreadable leaves its accessor reporting absence rather
+// than failing the page.
+func parseListUsersResult(body []byte, header http.Header) (*ListUsersResult, error) {
 	var wire struct {
 		Users []json.RawMessage `json:"users"`
 	}
@@ -244,7 +279,7 @@ func parseUserPage(body []byte, header http.Header) (*UserPage, error) {
 		return nil, fmt.Errorf("auth: decoding user list: %w", err)
 	}
 
-	page := &UserPage{users: make([]User, 0, len(wire.Users))}
+	page := &ListUsersResult{users: make([]User, 0, len(wire.Users))}
 	for _, rawUser := range wire.Users {
 		user, err := profile.Parse(rawUser)
 		if err != nil {
@@ -288,7 +323,7 @@ func pageLink(header http.Header, rel string) (int, bool) {
 // InviteUser creates the user and has the server email them an invitation
 // link. An email already confirmed is the server's rejection, an [*Error]
 // whose HTTPStatus is 422, and an invited-but-unaccepted one is re-invited.
-func (a *Admin) InviteUser(ctx context.Context, email string, options ...userinvite.Option) (*User, error) {
+func (a *Admin) InviteUser(ctx context.Context, email string, options ...userinvite.Option) (*InviteUserResult, error) {
 	parameters := userinvite.Resolve(options...)
 	endpoint := a.baseURL.JoinPath("invite")
 	if redirectTo := parameters.RedirectTo(); redirectTo != "" {
@@ -300,8 +335,20 @@ func (a *Admin) InviteUser(ctx context.Context, email string, options ...userinv
 	if err != nil {
 		return nil, err
 	}
-	return parseUser(body)
+	user, err := parseUser(body)
+	if err != nil {
+		return nil, err
+	}
+	return &InviteUserResult{user: user}, nil
 }
+
+// InviteUserResult is the server's answer to [Admin.InviteUser].
+type InviteUserResult struct {
+	user *User
+}
+
+// User returns the invited user as the server stored them.
+func (r *InviteUserResult) User() *User { return r.user }
 
 // invitePayload is the invite request body. The redirect rides the query
 // string instead, as the server reads it there, not from the body.
@@ -320,9 +367,9 @@ type invitePayload struct {
 // Revocation ends sessions, not tokens: a revoked session's unexpired access
 // tokens still verify locally with [Client.GetClaims] until they expire, but
 // fail [Client.GetUser], which consults the session.
-func (a *Admin) SignOut(ctx context.Context, jwt string, options ...signout.Option) error {
+func (a *Admin) SignOut(ctx context.Context, jwt string, options ...signout.Option) (*SignOutResult, error) {
 	if jwt == "" {
-		return ErrMissingJWT
+		return nil, ErrMissingJWT
 	}
 	endpoint := a.baseURL.JoinPath("logout")
 	if scope := signout.Resolve(options...).Scope(); scope != "" {
@@ -330,15 +377,21 @@ func (a *Admin) SignOut(ctx context.Context, jwt string, options ...signout.Opti
 		query.Set("scope", scope)
 		endpoint.RawQuery = query.Encode()
 	}
-	_, _, err := a.exchange(ctx, http.MethodPost, endpoint, nil, jwt)
-	return err
+	if _, _, err := a.exchange(ctx, http.MethodPost, endpoint, nil, jwt); err != nil {
+		return nil, err
+	}
+	return &SignOutResult{}, nil
 }
+
+// SignOutResult is the server's answer to [Admin.SignOut], whose wire success
+// is bodiless today: the result carries nothing until the wire does.
+type SignOutResult struct{}
 
 // ListMFAFactors fetches the user's enrolled MFA factors. The id must be a
 // UUID in its canonical hyphenated form, or [ErrInvalidUserID] is returned
 // before any request is sent. An unknown id is the server's rejection, an
 // [*Error] whose HTTPStatus is 404.
-func (a *Admin) ListMFAFactors(ctx context.Context, userID string) ([]Factor, error) {
+func (a *Admin) ListMFAFactors(ctx context.Context, userID string) (*ListMFAFactorsResult, error) {
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
 	}
@@ -346,8 +399,21 @@ func (a *Admin) ListMFAFactors(ctx context.Context, userID string) ([]Factor, er
 	if err != nil {
 		return nil, err
 	}
-	return parseFactorList(body)
+	factors, err := parseFactorList(body)
+	if err != nil {
+		return nil, err
+	}
+	return &ListMFAFactorsResult{factors: factors}, nil
 }
+
+// ListMFAFactorsResult is the server's answer to [Admin.ListMFAFactors].
+type ListMFAFactorsResult struct {
+	factors []Factor
+}
+
+// Factors returns the user's enrolled factors. The result is a copy the
+// caller may retain and modify freely.
+func (r *ListMFAFactorsResult) Factors() []Factor { return slices.Clone(r.factors) }
 
 // UpdateMFAFactor changes what the options set on one of userID's factors and
 // returns the factor as stored. A call with no options changes nothing and
@@ -355,7 +421,7 @@ func (a *Admin) ListMFAFactors(ctx context.Context, userID string) ([]Factor, er
 // or [ErrInvalidUserID] or [ErrInvalidFactorID] is returned before any
 // request is sent. An unknown id is the server's rejection, an [*Error] whose
 // HTTPStatus is 404.
-func (a *Admin) UpdateMFAFactor(ctx context.Context, userID, factorID string, options ...mfafactor.Option) (*Factor, error) {
+func (a *Admin) UpdateMFAFactor(ctx context.Context, userID, factorID string, options ...mfafactor.Option) (*UpdateMFAFactorResult, error) {
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
 	}
@@ -368,8 +434,20 @@ func (a *Admin) UpdateMFAFactor(ctx context.Context, userID, factorID string, op
 	if err != nil {
 		return nil, err
 	}
-	return parseFactor(body)
+	factor, err := parseFactor(body)
+	if err != nil {
+		return nil, err
+	}
+	return &UpdateMFAFactorResult{factor: factor}, nil
 }
+
+// UpdateMFAFactorResult is the server's answer to [Admin.UpdateMFAFactor].
+type UpdateMFAFactorResult struct {
+	factor *Factor
+}
+
+// Factor returns the factor as stored after the update.
+func (r *UpdateMFAFactorResult) Factor() *Factor { return r.factor }
 
 // updateMFAFactorRequest is the admin factor-update request body: only what
 // the options set is sent, and a bare call sends the empty object the server
@@ -384,34 +462,54 @@ type updateMFAFactorRequest struct {
 // hyphenated form, or [ErrInvalidUserID] or [ErrInvalidFactorID] is returned
 // before any request is sent. An unknown id is the server's rejection, an
 // [*Error] whose HTTPStatus is 404.
-func (a *Admin) DeleteMFAFactor(ctx context.Context, userID, factorID string) error {
+func (a *Admin) DeleteMFAFactor(ctx context.Context, userID, factorID string) (*DeleteMFAFactorResult, error) {
 	if !isCanonicalUUID(userID) {
-		return ErrInvalidUserID
+		return nil, ErrInvalidUserID
 	}
 	if !isCanonicalUUID(factorID) {
-		return ErrInvalidFactorID
+		return nil, ErrInvalidFactorID
 	}
-	_, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID, "factors", factorID), nil)
-	return err
+	if _, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID, "factors", factorID), nil); err != nil {
+		return nil, err
+	}
+	return &DeleteMFAFactorResult{}, nil
 }
+
+// DeleteMFAFactorResult is the server's answer to [Admin.DeleteMFAFactor],
+// whose wire success is bodiless today: the result carries nothing until the
+// wire does.
+type DeleteMFAFactorResult struct{}
 
 // CreateCustomProvider registers a custom OAuth 2.0 or OIDC provider for
 // users to sign in through, built with [customprovider.New], and returns the
 // provider as stored. An identifier already registered is the server's
 // rejection, an [*Error] whose Code is "conflict".
-func (a *Admin) CreateCustomProvider(ctx context.Context, definition customprovider.Definition) (*CustomProvider, error) {
+func (a *Admin) CreateCustomProvider(ctx context.Context, definition customprovider.Definition) (*CreateCustomProviderResult, error) {
 	body, err := a.send(ctx, http.MethodPost, a.adminBaseURL.JoinPath("custom-providers"), definition)
 	if err != nil {
 		return nil, err
 	}
-	return parseCustomProvider(body)
+	provider, err := parseCustomProvider(body)
+	if err != nil {
+		return nil, err
+	}
+	return &CreateCustomProviderResult{provider: provider}, nil
 }
+
+// CreateCustomProviderResult is the server's answer to
+// [Admin.CreateCustomProvider].
+type CreateCustomProviderResult struct {
+	provider *CustomProvider
+}
+
+// CustomProvider returns the provider as the server stored it.
+func (r *CreateCustomProviderResult) CustomProvider() *CustomProvider { return r.provider }
 
 // GetCustomProvider fetches one custom provider by its "custom:"-prefixed
 // identifier. An empty identifier returns [ErrMissingIdentifier] before any
 // request is sent, and an unknown or unprefixed one is the server's
 // rejection, an [*Error] whose HTTPStatus is 404 or 400.
-func (a *Admin) GetCustomProvider(ctx context.Context, identifier string) (*CustomProvider, error) {
+func (a *Admin) GetCustomProvider(ctx context.Context, identifier string) (*GetCustomProviderResult, error) {
 	if identifier == "" {
 		return nil, ErrMissingIdentifier
 	}
@@ -419,13 +517,26 @@ func (a *Admin) GetCustomProvider(ctx context.Context, identifier string) (*Cust
 	if err != nil {
 		return nil, err
 	}
-	return parseCustomProvider(body)
+	provider, err := parseCustomProvider(body)
+	if err != nil {
+		return nil, err
+	}
+	return &GetCustomProviderResult{provider: provider}, nil
 }
+
+// GetCustomProviderResult is the server's answer to
+// [Admin.GetCustomProvider].
+type GetCustomProviderResult struct {
+	provider *CustomProvider
+}
+
+// CustomProvider returns the fetched provider.
+func (r *GetCustomProviderResult) CustomProvider() *CustomProvider { return r.provider }
 
 // ListCustomProviders fetches the project's custom providers. A bare call
 // lists every provider; [customprovider.WithOIDCOnly] and
 // [customprovider.WithOAuth2Only] narrow the listing to one type.
-func (a *Admin) ListCustomProviders(ctx context.Context, options ...customprovider.ListOption) ([]CustomProvider, error) {
+func (a *Admin) ListCustomProviders(ctx context.Context, options ...customprovider.ListOption) (*ListCustomProvidersResult, error) {
 	endpoint := a.adminBaseURL.JoinPath("custom-providers")
 	if providerType := customprovider.ResolveList(options...).ProviderType(); providerType != "" {
 		query := url.Values{}
@@ -436,7 +547,23 @@ func (a *Admin) ListCustomProviders(ctx context.Context, options ...customprovid
 	if err != nil {
 		return nil, err
 	}
-	return parseCustomProviderList(body)
+	providers, err := parseCustomProviderList(body)
+	if err != nil {
+		return nil, err
+	}
+	return &ListCustomProvidersResult{providers: providers}, nil
+}
+
+// ListCustomProvidersResult is the server's answer to
+// [Admin.ListCustomProviders].
+type ListCustomProvidersResult struct {
+	providers []CustomProvider
+}
+
+// CustomProviders returns the listed providers. The result is a copy the
+// caller may retain and modify freely.
+func (r *ListCustomProvidersResult) CustomProviders() []CustomProvider {
+	return slices.Clone(r.providers)
 }
 
 // UpdateCustomProvider changes what the options set on one custom provider,
@@ -446,7 +573,7 @@ func (a *Admin) ListCustomProviders(ctx context.Context, options ...customprovid
 // fixes both at creation. An empty identifier returns [ErrMissingIdentifier]
 // before any request is sent, and an unknown or unprefixed one is the
 // server's rejection, an [*Error] whose HTTPStatus is 404 or 400.
-func (a *Admin) UpdateCustomProvider(ctx context.Context, identifier string, options ...customprovider.Option) (*CustomProvider, error) {
+func (a *Admin) UpdateCustomProvider(ctx context.Context, identifier string, options ...customprovider.Option) (*UpdateCustomProviderResult, error) {
 	if identifier == "" {
 		return nil, ErrMissingIdentifier
 	}
@@ -454,21 +581,41 @@ func (a *Admin) UpdateCustomProvider(ctx context.Context, identifier string, opt
 	if err != nil {
 		return nil, err
 	}
-	return parseCustomProvider(body)
+	provider, err := parseCustomProvider(body)
+	if err != nil {
+		return nil, err
+	}
+	return &UpdateCustomProviderResult{provider: provider}, nil
 }
+
+// UpdateCustomProviderResult is the server's answer to
+// [Admin.UpdateCustomProvider].
+type UpdateCustomProviderResult struct {
+	provider *CustomProvider
+}
+
+// CustomProvider returns the provider as stored after the update.
+func (r *UpdateCustomProviderResult) CustomProvider() *CustomProvider { return r.provider }
 
 // DeleteCustomProvider removes one custom provider, addressed by its
 // "custom:"-prefixed identifier, ending sign-ins through it. An empty
 // identifier returns [ErrMissingIdentifier] before any request is sent, and
 // an unknown or unprefixed one is the server's rejection, an [*Error] whose
 // HTTPStatus is 404 or 400.
-func (a *Admin) DeleteCustomProvider(ctx context.Context, identifier string) error {
+func (a *Admin) DeleteCustomProvider(ctx context.Context, identifier string) (*DeleteCustomProviderResult, error) {
 	if identifier == "" {
-		return ErrMissingIdentifier
+		return nil, ErrMissingIdentifier
 	}
-	_, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), nil)
-	return err
+	if _, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), nil); err != nil {
+		return nil, err
+	}
+	return &DeleteCustomProviderResult{}, nil
 }
+
+// DeleteCustomProviderResult is the server's answer to
+// [Admin.DeleteCustomProvider], whose wire success is bodiless today: the
+// result carries nothing until the wire does.
+type DeleteCustomProviderResult struct{}
 
 // send executes one admin request through exchange for the calls that read
 // no response headers and present no user token.

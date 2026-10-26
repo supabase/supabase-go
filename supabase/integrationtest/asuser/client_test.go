@@ -57,10 +57,11 @@ func TestRootClientGetUser(t *testing.T) {
 		t.Fatalf("supabase.New: %v", err)
 	}
 
-	profile, err := client.Auth().GetUser(t.Context(), user.AccessToken)
+	result, err := client.Auth().GetUser(t.Context(), user.AccessToken)
 	if err != nil {
 		t.Fatalf("GetUser: %v", err)
 	}
+	profile := result.User()
 	if profile.ID() != user.ID {
 		t.Errorf("ID = %q, want %q", profile.ID(), user.ID)
 	}

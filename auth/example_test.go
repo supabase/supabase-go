@@ -25,7 +25,7 @@ func ExampleClient_GetClaims() {
 		return
 	}
 
-	claims, _, _, err := client.GetClaims(context.Background(), "END_USER_ACCESS_TOKEN")
+	result, err := client.GetClaims(context.Background(), "END_USER_ACCESS_TOKEN")
 	switch {
 	case errors.Is(err, auth.ErrExpiredJWT):
 		fmt.Println("token expired - ask the client to refresh")
@@ -40,6 +40,7 @@ func ExampleClient_GetClaims() {
 		}
 		fmt.Println(err)
 	default:
+		claims := result.Claims()
 		fmt.Printf("verified user %s acting as %s\n", claims.Subject(), claims.Role())
 	}
 }
@@ -55,11 +56,12 @@ func ExampleClient_GetUser() {
 		return
 	}
 
-	user, err := client.GetUser(context.Background(), "END_USER_ACCESS_TOKEN")
+	result, err := client.GetUser(context.Background(), "END_USER_ACCESS_TOKEN")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+	user := result.User()
 	if user.EmailConfirmedAt().IsZero() {
 		fmt.Println("email not yet confirmed")
 		return
@@ -101,7 +103,7 @@ func Example_middleware() {
 				http.Error(writer, "missing bearer token", http.StatusUnauthorized)
 				return
 			}
-			claims, _, _, err := client.GetClaims(request.Context(), token)
+			result, err := client.GetClaims(request.Context(), token)
 			if err != nil {
 				// Every verification failure is a 401 to ensure wire responses
 				// remain opaque, intentionally stripping away the client's
@@ -110,7 +112,7 @@ func Example_middleware() {
 				http.Error(writer, "invalid token", http.StatusUnauthorized)
 				return
 			}
-			request = request.WithContext(context.WithValue(request.Context(), claimsContextKey{}, claims))
+			request = request.WithContext(context.WithValue(request.Context(), claimsContextKey{}, result.Claims()))
 			next.ServeHTTP(writer, request)
 		})
 	}
@@ -164,7 +166,7 @@ func ExampleClient_Admin() {
 	}
 	admin := client.Admin()
 
-	user, err := admin.CreateUser(context.Background(), auth.UserAttributes{
+	result, err := admin.CreateUser(context.Background(), auth.UserAttributes{
 		Email:        "ada@example.com",
 		Password:     "correct horse battery staple",
 		EmailConfirm: true,
@@ -174,7 +176,7 @@ func ExampleClient_Admin() {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("provisioned", user.Email())
+	fmt.Println("provisioned", result.User().Email())
 }
 
 // ExampleAdmin_CreateUser imports an account from a legacy authentication
@@ -189,7 +191,7 @@ func ExampleAdmin_CreateUser() {
 	}
 	admin := client.Admin()
 
-	user, err := admin.CreateUser(context.Background(), auth.UserAttributes{
+	result, err := admin.CreateUser(context.Background(), auth.UserAttributes{
 		Email:        "imported@example.com",
 		EmailConfirm: true,
 		PasswordHash: "$2y$10$HASH_FROM_THE_LEGACY_STORE",
@@ -199,7 +201,7 @@ func ExampleAdmin_CreateUser() {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("migrated", user.Email())
+	fmt.Println("migrated", result.User().Email())
 }
 
 // ExampleAdmin_UpdateUser suspends a user by banning sign-ins for three
@@ -219,14 +221,14 @@ func ExampleAdmin_UpdateUser() {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("banned until", banned.BannedUntil())
+	fmt.Println("banned until", banned.User().BannedUntil())
 
 	restored, err := admin.UpdateUser(ctx, "USER_ID", auth.UserAttributes{BanDuration: "none"})
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("ban lifted:", restored.BannedUntil().IsZero())
+	fmt.Println("ban lifted:", restored.User().BannedUntil().IsZero())
 }
 
 // ExampleAdmin_ListUsers walks every page of the project's users, the shape
@@ -274,13 +276,13 @@ func ExampleAdmin_DeleteUser() {
 	admin := client.Admin()
 	ctx := context.Background()
 
-	if err := admin.DeleteUser(ctx, "USER_ID", userdelete.WithSoftDelete()); err != nil {
+	if _, err := admin.DeleteUser(ctx, "USER_ID", userdelete.WithSoftDelete()); err != nil {
 		fmt.Println(err)
 		return
 	}
 
 	// Later, an erasure request arrives for the same account.
-	if err := admin.DeleteUser(ctx, "USER_ID"); err != nil {
+	if _, err := admin.DeleteUser(ctx, "USER_ID"); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -299,14 +301,14 @@ func ExampleAdmin_InviteUser() {
 	}
 	admin := client.Admin()
 
-	user, err := admin.InviteUser(context.Background(), "grace@example.com",
+	result, err := admin.InviteUser(context.Background(), "grace@example.com",
 		userinvite.WithUserMetadata(map[string]any{"workspace": "platform", "invited_by": "ada@example.com"}),
 		userinvite.WithRedirectTo("https://app.example.com/accept-invite"))
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("invited", user.Email())
+	fmt.Println("invited", result.User().Email())
 }
 
 // ExampleAdmin_GenerateLink mints a password recovery link for the calling
@@ -322,7 +324,7 @@ func ExampleAdmin_GenerateLink() {
 	}
 	admin := client.Admin()
 
-	link, err := admin.GenerateLink(context.Background(), auth.
+	result, err := admin.GenerateLink(context.Background(), auth.
 		NewLinkRequest("grace@example.com").
 		RedirectTo("https://app.example.com/reset").
 		Recovery())
@@ -332,7 +334,7 @@ func ExampleAdmin_GenerateLink() {
 	}
 
 	// Hand the URL to the mailer. It is a credential: log it nowhere.
-	fmt.Println(link.ActionLink())
+	fmt.Println(result.ActionLink())
 }
 
 // ExampleAdmin_SignOut responds to a reported credential leak by revoking
@@ -348,7 +350,7 @@ func ExampleAdmin_SignOut() {
 	}
 	admin := client.Admin()
 
-	if err := admin.SignOut(context.Background(), "END_USER_ACCESS_TOKEN"); err != nil {
+	if _, err := admin.SignOut(context.Background(), "END_USER_ACCESS_TOKEN"); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -366,13 +368,13 @@ func ExampleAdmin_UpdateMFAFactor() {
 	}
 	admin := client.Admin()
 
-	factor, err := admin.UpdateMFAFactor(context.Background(), "USER_ID", "FACTOR_ID",
+	result, err := admin.UpdateMFAFactor(context.Background(), "USER_ID", "FACTOR_ID",
 		mfafactor.WithFriendlyName("Personal phone"))
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("renamed to", factor.FriendlyName())
+	fmt.Println("renamed to", result.Factor().FriendlyName())
 }
 
 // ExampleAdmin_DeleteMFAFactor restores access for a user who lost the phone
@@ -387,16 +389,16 @@ func ExampleAdmin_DeleteMFAFactor() {
 	admin := client.Admin()
 	ctx := context.Background()
 
-	factors, err := admin.ListMFAFactors(ctx, "USER_ID")
+	result, err := admin.ListMFAFactors(ctx, "USER_ID")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	for _, factor := range factors {
+	for _, factor := range result.Factors() {
 		if factor.Type() != "totp" {
 			continue
 		}
-		if err := admin.DeleteMFAFactor(ctx, "USER_ID", factor.ID()); err != nil {
+		if _, err := admin.DeleteMFAFactor(ctx, "USER_ID", factor.ID()); err != nil {
 			fmt.Println(err)
 			return
 		}
@@ -427,12 +429,12 @@ func ExampleAdmin_CreateCustomProvider() {
 	).OIDC("https://login.acme.example").
 		Scopes("openid", "profile", "email")
 
-	provider, err := admin.CreateCustomProvider(context.Background(), definition)
+	result, err := admin.CreateCustomProvider(context.Background(), definition)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("registered", provider.Identifier())
+	fmt.Println("registered", result.CustomProvider().Identifier())
 }
 
 // ExampleAdmin_UpdateCustomProvider disables a provider during an incident at
@@ -447,10 +449,10 @@ func ExampleAdmin_UpdateCustomProvider() {
 	}
 	admin := client.Admin()
 
-	provider, err := admin.UpdateCustomProvider(context.Background(), "custom:acme-corp", customprovider.WithEnabled(false))
+	result, err := admin.UpdateCustomProvider(context.Background(), "custom:acme-corp", customprovider.WithEnabled(false))
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(provider.Name(), "disabled")
+	fmt.Println(result.CustomProvider().Name(), "disabled")
 }

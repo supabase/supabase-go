@@ -148,6 +148,8 @@ features:
     symbols:
       - auth.Admin.CreateCustomProvider
     supporting_symbols:
+      - auth.CreateCustomProviderResult
+      - auth.CreateCustomProviderResult.CustomProvider
       - auth/customprovider.Builder
       - auth/customprovider.Builder.OAuth2
       - auth/customprovider.Builder.OIDC
@@ -180,19 +182,27 @@ features:
     status: implemented
     symbols:
       - auth.Admin.CreateUser
+    supporting_symbols:
+      - auth.CreateUserResult
+      - auth.CreateUserResult.User
   auth.admin.delete_mfa_factor:
     status: implemented
     symbols:
       - auth.Admin.DeleteMFAFactor
+    supporting_symbols:
+      - auth.DeleteMFAFactorResult
   auth.admin.delete_provider:
     status: implemented
     symbols:
       - auth.Admin.DeleteCustomProvider
+    supporting_symbols:
+      - auth.DeleteCustomProviderResult
   auth.admin.delete_user:
     status: implemented
     symbols:
       - auth.Admin.DeleteUser
     supporting_symbols:
+      - auth.DeleteUserResult
       - auth/userdelete.Option
       - auth/userdelete.Parameters
       - auth/userdelete.Parameters.SoftDelete
@@ -204,13 +214,13 @@ features:
       - auth.Admin.GenerateLink
     supporting_symbols:
       - auth.EmailChangeLinkRequest
-      - auth.GeneratedLink
-      - auth.GeneratedLink.ActionLink
-      - auth.GeneratedLink.EmailOTP
-      - auth.GeneratedLink.HashedToken
-      - auth.GeneratedLink.RedirectTo
-      - auth.GeneratedLink.User
-      - auth.GeneratedLink.VerificationType
+      - auth.GenerateLinkResult
+      - auth.GenerateLinkResult.ActionLink
+      - auth.GenerateLinkResult.EmailOTP
+      - auth.GenerateLinkResult.HashedToken
+      - auth.GenerateLinkResult.RedirectTo
+      - auth.GenerateLinkResult.User
+      - auth.GenerateLinkResult.VerificationType
       - auth.InviteLinkRequest
       - auth.InviteLinkRequest.UserMetadata
       - auth.LinkRequest
@@ -232,15 +242,23 @@ features:
     status: implemented
     symbols:
       - auth.Admin.GetCustomProvider
+    supporting_symbols:
+      - auth.GetCustomProviderResult
+      - auth.GetCustomProviderResult.CustomProvider
   auth.admin.get_user:
     status: implemented
     symbols:
       - auth.Admin.GetUser
+    supporting_symbols:
+      - auth.GetUserResult
+      - auth.GetUserResult.User
   auth.admin.invite_user:
     status: implemented
     symbols:
       - auth.Admin.InviteUser
     supporting_symbols:
+      - auth.InviteUserResult
+      - auth.InviteUserResult.User
       - auth/userinvite.Option
       - auth/userinvite.Parameters
       - auth/userinvite.Parameters.RedirectTo
@@ -252,11 +270,16 @@ features:
     status: implemented
     symbols:
       - auth.Admin.ListMFAFactors
+    supporting_symbols:
+      - auth.ListMFAFactorsResult
+      - auth.ListMFAFactorsResult.Factors
   auth.admin.list_providers:
     status: implemented
     symbols:
       - auth.Admin.ListCustomProviders
     supporting_symbols:
+      - auth.ListCustomProvidersResult
+      - auth.ListCustomProvidersResult.CustomProviders
       - auth/customprovider.ListOption
       - auth/customprovider.ListParameters
       - auth/customprovider.ListParameters.ProviderType
@@ -271,16 +294,17 @@ features:
     symbols:
       - auth.Admin.ListUsers
     supporting_symbols:
-      - auth.UserPage
-      - auth.UserPage.LastPage
-      - auth.UserPage.NextPage
-      - auth.UserPage.Total
-      - auth.UserPage.Users
+      - auth.ListUsersResult
+      - auth.ListUsersResult.LastPage
+      - auth.ListUsersResult.NextPage
+      - auth.ListUsersResult.Total
+      - auth.ListUsersResult.Users
   auth.admin.sign_out:
     status: implemented
     symbols:
       - auth.Admin.SignOut
     supporting_symbols:
+      - auth.SignOutResult
       - auth/signout.Option
       - auth/signout.Parameters
       - auth/signout.Parameters.Scope
@@ -292,6 +316,8 @@ features:
     symbols:
       - auth.Admin.UpdateMFAFactor
     supporting_symbols:
+      - auth.UpdateMFAFactorResult
+      - auth.UpdateMFAFactorResult.Factor
       - auth/mfafactor.Option
       - auth/mfafactor.Parameters
       - auth/mfafactor.Parameters.FriendlyName
@@ -304,6 +330,8 @@ features:
     symbols:
       - auth.Admin.UpdateCustomProvider
     supporting_symbols:
+      - auth.UpdateCustomProviderResult
+      - auth.UpdateCustomProviderResult.CustomProvider
       - auth/customprovider.Option
       - auth/customprovider.Parameters
       - auth/customprovider.Parameters.MarshalJSON
@@ -330,6 +358,9 @@ features:
     status: implemented
     symbols:
       - auth.Admin.UpdateUser
+    supporting_symbols:
+      - auth.UpdateUserResult
+      - auth.UpdateUserResult.User
   auth.session.get_claims:
     status: implemented
     note: |
@@ -356,6 +387,10 @@ features:
       - auth.ErrExpiredJWT
       - auth.ErrInvalidSignature
       - auth.ErrMalformedJWT
+      - auth.GetClaimsResult
+      - auth.GetClaimsResult.Claims
+      - auth.GetClaimsResult.Header
+      - auth.GetClaimsResult.Signature
       - auth.JWTHeader
       - auth.JWTHeader.Algorithm
       - auth.JWTHeader.KeyID
@@ -367,6 +402,8 @@ features:
     symbols:
       - auth.Client.GetUser
     supporting_symbols:
+      - auth.GetUserResult
+      - auth.GetUserResult.User
       - auth.Identity
       - auth.Identity.CreatedAt
       - auth.Identity.Email

@@ -129,10 +129,11 @@ func TestAdminCreateUserRequestShape(t *testing.T) {
 			recorder.body = `{"id":"a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d","email":"ada@example.com"}`
 			admin := recorder.admin(t)
 
-			user, err := admin.CreateUser(context.Background(), testCase.attributes)
+			result, err := admin.CreateUser(context.Background(), testCase.attributes)
 			if err != nil {
 				t.Fatalf("CreateUser: %v", err)
 			}
+			user := result.User()
 			if user.ID() != "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d" || user.Email() != "ada@example.com" {
 				t.Errorf("user = (%q, %q), want the response user", user.ID(), user.Email())
 			}
@@ -207,15 +208,19 @@ func TestAdminRejectsMalformedUserID(t *testing.T) {
 			_, err := admin.UpdateUser(context.Background(), id, auth.UserAttributes{})
 			return err
 		}},
-		{"DeleteUser", func(id string) error { return admin.DeleteUser(context.Background(), id) }},
-		{"DeleteUser with WithSoftDelete", func(id string) error { return admin.DeleteUser(context.Background(), id, userdelete.WithSoftDelete()) }},
+		{"DeleteUser", func(id string) error { _, err := admin.DeleteUser(context.Background(), id); return err }},
+		{"DeleteUser with WithSoftDelete", func(id string) error {
+			_, err := admin.DeleteUser(context.Background(), id, userdelete.WithSoftDelete())
+			return err
+		}},
 		{"ListMFAFactors", func(id string) error { _, err := admin.ListMFAFactors(context.Background(), id); return err }},
 		{"UpdateMFAFactor", func(id string) error {
 			_, err := admin.UpdateMFAFactor(context.Background(), id, "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918")
 			return err
 		}},
 		{"DeleteMFAFactor", func(id string) error {
-			return admin.DeleteMFAFactor(context.Background(), id, "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918")
+			_, err := admin.DeleteMFAFactor(context.Background(), id, "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918")
+			return err
 		}},
 	}
 	for _, testCase := range malformed {
@@ -244,7 +249,10 @@ func TestAdminRejectsMalformedFactorID(t *testing.T) {
 			_, err := admin.UpdateMFAFactor(context.Background(), userID, id, mfafactor.WithFriendlyName("Renamed"))
 			return err
 		}},
-		{"DeleteMFAFactor", func(id string) error { return admin.DeleteMFAFactor(context.Background(), userID, id) }},
+		{"DeleteMFAFactor", func(id string) error {
+			_, err := admin.DeleteMFAFactor(context.Background(), userID, id)
+			return err
+		}},
 	}
 	for _, operation := range operations {
 		t.Run(operation.name, func(t *testing.T) {
@@ -273,8 +281,8 @@ func TestAdminDeleteUserRequestShape(t *testing.T) {
 			admin := recorder.admin(t)
 
 			// The server answers a user delete with an empty JSON object, which
-			// decodes to nothing: success is the nil error alone.
-			if err := admin.DeleteUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", testCase.options...); err != nil {
+			// decodes to nothing: success is the empty result and the nil error.
+			if _, err := admin.DeleteUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", testCase.options...); err != nil {
 				t.Fatalf("DeleteUser: %v", err)
 			}
 
@@ -319,10 +327,12 @@ func TestAdminErrorSurface(t *testing.T) {
 			return err
 		}},
 		{"DeleteUser", func(admin *auth.Admin) error {
-			return admin.DeleteUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
+			_, err := admin.DeleteUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
+			return err
 		}},
 		{"DeleteUser with WithSoftDelete", func(admin *auth.Admin) error {
-			return admin.DeleteUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", userdelete.WithSoftDelete())
+			_, err := admin.DeleteUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", userdelete.WithSoftDelete())
+			return err
 		}},
 		{"UpdateUser", func(admin *auth.Admin) error {
 			_, err := admin.UpdateUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", auth.UserAttributes{Role: "editor"})
@@ -338,7 +348,8 @@ func TestAdminErrorSurface(t *testing.T) {
 			return err
 		}},
 		{"SignOut", func(admin *auth.Admin) error {
-			return admin.SignOut(context.Background(), "end-user-jwt", signout.WithLocalScope())
+			_, err := admin.SignOut(context.Background(), "end-user-jwt", signout.WithLocalScope())
+			return err
 		}},
 		{"ListMFAFactors", func(admin *auth.Admin) error {
 			_, err := admin.ListMFAFactors(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
@@ -349,7 +360,8 @@ func TestAdminErrorSurface(t *testing.T) {
 			return err
 		}},
 		{"DeleteMFAFactor", func(admin *auth.Admin) error {
-			return admin.DeleteMFAFactor(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918")
+			_, err := admin.DeleteMFAFactor(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "f0e1d2c3-b4a5-4968-8f7e-6d5c4b3a2918")
+			return err
 		}},
 		{"CreateCustomProvider", func(admin *auth.Admin) error {
 			_, err := admin.CreateCustomProvider(context.Background(), customprovider.New("custom:acme", "Acme", "client-id", "client-secret").OIDC("https://id.acme.example"))
@@ -368,7 +380,8 @@ func TestAdminErrorSurface(t *testing.T) {
 			return err
 		}},
 		{"DeleteCustomProvider", func(admin *auth.Admin) error {
-			return admin.DeleteCustomProvider(context.Background(), "custom:acme")
+			_, err := admin.DeleteCustomProvider(context.Background(), "custom:acme")
+			return err
 		}},
 	}
 	for _, operation := range operations {
@@ -415,10 +428,11 @@ func TestAdminUserParsing(t *testing.T) {
 	}`
 	admin := recorder.admin(t)
 
-	user, err := admin.GetUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
+	result, err := admin.GetUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
 	if err != nil {
 		t.Fatalf("GetUser: %v", err)
 	}
+	user := result.User()
 	if user.ID() != "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d" || user.Email() != "ada@example.com" || user.Role() != "authenticated" {
 		t.Errorf("user = (%q, %q, %q)", user.ID(), user.Email(), user.Role())
 	}
@@ -478,11 +492,11 @@ func TestAdminUpdateUserRequestShape(t *testing.T) {
 			recorder.body = `{"id":"a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d","role":"editor"}`
 			admin := recorder.admin(t)
 
-			user, err := admin.UpdateUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", testCase.attributes)
+			result, err := admin.UpdateUser(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", testCase.attributes)
 			if err != nil {
 				t.Fatalf("UpdateUser: %v", err)
 			}
-			if user.Role() != "editor" {
+			if user := result.User(); user.Role() != "editor" {
 				t.Errorf("Role = %q, want the response user's editor", user.Role())
 			}
 
@@ -582,7 +596,7 @@ func TestInviteUserRequestShape(t *testing.T) {
 	}
 }
 
-func TestAdminUserPageParsing(t *testing.T) {
+func TestAdminListUsersResultParsing(t *testing.T) {
 	cases := []struct {
 		name       string
 		header     map[string]string
@@ -643,11 +657,11 @@ func TestAdminUserPageParsing(t *testing.T) {
 			recorder.body = testCase.body
 			admin := recorder.admin(t)
 
-			page, err := admin.ListUsers(context.Background())
+			result, err := admin.ListUsers(context.Background())
 			if err != nil {
 				t.Fatalf("ListUsers: %v", err)
 			}
-			users := page.Users()
+			users := result.Users()
 			if len(users) != len(testCase.wantEmails) {
 				t.Fatalf("Users = %d entries, want %d", len(users), len(testCase.wantEmails))
 			}
@@ -656,13 +670,13 @@ func TestAdminUserPageParsing(t *testing.T) {
 					t.Errorf("Users[%d].Email = %q, want %q", i, users[i].Email(), want)
 				}
 			}
-			if page.Total() != testCase.wantTotal {
-				t.Errorf("Total = %d, want %d", page.Total(), testCase.wantTotal)
+			if result.Total() != testCase.wantTotal {
+				t.Errorf("Total = %d, want %d", result.Total(), testCase.wantTotal)
 			}
-			if number, ok := page.NextPage(); ok != testCase.wantNextOK || number != testCase.wantNext {
+			if number, ok := result.NextPage(); ok != testCase.wantNextOK || number != testCase.wantNext {
 				t.Errorf("NextPage = (%d, %t), want (%d, %t)", number, ok, testCase.wantNext, testCase.wantNextOK)
 			}
-			if number, ok := page.LastPage(); ok != testCase.wantLastOK || number != testCase.wantLast {
+			if number, ok := result.LastPage(); ok != testCase.wantLastOK || number != testCase.wantLast {
 				t.Errorf("LastPage = (%d, %t), want (%d, %t)", number, ok, testCase.wantLast, testCase.wantLastOK)
 			}
 		})
@@ -684,12 +698,12 @@ func TestAdminSignOutRequestShape(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			recorder := newAdminServer(t)
 			// The server answers a sign-out with 204 and no body, so success is
-			// the nil error alone.
+			// the empty result and the nil error.
 			recorder.status = http.StatusNoContent
 			recorder.body = ""
 			admin := recorder.admin(t)
 
-			if err := admin.SignOut(context.Background(), "end-user-jwt", testCase.options...); err != nil {
+			if _, err := admin.SignOut(context.Background(), "end-user-jwt", testCase.options...); err != nil {
 				t.Fatalf("SignOut: %v", err)
 			}
 
@@ -715,7 +729,7 @@ func TestAdminSignOutRequestShape(t *testing.T) {
 	t.Run("an empty token is rejected before the wire", func(t *testing.T) {
 		recorder := newAdminServer(t)
 		admin := recorder.admin(t)
-		if err := admin.SignOut(context.Background(), ""); !errors.Is(err, auth.ErrMissingJWT) {
+		if _, err := admin.SignOut(context.Background(), ""); !errors.Is(err, auth.ErrMissingJWT) {
 			t.Errorf("SignOut with an empty token = %v, want ErrMissingJWT", err)
 		}
 		if len(recorder.requests) != 0 {
@@ -735,11 +749,11 @@ func TestAdminMFARequestShapes(t *testing.T) {
 		recorder.body = `[]`
 		admin := recorder.admin(t)
 
-		factors, err := admin.ListMFAFactors(context.Background(), userID)
+		result, err := admin.ListMFAFactors(context.Background(), userID)
 		if err != nil {
 			t.Fatalf("ListMFAFactors: %v", err)
 		}
-		if len(factors) != 0 {
+		if factors := result.Factors(); len(factors) != 0 {
 			t.Errorf("factors = %d, want 0 from an empty array", len(factors))
 		}
 		request := recorder.requests[0]
@@ -755,7 +769,7 @@ func TestAdminMFARequestShapes(t *testing.T) {
 		recorder := newAdminServer(t)
 		admin := recorder.admin(t)
 
-		if err := admin.DeleteMFAFactor(context.Background(), userID, factorID); err != nil {
+		if _, err := admin.DeleteMFAFactor(context.Background(), userID, factorID); err != nil {
 			t.Fatalf("DeleteMFAFactor: %v", err)
 		}
 		request := recorder.requests[0]
@@ -787,11 +801,11 @@ func TestAdminMFARequestShapes(t *testing.T) {
 			recorder.body = `{"id":"` + factorID + `","factor_type":"totp","status":"verified"}`
 			admin := recorder.admin(t)
 
-			factor, err := admin.UpdateMFAFactor(context.Background(), userID, factorID, testCase.options...)
+			result, err := admin.UpdateMFAFactor(context.Background(), userID, factorID, testCase.options...)
 			if err != nil {
 				t.Fatalf("UpdateMFAFactor: %v", err)
 			}
-			if factor.ID() != factorID {
+			if factor := result.Factor(); factor.ID() != factorID {
 				t.Errorf("ID = %q, want the served factor parsed", factor.ID())
 			}
 			request := recorder.requests[0]
@@ -854,10 +868,11 @@ func TestFactorParsing(t *testing.T) {
 	]`
 	admin := recorder.admin(t)
 
-	factors, err := admin.ListMFAFactors(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
+	result, err := admin.ListMFAFactors(context.Background(), "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
 	if err != nil {
 		t.Fatalf("ListMFAFactors: %v", err)
 	}
+	factors := result.Factors()
 	if len(factors) != 4 {
 		t.Fatalf("factors = %d, want 4", len(factors))
 	}
@@ -988,11 +1003,11 @@ func TestAdminCreateCustomProviderRequestShape(t *testing.T) {
 			recorder.body = `{"id":"11111111-2222-4333-8444-555555555555","identifier":"custom:acme"}`
 			admin := recorder.admin(t)
 
-			provider, err := admin.CreateCustomProvider(context.Background(), testCase.definition)
+			result, err := admin.CreateCustomProvider(context.Background(), testCase.definition)
 			if err != nil {
 				t.Fatalf("CreateCustomProvider: %v", err)
 			}
-			if provider.Identifier() != "custom:acme" {
+			if provider := result.CustomProvider(); provider.Identifier() != "custom:acme" {
 				t.Errorf("Identifier = %q, want the response provider", provider.Identifier())
 			}
 
@@ -1155,11 +1170,11 @@ func TestAdminListCustomProvidersFilter(t *testing.T) {
 			recorder.body = `{"providers":[{"identifier":"custom:acme"},{"identifier":"custom:legacy"}]}`
 			admin := recorder.admin(t)
 
-			providers, err := admin.ListCustomProviders(context.Background(), testCase.options...)
+			result, err := admin.ListCustomProviders(context.Background(), testCase.options...)
 			if err != nil {
 				t.Fatalf("ListCustomProviders: %v", err)
 			}
-			if len(providers) != 2 || providers[0].Identifier() != "custom:acme" {
+			if providers := result.CustomProviders(); len(providers) != 2 || providers[0].Identifier() != "custom:acme" {
 				t.Errorf("providers = %d with first %q, want the enveloped pair", len(providers), providers[0].Identifier())
 			}
 
@@ -1228,10 +1243,11 @@ func TestCustomProviderParsing(t *testing.T) {
 	]}`
 	admin := recorder.admin(t)
 
-	providers, err := admin.ListCustomProviders(context.Background())
+	result, err := admin.ListCustomProviders(context.Background())
 	if err != nil {
 		t.Fatalf("ListCustomProviders: %v", err)
 	}
+	providers := result.CustomProviders()
 	if len(providers) != 2 {
 		t.Fatalf("providers = %d, want 2", len(providers))
 	}
@@ -1350,7 +1366,10 @@ func TestCustomProviderIdentifierEscaping(t *testing.T) {
 			_, err := admin.UpdateCustomProvider(context.Background(), identifier, customprovider.WithName("Renamed"))
 			return err
 		}},
-		{"DeleteCustomProvider", func() error { return admin.DeleteCustomProvider(context.Background(), identifier) }},
+		{"DeleteCustomProvider", func() error {
+			_, err := admin.DeleteCustomProvider(context.Background(), identifier)
+			return err
+		}},
 	}
 	for i, operation := range operations {
 		t.Run(operation.name, func(t *testing.T) {
@@ -1379,7 +1398,10 @@ func TestAdminRejectsMissingIdentifier(t *testing.T) {
 			_, err := admin.UpdateCustomProvider(context.Background(), "", customprovider.WithName("Renamed"))
 			return err
 		}},
-		{"DeleteCustomProvider", func() error { return admin.DeleteCustomProvider(context.Background(), "") }},
+		{"DeleteCustomProvider", func() error {
+			_, err := admin.DeleteCustomProvider(context.Background(), "")
+			return err
+		}},
 	}
 	for _, operation := range operations {
 		t.Run(operation.name, func(t *testing.T) {
