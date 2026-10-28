@@ -92,7 +92,8 @@ type Session struct {
 	now          func() time.Time
 
 	// mutex guards the state below and is never held across a refresh or a
-	// store call.
+	// store call. It is taken only by the locked method, so a panic never
+	// leaves it held.
 	mutex      sync.Mutex
 	state      State
 	status     Status
@@ -105,15 +106,17 @@ type Session struct {
 
 	// storeMutex is held across every store call, so writes reach the store
 	// one at a time, and across [Session.Persist]'s first write to a new store.
+	// Each holder releases it by defer, so a store that panics never leaves it
+	// held.
 	storeMutex sync.Mutex
 	store      Store
 	written    uint64
 }
 
 // flight is one in-flight refresh: done is closed once it has finished, and
-// err and abandoned, read only after that, are its failure and whether its
-// starter gave up on it, in which case its waiters start a refresh of their
-// own.
+// err and abandoned, read only after that, are its failure and whether it was
+// abandoned, by its starter giving up or by a panic, in which case its waiters
+// start a refresh of their own.
 type flight struct {
 	done      chan struct{}
 	err       error
@@ -139,11 +142,19 @@ func New(state State, options Options) *Session {
 	}
 }
 
-// State returns the current state, the zero State once the session has ended.
-func (s *Session) State() State {
+// locked calls f with mutex held and releases it however f ends, a panic
+// included.
+func (s *Session) locked(f func()) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	return s.state
+	f()
+}
+
+// State returns the current state, the zero State once the session has ended.
+func (s *Session) State() State {
+	var state State
+	s.locked(func() { state = s.state })
+	return state
 }
 
 // Token returns the access token when more than the expiry margin remains
@@ -157,33 +168,34 @@ func (s *Session) State() State {
 // Token returns an [*EndedError] once the session has ended and ctx's error
 // when ctx ends while waiting on a refresh.
 func (s *Session) Token(ctx context.Context) (string, error) {
-	s.mutex.Lock()
-	if s.status != Live {
-		err := s.endedErrorLocked()
-		s.mutex.Unlock()
-		return "", err
-	}
-	now := s.now()
-	if s.state.expiresAt.Sub(now) > s.expiryMargin {
-		token := s.state.accessToken
-		s.mutex.Unlock()
-		return token, nil
-	}
-	if s.rejected {
-		if now.Before(s.state.expiresAt) {
-			token := s.state.accessToken
-			s.mutex.Unlock()
-			return token, nil
+	var token string
+	var err error
+	var clearing write
+	var ending, refresh bool
+	s.locked(func() {
+		now := s.now()
+		switch {
+		case s.status != Live:
+			err = s.endedErrorLocked()
+		case s.state.expiresAt.Sub(now) > s.expiryMargin:
+			token = s.state.accessToken
+		case !s.rejected:
+			refresh = true
+		case now.Before(s.state.expiresAt):
+			token = s.state.accessToken
+		default:
+			clearing, ending = s.endLocked(Expired, s.rejection), true
+			err = s.endedErrorLocked()
 		}
-		clearing := s.endLocked(Expired, s.rejection)
-		err := s.endedErrorLocked()
-		s.mutex.Unlock()
+	})
+	if ending {
 		_ = s.perform(ctx, clearing)
-		return "", err
 	}
-	s.mutex.Unlock()
+	if !refresh {
+		return token, err
+	}
 
-	_, err := s.renew(ctx)
+	_, err = s.renew(ctx)
 	var ended *EndedError
 	if errors.As(err, &ended) {
 		return "", err
@@ -192,15 +204,15 @@ func (s *Session) Token(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	if s.status != Live {
-		return "", s.endedErrorLocked()
-	}
-	if err != nil && !s.now().Before(s.state.expiresAt) {
-		return "", err
-	}
-	return s.state.accessToken, nil
+	s.locked(func() {
+		switch {
+		case s.status != Live:
+			err = s.endedErrorLocked()
+		case err == nil || s.now().Before(s.state.expiresAt):
+			token, err = s.state.accessToken, nil
+		}
+	})
+	return token, err
 }
 
 // Refresh renews the session now, joining a refresh already in flight. It
@@ -225,92 +237,95 @@ func (s *Session) Refresh(ctx context.Context) error {
 // was committed, the refresh failure otherwise and an [*EndedError] when the
 // session has ended, and writeErr is the failure of a store write this call
 // performed. A refresh whose starter's context ended before it succeeded is
-// abandoned rather than shared, and its waiters start one of their own. The
-// caller that starts a refresh commits its result only if the session's
-// generation is unchanged when it returns, and it alone writes the store,
-// after releasing the waiters.
+// abandoned rather than shared, and its waiters start one of their own, as
+// they do when a panic interrupts the refresh or the commit of its result
+// before the panic carries on up the starter's stack. The caller that starts
+// a refresh commits its result only if the session's generation is unchanged
+// when it returns, and it alone writes the store, after releasing the
+// waiters.
 func (s *Session) renew(ctx context.Context) (writeErr, err error) {
-	s.mutex.Lock()
-	for s.status == Live && s.inflight != nil {
-		joined := s.inflight
-		s.mutex.Unlock()
-		select {
-		case <-joined.done:
-		case <-ctx.Done():
-			return nil, ctx.Err()
+	var started *flight
+	var refreshToken string
+	var generation uint64
+	for started == nil {
+		var joined *flight
+		s.locked(func() {
+			switch {
+			case s.status != Live:
+				err = s.endedErrorLocked()
+			case s.inflight != nil:
+				joined = s.inflight
+			default:
+				started = &flight{done: make(chan struct{})}
+				s.inflight = started
+				refreshToken = s.state.refreshToken
+				generation = s.generation
+			}
+		})
+		if err != nil {
+			return nil, err
 		}
-		if !joined.abandoned {
-			return nil, joined.err
+		if joined != nil {
+			select {
+			case <-joined.done:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			if !joined.abandoned {
+				return nil, joined.err
+			}
 		}
-		s.mutex.Lock()
 	}
-	if s.status != Live {
-		endedErr := s.endedErrorLocked()
-		s.mutex.Unlock()
-		return nil, endedErr
-	}
-	started := &flight{done: make(chan struct{})}
-	s.inflight = started
-	refreshToken := s.state.refreshToken
-	generation := s.generation
-	s.mutex.Unlock()
 
-	renewed, refreshErr := s.refreshAbandoningOnPanic(ctx, started, refreshToken)
+	settled := false
+	defer func() {
+		if settled {
+			return
+		}
+		s.locked(func() {
+			s.inflight = nil
+			started.abandoned = true
+		})
+		close(started.done)
+	}()
 
-	s.mutex.Lock()
-	s.inflight = nil
+	renewed, refreshErr := s.refresh(ctx, refreshToken)
+
 	var pending write
 	var hasPending bool
-	switch {
-	case s.generation != generation:
-		started.err = s.endedErrorLocked()
-	case refreshErr == nil:
-		s.state = renewed
-		s.rejected = false
-		s.rejection = nil
-		pending, hasPending = s.capture(renewed.encode()), true
-	case s.definitive(refreshErr):
-		s.rejected = true
-		s.rejection = refreshErr
-		started.err = refreshErr
-		if !s.now().Before(s.state.expiresAt) {
-			pending, hasPending = s.endLocked(Expired, refreshErr), true
+	s.locked(func() {
+		s.inflight = nil
+		switch {
+		case s.generation != generation:
 			started.err = s.endedErrorLocked()
+		case refreshErr == nil:
+			s.state = renewed
+			s.rejected = false
+			s.rejection = nil
+			pending, hasPending = s.capture(renewed.encode()), true
+		case s.definitive(refreshErr):
+			s.rejected = true
+			s.rejection = refreshErr
+			started.err = refreshErr
+			if !s.now().Before(s.state.expiresAt) {
+				pending, hasPending = s.endLocked(Expired, refreshErr), true
+				started.err = s.endedErrorLocked()
+			}
+		case ctx.Err() != nil:
+			started.abandoned = true
+			started.err = refreshErr
+		default:
+			started.err = refreshErr
 		}
-	case ctx.Err() != nil:
-		started.abandoned = true
-		started.err = refreshErr
-	default:
-		started.err = refreshErr
-	}
-	err = started.err
-	s.mutex.Unlock()
+		err = started.err
+	})
+	settled = true
 	close(started.done)
 
 	if hasPending {
 		writeErr = s.perform(ctx, pending)
 	}
 	return writeErr, err
-}
-
-// refreshAbandoningOnPanic calls the refresh function for started and, should
-// it panic, abandons started, releasing its waiters to start their own
-// refresh, before the panic carries on up the starter's stack.
-func (s *Session) refreshAbandoningOnPanic(ctx context.Context, started *flight, refreshToken string) (State, error) {
-	returned := false
-	defer func() {
-		if returned {
-			return
-		}
-		s.mutex.Lock()
-		s.inflight = nil
-		started.abandoned = true
-		s.mutex.Unlock()
-		close(started.done)
-	}()
-	renewed, err := s.refresh(ctx, refreshToken)
-	returned = true
-	return renewed, err
 }
 
 // Persist writes the current state to store and makes store the one every
@@ -322,14 +337,18 @@ func (s *Session) Persist(ctx context.Context, store Store) error {
 	s.storeMutex.Lock()
 	defer s.storeMutex.Unlock()
 
-	s.mutex.Lock()
-	if s.status != Live {
-		err := s.endedErrorLocked()
-		s.mutex.Unlock()
-		return err
+	var first write
+	var endedErr error
+	s.locked(func() {
+		if s.status != Live {
+			endedErr = s.endedErrorLocked()
+			return
+		}
+		first = s.capture(s.state.encode())
+	})
+	if endedErr != nil {
+		return endedErr
 	}
-	first := s.capture(s.state.encode())
-	s.mutex.Unlock()
 
 	if err := store.Save(ctx, first.document); err != nil {
 		return err
@@ -344,15 +363,20 @@ func (s *Session) Persist(ctx context.Context, store Store) error {
 // error verbatim when the clear fails, and an [*EndedError] when the session
 // had already ended.
 func (s *Session) End(ctx context.Context) (State, error) {
-	s.mutex.Lock()
-	if s.status != Live {
-		err := s.endedErrorLocked()
-		s.mutex.Unlock()
-		return State{}, err
+	var held State
+	var clearing write
+	var endedErr error
+	s.locked(func() {
+		if s.status != Live {
+			endedErr = s.endedErrorLocked()
+			return
+		}
+		held = s.state
+		clearing = s.endLocked(SignedOut, nil)
+	})
+	if endedErr != nil {
+		return State{}, endedErr
 	}
-	held := s.state
-	clearing := s.endLocked(SignedOut, nil)
-	s.mutex.Unlock()
 	return held, s.perform(ctx, clearing)
 }
 

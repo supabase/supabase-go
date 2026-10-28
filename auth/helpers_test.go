@@ -155,8 +155,7 @@ func (s *sessionServer) handle(writer http.ResponseWriter, request *http.Request
 	if err != nil {
 		s.t.Errorf("reading request body: %v", err)
 	}
-	s.mutex.Lock()
-	s.requests = append(s.requests, recordedRequest{
+	next := s.record(recordedRequest{
 		method:        request.Method,
 		path:          request.URL.Path,
 		query:         request.URL.RawQuery,
@@ -166,15 +165,6 @@ func (s *sessionServer) handle(writer http.ResponseWriter, request *http.Request
 		authorization: request.Header.Get("Authorization"),
 		body:          requestBody,
 	})
-	script := s.scripts[request.URL.Path]
-	var next answer
-	if len(script) > 0 {
-		next = script[0]
-		if len(script) > 1 {
-			s.scripts[request.URL.Path] = script[1:]
-		}
-	}
-	s.mutex.Unlock()
 	if next.status == 0 {
 		writer.WriteHeader(http.StatusNotFound)
 		return
@@ -207,11 +197,7 @@ func (s *sessionServer) mint(lifetime time.Duration) []byte {
 	claims["sub"] = sessionUserID
 	claims["exp"] = expiresAt.Unix()
 	accessToken := s.signer.Token(s.t, claims)
-
-	s.mutex.Lock()
-	s.minted = append(s.minted, accessToken)
-	refreshToken := mintedRefreshToken(len(s.minted) - 1)
-	s.mutex.Unlock()
+	refreshToken := s.recordMinted(accessToken)
 
 	response, err := json.Marshal(map[string]any{
 		"access_token":  accessToken,
@@ -225,6 +211,32 @@ func (s *sessionServer) mint(lifetime time.Duration) []byte {
 		s.t.Errorf("marshaling token response: %v", err)
 	}
 	return response
+}
+
+// record records request and takes the next scripted answer for its path,
+// the last answer repeating.
+func (s *sessionServer) record(request recordedRequest) answer {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.requests = append(s.requests, request)
+	script := s.scripts[request.path]
+	var next answer
+	if len(script) > 0 {
+		next = script[0]
+		if len(script) > 1 {
+			s.scripts[request.path] = script[1:]
+		}
+	}
+	return next
+}
+
+// recordMinted records accessToken among the tokens minted and returns the
+// refresh token minted with it.
+func (s *sessionServer) recordMinted(accessToken string) string {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.minted = append(s.minted, accessToken)
+	return mintedRefreshToken(len(s.minted) - 1)
 }
 
 // script replaces the answers for path, consumed in order with the last
@@ -358,12 +370,18 @@ func (s *recordingStore) Load(_ context.Context) ([]byte, error) {
 	return slices.Clone(s.state), nil
 }
 
-func (s *recordingStore) Save(_ context.Context, state []byte) error {
+// takeHold returns the hold holdNextSave armed, if any, disarming it so that
+// it applies to one Save alone.
+func (s *recordingStore) takeHold() (hold, entered chan struct{}) {
 	s.mutex.Lock()
-	hold, entered := s.hold, s.entered
+	defer s.mutex.Unlock()
+	hold, entered = s.hold, s.entered
 	s.hold, s.entered = nil, nil
-	s.mutex.Unlock()
-	if hold != nil {
+	return hold, entered
+}
+
+func (s *recordingStore) Save(_ context.Context, state []byte) error {
+	if hold, entered := s.takeHold(); hold != nil {
 		close(entered)
 		<-hold
 	}
@@ -393,9 +411,7 @@ func (s *recordingStore) Delete(_ context.Context) error {
 // in order.
 func (s *recordingStore) savedRefreshTokens(t *testing.T) []string {
 	t.Helper()
-	s.mutex.Lock()
-	saves := slices.Clone(s.saves)
-	s.mutex.Unlock()
+	saves := s.savedStates()
 	refreshTokens := make([]string, 0, len(saves))
 	for _, save := range saves {
 		refreshTokens = append(refreshTokens, decodeDocument(t, save).RefreshToken)
@@ -408,6 +424,13 @@ func (s *recordingStore) deleteCount() int {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	return s.deletes
+}
+
+// savedStates returns every state the store saved, in order.
+func (s *recordingStore) savedStates() [][]byte {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	return slices.Clone(s.saves)
 }
 
 // stored returns the state the store holds.
