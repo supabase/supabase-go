@@ -7,6 +7,17 @@ Refer to [GitHub `../CHANGELOG.md`](https://github.com/supabase/supabase-go/blob
 
 ## Unreleased
 
+### Added
+
+A per-user session, `Session`, with password sign-in:
+
+- `Client.SignInWithPassword`
+- `Client.SessionFromTokens`
+- `Client.SessionFromStore`
+- `Session` with `AccessToken`, `RefreshToken`, `User`, `Refresh`, `SignOut` and `Persist`
+- `SessionStore`, the interface a program implements to keep a session between runs
+- sentinel errors `ErrSignedOut`, `ErrSessionExpired`, `ErrNoStoredSession`, `ErrMissingRefreshToken` and `ErrMissingStore`
+
 ### Changed
 
 Call-scoped functional options moved from the package root into per-family packages, each owning its `Option` type and constructors:

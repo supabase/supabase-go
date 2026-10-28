@@ -715,8 +715,8 @@ In an example the variable's content is certain, so naming the type it holds let
 The Auth client sends each request once and ignores the `configuration.WithRetry` setting.
 
 **Why**:  
-Auth's requests are GETs and safe to repeat, so honoring the option was possible.
-It is ignored because verification sits on the request-handling hot path of the caller's own server - this SDK's anticipated primary use - where invisible backoff multiplies the latency of the inbound request being served.
+Verification sits on the request-handling hot path of the caller's own server - this SDK's anticipated primary use - where invisible backoff multiplies the latency of the inbound request being served.
+Nor is every Auth request safe to repeat: a repeated password grant signs the user in a second time.
 
 ## The auth admin surface is one in-package type behind an accessor
 
@@ -764,10 +764,12 @@ The sibling SDKs always send the flag, so this SDK alone would follow a changed 
 
 **What**:  
 An operation returns exactly one `<Operation>Result` pointer plus `error`, fields behind accessors, and the result is empty where the operation's wire success is bodiless today, as `SignOutResult` is.
+An operation is a call that may make a round trip to a Supabase service, so `Session.Persist`, which reaches only the caller's store, returns a bare `error`, and `Session.AccessToken` alone round-trips without the envelope, its shape fixed by `configuration.AccessTokenProvider`.
 
 **Why**:  
 Go offers no compatible way to change a published function signature, so every return shape shipped at GA is permanent: the password grant's optional weak-password advisory is a wire field a bare `(*Session, error)` would have nowhere to put.
 The envelope makes response growth additive - a new accessor, never a second method beside the first - and an empty result reserves the same room on bodiless calls, where a bare `error` can never widen.
+The result is a pointer so that a failed call returns `nil` for it and code that ignores the error fails at the first accessor, on the line with the bug, where a value return would hand back a zero result that reads as an answer: an empty `ListUsersResult` is a page with no users.
 The sibling precedent does not transfer: supabase-js returns `{ error }` from its bodiless calls and can add fields to that object compatibly, while a Go return cannot, so this SDK alone needs the vessel in place before a field arrives.
 The stdlib's naked-tuple idiom lost the weighing: the ceremony costs one `_,` per action call, and an increasing share of calling code is written by builders (human+robot pairs), which emit one mechanical rule more reliably than a per-call judgement.
 The derivation term is operation rather than method, which is overloaded between a Go method and an HTTP method, and an operation that orchestrates more than one endpoint keeps a well-formed result name.

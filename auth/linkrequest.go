@@ -144,7 +144,7 @@ type LinkRequest interface {
 // server's built-in one. The returned link is a credential for the account
 // it targets: hand it to the mailer and log it nowhere.
 func (a *Admin) GenerateLink(ctx context.Context, request LinkRequest) (*GenerateLinkResult, error) {
-	body, err := send(ctx, a.httpClient, http.MethodPost, a.adminBaseURL.JoinPath("generate_link"), request.linkRequest().Payload())
+	body, err := send(ctx, a.httpClient, http.MethodPost, a.adminBaseURL.JoinPath("generate_link"), request.linkRequest().Payload(), "")
 	if err != nil {
 		return nil, err
 	}

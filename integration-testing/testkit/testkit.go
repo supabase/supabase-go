@@ -54,14 +54,18 @@ func SecretCredentials(t *testing.T) (projectURL, apiKey string) {
 // User is one signed-up end user of the local stack's auth service, carrying
 // the credentials tests act with and the fields they assert on.
 type User struct {
-	ID          string
-	Email       string
-	AccessToken string
+	ID           string
+	Email        string
+	AccessToken  string
+	RefreshToken string
 }
 
+// Password is the password every user SignUpUser registers signs in with.
+const Password = "integration-password"
+
 // SignUpUser registers a fresh user with the local stack's auth service and
-// returns its id, email and access token. The local stack auto-confirms new
-// email accounts, so the response carries a usable session immediately.
+// returns its id, email and tokens. The local stack auto-confirms new email
+// accounts, so the response carries a usable session immediately.
 func SignUpUser(t *testing.T, projectURL, apiKey string) User {
 	t.Helper()
 	safeName := strings.ReplaceAll(t.Name(), "/", "-")
@@ -69,7 +73,7 @@ func SignUpUser(t *testing.T, projectURL, apiKey string) User {
 	// lower-case address (the test name supplying safeName carries capitals) to
 	// keep the recorded fixture equal to what the server stores and returns.
 	email := strings.ToLower(fmt.Sprintf("user-%d-%s@example.com", time.Now().UnixNano(), safeName))
-	payload, err := json.Marshal(map[string]string{"email": email, "password": "integration-password"})
+	payload, err := json.Marshal(map[string]string{"email": email, "password": Password})
 	if err != nil {
 		t.Fatalf("marshaling signup payload: %v", err)
 	}
@@ -89,16 +93,17 @@ func SignUpUser(t *testing.T, projectURL, apiKey string) User {
 		t.Fatalf("signup for %s: HTTP %d: %s", email, response.StatusCode, body)
 	}
 	var session struct {
-		AccessToken string `json:"access_token"`
-		User        struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		User         struct {
 			ID string `json:"id"`
 		} `json:"user"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&session); err != nil {
 		t.Fatalf("decoding signup response: %v", err)
 	}
-	if session.AccessToken == "" || session.User.ID == "" {
+	if session.AccessToken == "" || session.RefreshToken == "" || session.User.ID == "" {
 		t.Fatalf("signup for %s returned no session - is the local stack's auth service enabled with auto-confirm?", email)
 	}
-	return User{ID: session.User.ID, Email: email, AccessToken: session.AccessToken}
+	return User{ID: session.User.ID, Email: email, AccessToken: session.AccessToken, RefreshToken: session.RefreshToken}
 }
