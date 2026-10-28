@@ -27,6 +27,10 @@ Every operation now returns exactly one result value plus `error`, the result ty
 - the custom provider operations answer `*CreateCustomProviderResult`, `*GetCustomProviderResult`, `*ListCustomProvidersResult` and `*UpdateCustomProviderResult` (were `*CustomProvider` and `[]CustomProvider`)
 - the bodiless operations `DeleteUser`, `SignOut`, `DeleteMFAFactor` and `DeleteCustomProvider` answer empty results that carry nothing, allowing for future population if the protocol changes to provide result detail (were bare `error`)
 
+Every request states Auth API version `2024-01-01`, placing `Error` under that version's [error contract](https://github.com/supabase/auth/pull/1377):
+
+- a failure raised by a database trigger reports the server's generic message with code `unexpected_failure` (was the trigger's own text as the raw JSON body in `Error.Message`, with `Error.Code` empty)
+
 ## `v0.1.0-alpha.2` (2026-10-15)
 
 ### Added

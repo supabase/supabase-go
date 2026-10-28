@@ -18,6 +18,7 @@ import (
 	"github.com/supabase/supabase-go/auth/signout"
 	"github.com/supabase/supabase-go/auth/userdelete"
 	"github.com/supabase/supabase-go/auth/userinvite"
+	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/core/pagination"
 )
 
@@ -31,6 +32,7 @@ type recordedRequest struct {
 	query         string
 	contentType   string
 	apiKey        string
+	apiVersion    string
 	authorization string
 	body          []byte
 }
@@ -62,6 +64,7 @@ func newAdminServer(t *testing.T) *adminServer {
 			query:         request.URL.RawQuery,
 			contentType:   request.Header.Get("Content-Type"),
 			apiKey:        request.Header.Get("apikey"),
+			apiVersion:    request.Header.Get("X-Supabase-Api-Version"),
 			authorization: request.Header.Get("Authorization"),
 			body:          requestBody,
 		})
@@ -75,10 +78,11 @@ func newAdminServer(t *testing.T) *adminServer {
 	return recorder
 }
 
-// admin builds the admin surface of a client wired to the recording server.
-func (s *adminServer) admin(t *testing.T) *auth.Admin {
+// admin builds the admin surface of a client wired to the recording server,
+// configured by options.
+func (s *adminServer) admin(t *testing.T, options ...configuration.Option) *auth.Admin {
 	t.Helper()
-	client, err := auth.New(s.server.URL, "test-secret-key")
+	client, err := auth.New(s.server.URL, "test-secret-key", options...)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -388,7 +392,7 @@ func TestAdminErrorSurface(t *testing.T) {
 		t.Run(operation.name, func(t *testing.T) {
 			recorder := newAdminServer(t)
 			recorder.status = http.StatusForbidden
-			recorder.body = `{"error_code":"not_admin","msg":"User not allowed"}`
+			recorder.body = `{"code":"not_admin","message":"User not allowed"}`
 			admin := recorder.admin(t)
 
 			err := operation.call(admin)
@@ -689,7 +693,7 @@ func TestAdminSignOutRequestShape(t *testing.T) {
 		options []signout.Option
 		query   string
 	}{
-		{"a bare call sends no scope, leaving the server's default global revocation", nil, ""},
+		{"a bare call states the global scope, the server's own default", nil, "scope=global"},
 		{"WithLocalScope narrows to the presented session", []signout.Option{signout.WithLocalScope()}, "scope=local"},
 		{"WithOthersScope spares the presented session", []signout.Option{signout.WithOthersScope()}, "scope=others"},
 		{"of two scopes the later wins", []signout.Option{signout.WithLocalScope(), signout.WithOthersScope()}, "scope=others"},

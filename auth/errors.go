@@ -62,12 +62,12 @@ func (e *Error) Error() string {
 	return "auth: " + e.HTTPError.Error()
 }
 
-// errorBody is the JSON shape the Auth server uses for error responses. Recent
-// servers send error_code and msg; older ones send error and
-// error_description. Both are parsed so the richer field wins.
+// errorBody is the JSON shape of the Auth server's error responses: code and
+// message under the API version every request states, or error and
+// error_description for the rejections the server shapes as OAuth 2 errors.
 type errorBody struct {
-	ErrorCode        string `json:"error_code"`
-	Message          string `json:"msg"`
+	Code             string `json:"code"`
+	Message          string `json:"message"`
 	Error            string `json:"error"`
 	ErrorDescription string `json:"error_description"`
 }
@@ -84,7 +84,7 @@ func newError(httpStatus int, responseBody []byte) *Error {
 		}}
 	}
 
-	code := parsed.ErrorCode
+	code := parsed.Code
 	if code == "" {
 		code = parsed.Error
 	}

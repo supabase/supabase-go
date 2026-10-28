@@ -9,20 +9,24 @@ import (
 
 	"github.com/supabase/supabase-go/auth"
 	"github.com/supabase/supabase-go/auth/internal/testkit"
+	"github.com/supabase/supabase-go/core/configuration"
 )
 
 // mockAuthServer stands in for the Auth server, serving the JWK Set discovery
 // endpoint and the user endpoint. Its counters and configurable responses let a
-// test assert which path a call took.
+// test assert which path a call took, and each endpoint records the API
+// version header its latest request carried.
 type mockAuthServer struct {
 	server *httptest.Server
 
-	keys          []map[string]any
-	jwkSetFetches atomic.Int32
-	jwkSetStatus  int
-	userHits      atomic.Int32
-	userStatus    int
-	userBody      string
+	keys             []map[string]any
+	jwkSetFetches    atomic.Int32
+	jwkSetStatus     int
+	jwkSetAPIVersion string
+	userHits         atomic.Int32
+	userStatus       int
+	userBody         string
+	userAPIVersion   string
 }
 
 // newMockAuthServer starts a server publishing the signers' public keys at the
@@ -35,18 +39,20 @@ func newMockAuthServer(t *testing.T, signers ...testkit.Signer) *mockAuthServer 
 		mock.keys = append(mock.keys, signer.PublicJWK())
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/auth/v1/.well-known/jwks.json", func(writer http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/auth/v1/.well-known/jwks.json", func(writer http.ResponseWriter, request *http.Request) {
 		mock.jwkSetFetches.Add(1)
+		mock.jwkSetAPIVersion = request.Header.Get("X-Supabase-Api-Version")
 		if mock.jwkSetStatus != http.StatusOK {
 			writer.WriteHeader(mock.jwkSetStatus)
-			_, _ = writer.Write([]byte(`{"msg":"discovery unavailable"}`))
+			_, _ = writer.Write([]byte(`{"code":"unexpected_failure","message":"discovery unavailable"}`))
 			return
 		}
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]any{"keys": mock.keys})
 	})
-	mux.HandleFunc("/auth/v1/user", func(writer http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/auth/v1/user", func(writer http.ResponseWriter, request *http.Request) {
 		mock.userHits.Add(1)
+		mock.userAPIVersion = request.Header.Get("X-Supabase-Api-Version")
 		writer.WriteHeader(mock.userStatus)
 		_, _ = writer.Write([]byte(mock.userBody))
 	})
@@ -55,10 +61,11 @@ func newMockAuthServer(t *testing.T, signers ...testkit.Signer) *mockAuthServer 
 	return mock
 }
 
-// client builds an auth client wired to the mock server.
-func (m *mockAuthServer) client(t *testing.T) *auth.Client {
+// client builds an auth client wired to the mock server, configured by
+// options.
+func (m *mockAuthServer) client(t *testing.T, options ...configuration.Option) *auth.Client {
 	t.Helper()
-	client, err := auth.New(m.server.URL, "test-anon-key")
+	client, err := auth.New(m.server.URL, "test-anon-key", options...)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

@@ -1,7 +1,7 @@
 // Package signout carries the scope vocabulary the SDK's sign-out calls
 // take: which of the user's sessions a revocation reaches, expressed as
-// functional options. A call made with no options states no scope, leaving
-// the server's documented default in charge.
+// functional options. Every call states its scope on the wire, and a call
+// made with no options states the global scope, the server's own default.
 package signout
 
 // Parameters is the resolved set of sign-out parameters for one call. The
@@ -14,9 +14,9 @@ type Parameters struct {
 // are supplied, the last setting of a parameter winning.
 type Option func(*Parameters)
 
-// Resolve applies options to an empty Parameters and returns the result.
+// Resolve applies options over the global scope and returns the result.
 func Resolve(options ...Option) Parameters {
-	var parameters Parameters
+	parameters := Parameters{scope: "global"}
 	for _, option := range options {
 		option(&parameters)
 	}
@@ -38,6 +38,6 @@ func WithOthersScope() Option {
 	}
 }
 
-// Scope returns the chosen scope, empty when no option narrowed the
+// Scope returns the chosen scope, global when no option narrowed the
 // revocation.
 func (p Parameters) Scope() string { return p.scope }

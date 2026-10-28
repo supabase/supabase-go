@@ -1,11 +1,9 @@
 package auth
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -114,7 +112,7 @@ type UserAttributes struct {
 // decide whether the user starts confirmed. The server requires at least an
 // email or a phone number.
 func (a *Admin) CreateUser(ctx context.Context, attributes UserAttributes) (*CreateUserResult, error) {
-	body, err := a.send(ctx, http.MethodPost, a.adminBaseURL.JoinPath("users"), attributes)
+	body, err := send(ctx, a.httpClient, http.MethodPost, a.adminBaseURL.JoinPath("users"), attributes)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +139,7 @@ func (a *Admin) GetUser(ctx context.Context, userID string) (*GetUserResult, err
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
 	}
-	body, err := a.send(ctx, http.MethodGet, a.adminBaseURL.JoinPath("users", userID), nil)
+	body, err := send(ctx, a.httpClient, http.MethodGet, a.adminBaseURL.JoinPath("users", userID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +159,7 @@ func (a *Admin) UpdateUser(ctx context.Context, userID string, attributes UserAt
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
 	}
-	body, err := a.send(ctx, http.MethodPut, a.adminBaseURL.JoinPath("users", userID), attributes)
+	body, err := send(ctx, a.httpClient, http.MethodPut, a.adminBaseURL.JoinPath("users", userID), attributes)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +196,7 @@ func (a *Admin) DeleteUser(ctx context.Context, userID string, options ...userde
 	if userdelete.Resolve(options...).SoftDelete() {
 		payload = deleteUserPayload{ShouldSoftDelete: true}
 	}
-	if _, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID), payload); err != nil {
+	if _, err := send(ctx, a.httpClient, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID), payload); err != nil {
 		return nil, err
 	}
 	return &DeleteUserResult{}, nil
@@ -231,7 +229,7 @@ func (a *Admin) ListUsers(ctx context.Context, options ...pagination.Option) (*L
 	}
 	endpoint.RawQuery = query.Encode()
 
-	body, header, err := a.exchange(ctx, http.MethodGet, endpoint, nil, "")
+	body, header, err := exchange(ctx, a.httpClient, http.MethodGet, endpoint, nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +329,7 @@ func (a *Admin) InviteUser(ctx context.Context, email string, options ...userinv
 		query.Set("redirect_to", redirectTo)
 		endpoint.RawQuery = query.Encode()
 	}
-	body, err := a.send(ctx, http.MethodPost, endpoint, invitePayload{Email: email, Data: parameters.UserMetadata()})
+	body, err := send(ctx, a.httpClient, http.MethodPost, endpoint, invitePayload{Email: email, Data: parameters.UserMetadata()})
 	if err != nil {
 		return nil, err
 	}
@@ -357,12 +355,13 @@ type invitePayload struct {
 	Data  map[string]any `json:"data,omitzero"`
 }
 
-// SignOut revokes sessions of the user jwt authenticates. A bare call sends
-// no scope, so the server's default governs, and that default is revoking
-// every session the user holds; [signout.WithLocalScope] and
-// [signout.WithOthersScope] narrow the revocation. The jwt is the end user's access token - the one admin
-// request that carries a user token, naming whose sessions to revoke - and an
-// empty jwt returns [ErrMissingJWT] before any request is sent.
+// SignOut revokes sessions of the user jwt authenticates. Every call states
+// its scope. A bare call states global, the server's own default, which
+// revokes every session the user holds, and [signout.WithLocalScope] and
+// [signout.WithOthersScope] narrow the revocation. The jwt is the end user's
+// access token - the one admin request that carries a user token, naming
+// whose sessions to revoke - and an empty jwt returns [ErrMissingJWT] before
+// any request is sent.
 //
 // Revocation ends sessions, not tokens: a revoked session's unexpired access
 // tokens still verify locally with [Client.GetClaims] until they expire, but
@@ -372,12 +371,8 @@ func (a *Admin) SignOut(ctx context.Context, jwt string, options ...signout.Opti
 		return nil, ErrMissingJWT
 	}
 	endpoint := a.baseURL.JoinPath("logout")
-	if scope := signout.Resolve(options...).Scope(); scope != "" {
-		query := url.Values{}
-		query.Set("scope", scope)
-		endpoint.RawQuery = query.Encode()
-	}
-	if _, _, err := a.exchange(ctx, http.MethodPost, endpoint, nil, jwt); err != nil {
+	endpoint.RawQuery = url.Values{"scope": {signout.Resolve(options...).Scope()}}.Encode()
+	if _, _, err := exchange(ctx, a.httpClient, http.MethodPost, endpoint, nil, jwt); err != nil {
 		return nil, err
 	}
 	return &SignOutResult{}, nil
@@ -395,7 +390,7 @@ func (a *Admin) ListMFAFactors(ctx context.Context, userID string) (*ListMFAFact
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
 	}
-	body, err := a.send(ctx, http.MethodGet, a.adminBaseURL.JoinPath("users", userID, "factors"), nil)
+	body, err := send(ctx, a.httpClient, http.MethodGet, a.adminBaseURL.JoinPath("users", userID, "factors"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -430,7 +425,7 @@ func (a *Admin) UpdateMFAFactor(ctx context.Context, userID, factorID string, op
 	}
 	parameters := mfafactor.Resolve(options...)
 	request := updateMFAFactorRequest{FriendlyName: parameters.FriendlyName(), Phone: parameters.Phone()}
-	body, err := a.send(ctx, http.MethodPut, a.adminBaseURL.JoinPath("users", userID, "factors", factorID), request)
+	body, err := send(ctx, a.httpClient, http.MethodPut, a.adminBaseURL.JoinPath("users", userID, "factors", factorID), request)
 	if err != nil {
 		return nil, err
 	}
@@ -469,7 +464,7 @@ func (a *Admin) DeleteMFAFactor(ctx context.Context, userID, factorID string) (*
 	if !isCanonicalUUID(factorID) {
 		return nil, ErrInvalidFactorID
 	}
-	if _, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID, "factors", factorID), nil); err != nil {
+	if _, err := send(ctx, a.httpClient, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID, "factors", factorID), nil); err != nil {
 		return nil, err
 	}
 	return &DeleteMFAFactorResult{}, nil
@@ -485,7 +480,7 @@ type DeleteMFAFactorResult struct{}
 // provider as stored. An identifier already registered is the server's
 // rejection, an [*Error] whose Code is "conflict".
 func (a *Admin) CreateCustomProvider(ctx context.Context, definition customprovider.Definition) (*CreateCustomProviderResult, error) {
-	body, err := a.send(ctx, http.MethodPost, a.adminBaseURL.JoinPath("custom-providers"), definition)
+	body, err := send(ctx, a.httpClient, http.MethodPost, a.adminBaseURL.JoinPath("custom-providers"), definition)
 	if err != nil {
 		return nil, err
 	}
@@ -513,7 +508,7 @@ func (a *Admin) GetCustomProvider(ctx context.Context, identifier string) (*GetC
 	if identifier == "" {
 		return nil, ErrMissingIdentifier
 	}
-	body, err := a.send(ctx, http.MethodGet, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), nil)
+	body, err := send(ctx, a.httpClient, http.MethodGet, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -543,7 +538,7 @@ func (a *Admin) ListCustomProviders(ctx context.Context, options ...customprovid
 		query.Set("type", providerType)
 		endpoint.RawQuery = query.Encode()
 	}
-	body, err := a.send(ctx, http.MethodGet, endpoint, nil)
+	body, err := send(ctx, a.httpClient, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -577,7 +572,7 @@ func (a *Admin) UpdateCustomProvider(ctx context.Context, identifier string, opt
 	if identifier == "" {
 		return nil, ErrMissingIdentifier
 	}
-	body, err := a.send(ctx, http.MethodPut, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), customprovider.Resolve(options...))
+	body, err := send(ctx, a.httpClient, http.MethodPut, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), customprovider.Resolve(options...))
 	if err != nil {
 		return nil, err
 	}
@@ -606,7 +601,7 @@ func (a *Admin) DeleteCustomProvider(ctx context.Context, identifier string) (*D
 	if identifier == "" {
 		return nil, ErrMissingIdentifier
 	}
-	if _, err := a.send(ctx, http.MethodDelete, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), nil); err != nil {
+	if _, err := send(ctx, a.httpClient, http.MethodDelete, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), nil); err != nil {
 		return nil, err
 	}
 	return &DeleteCustomProviderResult{}, nil
@@ -617,56 +612,7 @@ func (a *Admin) DeleteCustomProvider(ctx context.Context, identifier string) (*D
 // result carries nothing until the wire does.
 type DeleteCustomProviderResult struct{}
 
-// send executes one admin request through exchange for the calls that read
-// no response headers and present no user token.
-func (a *Admin) send(ctx context.Context, method string, endpoint *url.URL, payload any) ([]byte, error) {
-	body, _, err := a.exchange(ctx, method, endpoint, payload, "")
-	return body, err
-}
-
-// exchange executes one admin request and returns the response body and
-// headers. A payload is JSON-encoded, a nil payload sends no body, a non-empty
-// bearer carries an end user's token on the Authorization header in place of
-// the configured key, and a non-2xx answer is shaped into [*Error].
-func (a *Admin) exchange(ctx context.Context, method string, endpoint *url.URL, payload any, bearer string) ([]byte, http.Header, error) {
-	var requestBody io.Reader
-	if payload != nil {
-		encoded, err := json.Marshal(payload)
-		if err != nil {
-			return nil, nil, fmt.Errorf("auth: encoding request body: %w", err)
-		}
-		requestBody = bytes.NewReader(encoded)
-	}
-
-	request, err := http.NewRequestWithContext(ctx, method, endpoint.String(), requestBody)
-	if err != nil {
-		return nil, nil, fmt.Errorf("auth: building request: %w", err)
-	}
-	if payload != nil {
-		request.Header.Set("Content-Type", "application/json")
-	}
-	if bearer != "" {
-		request.Header.Set("Authorization", "Bearer "+bearer)
-	}
-
-	response, err := a.httpClient.Do(request)
-	if err != nil {
-		return nil, nil, fmt.Errorf("auth: executing request: %w", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-
-	responseBody, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, nil, fmt.Errorf("auth: reading response: %w", err)
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, nil, newError(response.StatusCode, responseBody)
-	}
-	return responseBody, response.Header, nil
-}
-
-// parseUser decodes a user response through the same profile parsing the
-// session calls use.
+// parseUser decodes a user response body.
 func parseUser(body []byte) (*User, error) {
 	user, err := profile.Parse(body)
 	if err != nil {
