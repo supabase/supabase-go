@@ -274,6 +274,10 @@ Concretely:
 
 These rules apply to every commentary surface in the repository: Go doc comments (exported and internal), inline comments and comments in scripts, workflows, SQL and configuration files.
 
+## Concurrency
+
+- **Release every lock by `defer`.** Follow each `Lock` immediately with `defer Unlock`, giving a critical section that must end mid-function a function of its own, so a panic recovered further up the stack never leaves a lock held.
+
 ## Testing conventions
 
 If you are newer to Go, a few conventions are worth knowing - they are stricter and more file-layout-driven than many other ecosystems.
