@@ -41,6 +41,19 @@ We support the two most recent major versions of Go, aligning with the Go projec
 
 The oldest Go version we support is referred to as our "consumer floor" and can be found in each module's `go` directive (see `go.mod` files, for example [`supabase/go.mod`](supabase/go.mod)), raised opportunistically per-module after each new Go release.
 
+## Supabase Service Compatibility
+
+The Supabase Go SDK only guarantees compatibility with the latest release of each Supabase service, unless a minimum supported version is explicitly listed below.
+
+Older service releases are supported on a best-effort basis, but compatibility is not guaranteed.
+
+If you self-host Supabase, we recommend upgrading your services to their latest releases when upgrading the SDK.
+
+| Service   | Module                    | Server releases                                                        | Lowest supported version |
+| --------- | ------------------------- | ---------------------------------------------------------------------- | ------------------------ |
+| Auth      | [`auth`](auth/)           | [supabase/auth](https://github.com/supabase/auth/releases)             | Latest release           |
+| PostgREST | [`postgrest`](postgrest/) | [PostgREST/postgrest](https://github.com/PostgREST/postgrest/releases) | Latest release           |
+
 ## Security
 
 This SDK is built for backend processes that hold privileged credentials, with its security posture enforced by design:
