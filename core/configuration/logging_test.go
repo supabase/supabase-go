@@ -18,7 +18,7 @@ type capturingHandler struct {
 	records []slog.Record
 }
 
-func (h *capturingHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (*capturingHandler) Enabled(context.Context, slog.Level) bool { return true }
 
 func (h *capturingHandler) Handle(_ context.Context, record slog.Record) error {
 	h.records = append(h.records, record)
@@ -135,7 +135,7 @@ type disabledHandler struct {
 	t *testing.T
 }
 
-func (h disabledHandler) Enabled(context.Context, slog.Level) bool { return false }
+func (disabledHandler) Enabled(context.Context, slog.Level) bool { return false }
 
 func (h disabledHandler) Handle(context.Context, slog.Record) error {
 	h.t.Error("Handle invoked although Enabled reported false")

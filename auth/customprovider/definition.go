@@ -114,7 +114,7 @@ func (d OIDCDefinition) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.definition.Payload())
 }
 
-func (d OIDCDefinition) sealedDefinition() {}
+func (OIDCDefinition) sealedDefinition() {}
 
 // OAuth2Definition is an OAuth 2.0 provider definition, ready for the admin
 // creation call. Like the builder it is an immutable value: each method
@@ -184,7 +184,7 @@ func (d OAuth2Definition) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.definition.Payload())
 }
 
-func (d OAuth2Definition) sealedDefinition() {}
+func (OAuth2Definition) sealedDefinition() {}
 
 // Definition is a custom provider definition with its type chosen, built
 // from [New]. The two definition types satisfy it and nothing outside this
