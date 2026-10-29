@@ -5,7 +5,7 @@ description: Guides the design of internal type contracts in respect of immutabi
 
 In Go the package is the only compiler-enforced encapsulation boundary. File boundaries are decorative, so any file in a package can assign any unexported field declared anywhere in that package. A contract enforced only by convention is not enforced, causing maintainability issues as the amount of source code in a package increases (whether by line count or file count), so should be considered a design smell.
 
-Exemplars include: `postgrest/internal/http` and the `auth/internal` packages (`token`, `key`, `cache`, `profile`, plus `testkit` for shared fixtures).
+Exemplars include: `postgrest/internal/exchange` and the `auth/internal` packages (`token`, `key`, `cache`, `profile`, plus `testkit` for shared fixtures).
 
 Highlights of good design:
 
