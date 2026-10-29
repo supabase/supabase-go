@@ -31,7 +31,7 @@ func tokenAlgorithm(t *testing.T, token string) string {
 	t.Helper()
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		t.Fatalf("access token is not a three-part JWT")
+		t.Fatal("access token is not a three-part JWT")
 	}
 	headerBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
