@@ -57,10 +57,10 @@ Don't adopt `cyclop`, `exhaustruct` or `goimports` for now.
 
 **Why**:  
 The guiding test is whether a check helps avoid mistakes that would later force a major refactor or a breaking public-API change.
-`revive` earns its place because it is the only tool in the gate that requires a doc comment on every exported identifier, which `standard.md` demands, and that checks exported names for stutter and initialism casing (a bad exported name today is a breaking rename tomorrow).
+`revive` earns its place because it is the only tool in the gate that requires a doc comment on every exported identifier, which [`standard.md`](standard.md) demands, and that checks exported names for stutter and initialism casing (a bad exported name today is a breaking rename tomorrow).
 `go vet` excludes style checks by policy and staticcheck's stylecheck checks a doc comment's form only where one exists.
 golint, the Go project's own style linter, was frozen in 2021 with revive as its drop-in successor.
-It runs from a committed `revive.toml` that enables its default set and adds checks on top, never removing one, and `scripts/lint.sh` names that file explicitly so a contributor's own revive configuration cannot change the gate.
+It runs from a committed [`revive.toml`](revive.toml) that enables its default set and adds checks on top, never removing one, and [`scripts/lint.sh`](scripts/lint.sh) names that file explicitly so a contributor's own revive configuration cannot change the gate.
 
 ## The two Go-version environments are kept discrete
 
