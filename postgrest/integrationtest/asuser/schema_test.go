@@ -70,11 +70,12 @@ func TestWithSchemaCallsFunctionInSelectedSchema(t *testing.T) {
 		t.Fatalf("personal.count_instruments() = %d, want 2", count)
 	}
 
-	if _, _, err := postgrest.CollectRaw(
+	_, _, err = postgrest.CollectRaw(
 		t.Context(),
 		newIntegrationClient(t),
 		postgrest.RPC[int64]("count_instruments").Value().ReadOnly(),
-	); err == nil {
+	)
+	if err == nil {
 		t.Fatal("count_instruments resolved in the default schema, want failure (it is personal-only)")
 	}
 }

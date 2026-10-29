@@ -170,15 +170,17 @@ func TestWithAccessTokenProviderOptionScopesOneCall(t *testing.T) {
 	server, recorder := newRecordingServer(t)
 	client := newClient(t, server.URL)
 
-	if _, _, err := postgrest.Collect(
+	_, _, err := postgrest.Collect(
 		t.Context(), client, postgrest.From[map[string]any]("instruments"),
 		postgrest.WithAccessTokenProvider(constantToken("scoped-token")),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Collect with option: %v", err)
 	}
-	if _, _, err := postgrest.Collect(
+	_, _, err = postgrest.Collect(
 		t.Context(), client, postgrest.From[map[string]any]("instruments"),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Collect without option: %v", err)
 	}
 
@@ -208,10 +210,11 @@ func TestWithAccessTokenProviderOptionReplacesClientProvider(t *testing.T) {
 		}
 		client := newClient(t, server.URL).WithAccessTokenProvider(clientProvider)
 
-		if _, _, err := postgrest.Collect(
+		_, _, err := postgrest.Collect(
 			t.Context(), client, postgrest.From[map[string]any]("instruments"),
 			postgrest.WithAccessTokenProvider(constantToken("option-token")),
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatalf("Collect: %v", err)
 		}
 		if got := recorder.only(t).Get("Authorization"); got != "Bearer option-token" {
@@ -226,11 +229,12 @@ func TestWithAccessTokenProviderOptionReplacesClientProvider(t *testing.T) {
 		server, recorder := newRecordingServer(t)
 		client := newClient(t, server.URL)
 
-		if _, _, err := postgrest.Collect(
+		_, _, err := postgrest.Collect(
 			t.Context(), client, postgrest.From[map[string]any]("instruments"),
 			postgrest.WithAccessTokenProvider(constantToken("first")),
 			postgrest.WithAccessTokenProvider(constantToken("second")),
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatalf("Collect: %v", err)
 		}
 		if got := recorder.only(t).Get("Authorization"); got != "Bearer second" {
@@ -365,10 +369,11 @@ func TestWithAccessTokenProviderAppliesToExecute(t *testing.T) {
 	server, recorder := newRecordingServer(t)
 	client := newClient(t, server.URL).WithAccessTokenProvider(constantToken("write-token"))
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(), client,
 		postgrest.From[map[string]any]("instruments").Insert(map[string]any{"name": "viola"}),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 	if got := recorder.only(t).Get("Authorization"); got != "Bearer write-token" {

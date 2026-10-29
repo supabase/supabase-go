@@ -92,11 +92,12 @@ func TestInsertSendsRowsAsJSONArray(t *testing.T) {
 func TestInsertZeroRowsSendsEmptyArray(t *testing.T) {
 	server, record := captureServer(t, http.StatusCreated, "")
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.From[instrument]("instruments").Insert(),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 	if got, want := string(record.body), "[]"; got != want {
@@ -401,11 +402,12 @@ func TestDeleteSendsDeleteWithoutBody(t *testing.T) {
 func TestUpsertSendsMergeDuplicatesByDefault(t *testing.T) {
 	server, record := captureServer(t, http.StatusCreated, "")
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.From[instrument]("instruments").Upsert(instrument{ID: 1, Name: "violin"}),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 	if got, want := record.request.Method, http.MethodPost; got != want {
@@ -428,13 +430,14 @@ func TestUpsertSendsMergeDuplicatesByDefault(t *testing.T) {
 func TestUpsertIgnoreDuplicatesReplacesResolution(t *testing.T) {
 	server, record := captureServer(t, http.StatusCreated, "")
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.From[instrument]("instruments").
 			Upsert(instrument{ID: 1, Name: "violin"}).
 			IgnoreDuplicates(),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 	if got, want := record.request.Header.Values("Prefer"), []string{"resolution=ignore-duplicates"}; !slices.Equal(got, want) {

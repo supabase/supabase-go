@@ -29,14 +29,15 @@ func TestRPCRowsSetReturning(t *testing.T) {
 	easy := "RPC rows set returning easy"
 	hard := "RPC rows set returning hard"
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(),
 		client,
 		postgrest.From[repertoirePiece]("repertoire").Insert(
 			repertoirePiece{Title: easy, Composer: "Glass", Difficulty: 2},
 			repertoirePiece{Title: hard, Composer: "Price", Difficulty: 9},
 		),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("seed Execute: %v", err)
 	}
 
@@ -66,11 +67,12 @@ func TestRPCRowsReadOnlyViaGet(t *testing.T) {
 	client := newIntegrationClient(t)
 	easy := "RPC rows read-only via get"
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(),
 		client,
 		postgrest.From[repertoirePiece]("repertoire").Insert(repertoirePiece{Title: easy, Composer: "Bridge", Difficulty: 2}),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("seed Execute: %v", err)
 	}
 
@@ -209,11 +211,12 @@ func TestRPCVolatileMutatesAndPersists(t *testing.T) {
 	client := newIntegrationClient(t)
 	title := "RPC volatile mutates and persists"
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(),
 		client,
 		postgrest.From[repertoirePiece]("repertoire").Insert(repertoirePiece{Title: title, Composer: "Glass", Difficulty: 3}),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("seed Execute: %v", err)
 	}
 

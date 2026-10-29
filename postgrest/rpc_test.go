@@ -19,11 +19,12 @@ func TestRPCRowsSendsPost(t *testing.T) {
 	t.Run("through Execute carries no Prefer", func(t *testing.T) {
 		server, record := captureServer(t, http.StatusOK, "")
 
-		if _, err := postgrest.Execute(
+		_, err := postgrest.Execute(
 			t.Context(),
 			newTestClient(t, server),
 			postgrest.RPC[map[string]any]("add_them").Arguments(map[string]any{"a": 1, "b": 2}).Rows(),
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatalf("Execute: %v", err)
 		}
 		if got, want := record.request.Method, http.MethodPost; got != want {
@@ -46,11 +47,12 @@ func TestRPCRowsSendsPost(t *testing.T) {
 	t.Run("through Collect carries return=representation", func(t *testing.T) {
 		server, record := captureServer(t, http.StatusOK, "[]")
 
-		if _, _, err := postgrest.Collect(
+		_, _, err := postgrest.Collect(
 			t.Context(),
 			newTestClient(t, server),
 			postgrest.RPC[map[string]any]("add_them").Arguments(map[string]any{"a": 1, "b": 2}).Rows(),
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatalf("Collect: %v", err)
 		}
 		if prefer := record.request.Header.Values("Prefer"); !slices.Contains(prefer, "return=representation") {
@@ -66,7 +68,7 @@ func TestRPCRowsSendsPost(t *testing.T) {
 func TestRPCRowsReadOnlySendsGet(t *testing.T) {
 	server, record := captureServer(t, http.StatusOK, "[]")
 
-	if _, _, err := postgrest.Collect(
+	_, _, err := postgrest.Collect(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.
@@ -74,7 +76,8 @@ func TestRPCRowsReadOnlySendsGet(t *testing.T) {
 			Arguments(map[string]any{"name": "cello", "count": 2, "ids": []int{1, 2}}).
 			Rows().
 			ReadOnly(),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
 	if got, want := record.request.Method, http.MethodGet; got != want {
@@ -198,11 +201,12 @@ func TestRPCNoArguments(t *testing.T) {
 	t.Run("POST form sends an empty object", func(t *testing.T) {
 		server, record := captureServer(t, http.StatusOK, "[]")
 
-		if _, _, err := postgrest.Collect(
+		_, _, err := postgrest.Collect(
 			t.Context(),
 			newTestClient(t, server),
 			postgrest.RPC[map[string]any]("current_repertoire").Rows(),
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatalf("Collect: %v", err)
 		}
 		if got, want := string(record.body), "{}"; got != want {
@@ -213,11 +217,12 @@ func TestRPCNoArguments(t *testing.T) {
 	t.Run("ReadOnly form sends a bare query", func(t *testing.T) {
 		server, record := captureServer(t, http.StatusOK, "[]")
 
-		if _, _, err := postgrest.Collect(
+		_, _, err := postgrest.Collect(
 			t.Context(),
 			newTestClient(t, server),
 			postgrest.RPC[map[string]any]("current_repertoire").Rows().ReadOnly(),
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatalf("Collect: %v", err)
 		}
 		if got := record.request.URL.RawQuery; got != "" {
@@ -235,7 +240,7 @@ func TestRPCArgumentsReplace(t *testing.T) {
 	t.Run("on the generic entry", func(t *testing.T) {
 		server, record := captureServer(t, http.StatusOK, "[]")
 
-		if _, _, err := postgrest.Collect(
+		_, _, err := postgrest.Collect(
 			t.Context(),
 			newTestClient(t, server),
 			postgrest.
@@ -243,7 +248,8 @@ func TestRPCArgumentsReplace(t *testing.T) {
 				Arguments(map[string]any{"a": 1}).
 				Arguments(map[string]any{"b": 2}).
 				Rows(),
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatalf("Collect: %v", err)
 		}
 		if got, want := string(record.body), `{"b":2}`; got != want {
@@ -254,14 +260,15 @@ func TestRPCArgumentsReplace(t *testing.T) {
 	t.Run("on the void entry", func(t *testing.T) {
 		server, record := captureServer(t, http.StatusNoContent, "")
 
-		if _, err := postgrest.Execute(
+		_, err := postgrest.Execute(
 			t.Context(),
 			newTestClient(t, server),
 			postgrest.
 				RPCVoid("f").
 				Arguments(map[string]any{"a": 1}).
 				Arguments(map[string]any{"b": 2}),
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatalf("Execute: %v", err)
 		}
 		if got, want := string(record.body), `{"b":2}`; got != want {
@@ -298,11 +305,12 @@ func TestRPCReadOnlyArgumentsMustBeObject(t *testing.T) {
 func TestRPCFunctionNameIsEscaped(t *testing.T) {
 	server, record := captureServer(t, http.StatusNoContent, "")
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(),
 		newTestClient(t, server),
 		postgrest.RPCVoid("a/b"),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 	if got, want := record.request.URL.EscapedPath(), "/rest/v1/rpc/a%2Fb"; got != want {

@@ -108,12 +108,13 @@ func main() {
 	userDatabase := client.Database().WithAccessTokenProvider(
 		func(context.Context) (string, error) { return token, nil },
 	)
-	if _, err := postgrest.Execute(
+	_, err = postgrest.Execute(
 		ctx, userDatabase,
 		postgrest.From[practiceLog]("practice_logs").Insert(
 			practiceLog{UserID: userID, Piece: "Prelude in C", Minutes: 30},
 		),
-	); err != nil {
+	)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "inserting practice log:", err)
 		os.Exit(1)
 	}

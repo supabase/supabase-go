@@ -47,12 +47,13 @@ func TestVerifiedTokenScopesRLSQuery(t *testing.T) {
 		func(context.Context) (string, error) { return user.AccessToken, nil },
 	)
 
-	if _, err := postgrest.Execute(
+	_, err = postgrest.Execute(
 		t.Context(), userDatabase,
 		postgrest.From[practiceLog]("practice_logs").Insert(
 			practiceLog{UserID: user.ID, Piece: "Verified Etude", Minutes: 25},
 		),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("insert as verified user: %v", err)
 	}
 

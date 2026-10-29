@@ -41,21 +41,23 @@ func TestAccessTokenRLSIsolation(t *testing.T) {
 	aliceClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(alice.AccessToken))
 	bobClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(bob.AccessToken))
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(), aliceClient,
 		postgrest.From[practiceLog]("practice_logs").Insert(
 			practiceLog{UserID: alice.ID, Piece: "Prelude in C", Minutes: 30},
 			practiceLog{UserID: alice.ID, Piece: "Slow Waltz", Minutes: 20},
 		),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Alice insert: %v", err)
 	}
-	if _, err := postgrest.Execute(
+	_, err = postgrest.Execute(
 		t.Context(), bobClient,
 		postgrest.From[practiceLog]("practice_logs").Insert(
 			practiceLog{UserID: bob.ID, Piece: "Evening Ballad", Minutes: 45},
 		),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Bob insert: %v", err)
 	}
 
@@ -93,12 +95,13 @@ func TestAccessTokenAnonymousBaseSeesNothing(t *testing.T) {
 	user := testkit.SignUpUser(t, projectURL, apiKey)
 	userClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(user.AccessToken))
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(), userClient,
 		postgrest.From[practiceLog]("practice_logs").Insert(
 			practiceLog{UserID: user.ID, Piece: "Solo Study", Minutes: 25},
 		),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("insert: %v", err)
 	}
 
@@ -203,12 +206,14 @@ func TestAccessTokenPerReadProviderOverridesClientProvider(t *testing.T) {
 	aliceClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(alice.AccessToken))
 	bobClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(bob.AccessToken))
 
-	if _, err := postgrest.Execute(t.Context(), aliceClient,
-		postgrest.From[practiceLog]("practice_logs").Insert(practiceLog{UserID: alice.ID, Piece: "Alice's Waltz", Minutes: 15})); err != nil {
+	_, err := postgrest.Execute(t.Context(), aliceClient,
+		postgrest.From[practiceLog]("practice_logs").Insert(practiceLog{UserID: alice.ID, Piece: "Alice's Waltz", Minutes: 15}))
+	if err != nil {
 		t.Fatalf("Alice insert: %v", err)
 	}
-	if _, err := postgrest.Execute(t.Context(), bobClient,
-		postgrest.From[practiceLog]("practice_logs").Insert(practiceLog{UserID: bob.ID, Piece: "Bob's March", Minutes: 35})); err != nil {
+	_, err = postgrest.Execute(t.Context(), bobClient,
+		postgrest.From[practiceLog]("practice_logs").Insert(practiceLog{UserID: bob.ID, Piece: "Bob's March", Minutes: 35}))
+	if err != nil {
 		t.Fatalf("Bob insert: %v", err)
 	}
 
@@ -308,8 +313,9 @@ func TestAccessTokenRenewalRecoversStaleToken(t *testing.T) {
 	user := testkit.SignUpUser(t, projectURL, apiKey)
 
 	seedClient := newIntegrationClient(t).WithAccessTokenProvider(constantAccessToken(user.AccessToken))
-	if _, err := postgrest.Execute(t.Context(), seedClient,
-		postgrest.From[practiceLog]("practice_logs").Insert(practiceLog{UserID: user.ID, Piece: "Recovered Prelude", Minutes: 22})); err != nil {
+	_, err := postgrest.Execute(t.Context(), seedClient,
+		postgrest.From[practiceLog]("practice_logs").Insert(practiceLog{UserID: user.ID, Piece: "Recovered Prelude", Minutes: 22}))
+	if err != nil {
 		t.Fatalf("seed insert: %v", err)
 	}
 
