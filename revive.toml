@@ -4,6 +4,8 @@ enable-default-rules = true
 
 [rule.bare-return]
 
+[rule.call-to-gc]
+
 [rule.confusing-naming]
 
 [rule.confusing-results]
@@ -12,7 +14,13 @@ enable-default-rules = true
 
 [rule.datarace]
 
+[rule.deep-exit]
+
 [rule.defer]
+
+[rule.early-return]
+
+[rule.empty-lines]
 
 # Sized make calls are exempt.
 [rule.enforce-map-style]
@@ -34,6 +42,8 @@ arguments = ["check-public-interface"]
 
 [rule.flag-parameter]
 
+[rule.forbidden-call-in-wg-go]
+
 [rule.get-return]
 
 [rule.identical-branches]
@@ -43,6 +53,8 @@ arguments = ["check-public-interface"]
 [rule.identical-switch-branches]
 
 [rule.identical-switch-conditions]
+
+[rule.if-return]
 
 [rule.import-alias-naming]
 
@@ -56,7 +68,11 @@ arguments = ["check-public-interface"]
 
 [rule.package-naming]
 
+[rule.redundant-build-tag]
+
 [rule.redundant-import-alias]
+
+[rule.redundant-test-main-exit]
 
 [rule.time-date]
 
@@ -64,7 +80,21 @@ arguments = ["check-public-interface"]
 
 [rule.unnecessary-format]
 
+[rule.unnecessary-stmt]
+
 [rule.unused-receiver]
+
+[rule.use-fmt-print]
+
+[rule.use-slices-concat]
+
+[rule.use-slices-sort]
+
+[rule.use-waitgroup-go]
+
+[rule.useless-break]
+
+[rule.useless-fallthrough]
 
 # The SDK's own initialisms, which revive's built-in list lacks.
 [rule.var-naming]
