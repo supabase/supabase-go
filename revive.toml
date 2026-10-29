@@ -2,6 +2,8 @@
 # set is enabled explicitly.
 enable-default-rules = true
 
+[rule.bare-return]
+
 [rule.confusing-naming]
 
 [rule.confusing-results]
@@ -16,9 +18,23 @@ enable-default-rules = true
 [rule.enforce-map-style]
 arguments = ["literal"]
 
+# Adjacent parameters and named results of one type share it: a, b string.
+[rule.enforce-repeated-arg-type-style]
+arguments = ["short"]
+
+# Sized make calls and nil slices are exempt.
+[rule.enforce-slice-style]
+arguments = ["literal"]
+
 # The exported rule's default skips the methods of exported interfaces.
 [rule.exported]
 arguments = ["check-public-interface"]
+
+[rule.filename-format]
+
+[rule.flag-parameter]
+
+[rule.get-return]
 
 [rule.identical-branches]
 
@@ -28,15 +44,23 @@ arguments = ["check-public-interface"]
 
 [rule.identical-switch-conditions]
 
+[rule.import-alias-naming]
+
 [rule.import-shadowing]
 
 [rule.marshal-receiver]
 
 [rule.multiline-if-init]
 
+[rule.package-directory-mismatch]
+
 [rule.package-naming]
 
+[rule.redundant-import-alias]
+
 [rule.time-date]
+
+[rule.unexported-naming]
 
 [rule.unnecessary-format]
 
