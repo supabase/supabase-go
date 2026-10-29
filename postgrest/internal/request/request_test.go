@@ -107,8 +107,8 @@ func TestWithParameterReplacing(t *testing.T) {
 
 	want := "https://example.test/rest/v1/path?key=A"
 
-	for _, request := range requests {
-		if got := requestURL(t, request); got != want {
+	for _, built := range requests {
+		if got := requestURL(t, built); got != want {
 			t.Errorf("URL = %q, want %q", got, want)
 		}
 	}
