@@ -148,7 +148,7 @@ type definitionPayload struct {
 	AuthorizationURL      string            `json:"authorization_url,omitzero"`
 	TokenURL              string            `json:"token_url,omitzero"`
 	UserinfoURL           string            `json:"userinfo_url,omitzero"`
-	JwksURI               string            `json:"jwks_uri,omitzero"`
+	JWKSURI               string            `json:"jwks_uri,omitzero"`
 }
 
 // Payload returns the definition's wire body, ready for JSON encoding.
@@ -169,7 +169,7 @@ func (d Definition) Payload() any {
 		AuthorizationURL:      d.authorizationURL,
 		TokenURL:              d.tokenURL,
 		UserinfoURL:           d.userinfoURL,
-		JwksURI:               d.jwksURI,
+		JWKSURI:               d.jwksURI,
 	}
 	if d.pkceDisabled {
 		payload.PKCEEnabled = pointerTo(false)
