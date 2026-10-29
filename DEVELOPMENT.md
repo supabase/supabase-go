@@ -125,7 +125,7 @@ The fast tier above needs only the repository's own toolchains (Go, plus Node fo
 - **Docker**: Installed and running - the stack's services are containers.
 - **`curl`**: The script fetches the version-pinned Supabase CLI binary from its GitHub release on first run, verifies it against a committed SHA-256 and installs it into Go's own bin directory (`$(go env GOPATH)/bin`).
 - **Network and disk on first run**: The CLI download and the stack's container images are fetched once and cached.
-- **Free default ports**: The stack binds the API on `54321` and Postgres on `54322`.
+- **Free ports**: The stack binds the API on `14321` and Postgres on `14322`.
 
 ```bash
 ./scripts/integration-test.sh
