@@ -32,7 +32,7 @@ type Mutation[Row any] interface {
 // as [Collect]. The client, context, options and failure modes behave as
 // documented on [Collect], except that no rows are decoded.
 func Execute[Row any](ctx context.Context, client *Client, mutation Mutation[Row], options ...Option) (Response, error) {
-	_, response, err := execute(ctx, client, mutation.executeState().request, options...)
+	_, response, err := send(ctx, client, mutation.executeState().request, options...)
 	if err != nil {
 		return Response{}, err
 	}
