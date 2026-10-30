@@ -76,6 +76,8 @@ arguments = ["check-public-interface"]
 
 [rule.time-date]
 
+[rule.unchecked-type-assertion]
+
 [rule.unexported-naming]
 
 [rule.unnecessary-format]

@@ -128,7 +128,13 @@ func Example_middleware() {
 	//    check has succeeded.
 	// May also be referred to as the layer that asserts per-route policy.
 	deleteAccount := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		claims := request.Context().Value(claimsContextKey{}).(*auth.Claims)
+		// The middleware stores the claims, so a request without them reached
+		// this handler without passing through it.
+		claims, ok := request.Context().Value(claimsContextKey{}).(*auth.Claims)
+		if !ok {
+			http.Error(writer, "missing claims", http.StatusUnauthorized)
+			return
+		}
 
 		// Step up: a destructive action demands a second factor.
 		if claims.AuthenticatorAssuranceLevel() != "aal2" {
