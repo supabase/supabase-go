@@ -208,7 +208,7 @@ func TestGetClaimsJWKSetFetchFailureSurfaces(t *testing.T) {
 func TestGetClaimsServerRejectionSurfaces(t *testing.T) {
 	mock := newMockAuthServer(t)
 	mock.userStatus = 401
-	mock.userBody = `{"error_code":"bad_jwt","msg":"invalid token"}`
+	mock.userBody = `{"code":"bad_jwt","message":"invalid token"}`
 	client := mock.client(t)
 
 	_, err := client.GetClaims(context.Background(), testkit.CraftToken(t, "HS256", "", testkit.DefaultClaims()))
@@ -239,7 +239,7 @@ func TestGetUser(t *testing.T) {
 func TestGetUserRejection(t *testing.T) {
 	mock := newMockAuthServer(t)
 	mock.userStatus = 403
-	mock.userBody = `{"error_code":"forbidden","msg":"no"}`
+	mock.userBody = `{"code":"forbidden","message":"no"}`
 	client := mock.client(t)
 
 	_, err := client.GetUser(context.Background(), "any-token")

@@ -73,7 +73,7 @@ func TestAdminSignOut(t *testing.T) {
 		t.Errorf("GetUser after WithOthersScope = %v, want the presented session spared", err)
 	}
 
-	// The bare call is the server's default: global revocation.
+	// The bare call states the global scope: every session revoked.
 	if _, err := admin.SignOut(t.Context(), user.AccessToken); err != nil {
 		t.Fatalf("SignOut: %v", err)
 	}

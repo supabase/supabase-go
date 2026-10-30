@@ -29,9 +29,10 @@ func TestErrorShapesFromServer(t *testing.T) {
 		wantCode    string
 		wantMessage string
 	}{
-		{"recent shape", `{"error_code":"bad_jwt","msg":"invalid token"}`, "bad_jwt", "invalid token"},
-		{"legacy shape", `{"error":"invalid_grant","error_description":"bad grant"}`, "invalid_grant", "bad grant"},
+		{"versioned shape", `{"code":"bad_jwt","message":"invalid token"}`, "bad_jwt", "invalid token"},
+		{"OAuth shape", `{"error":"invalid_grant","error_description":"bad grant"}`, "invalid_grant", "bad grant"},
 		{"non-json preserved", `<html>502</html>`, "", "<html>502</html>"},
+		{"numeric-code body preserved", `{"code":400,"msg":"invalid token"}`, "", `{"code":400,"msg":"invalid token"}`},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

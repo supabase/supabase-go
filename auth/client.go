@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/supabase/supabase-go/auth/internal/cache"
 	"github.com/supabase/supabase-go/auth/internal/key"
-	"github.com/supabase/supabase-go/auth/internal/profile"
 	"github.com/supabase/supabase-go/auth/internal/token"
 	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
@@ -73,23 +71,9 @@ func NewFromConfiguration(projectConfiguration *configuration.Configuration) *Cl
 // errors verbatim.
 func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.FetchFunc {
 	return func(ctx context.Context) ([]key.Key, error) {
-		request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+		body, err := send(ctx, httpClient, http.MethodGet, endpoint, nil)
 		if err != nil {
-			return nil, fmt.Errorf("auth: building JWK Set request: %w", err)
-		}
-
-		response, err := httpClient.Do(request)
-		if err != nil {
-			return nil, fmt.Errorf("auth: fetching JWK Set: %w", err)
-		}
-		defer func() { _ = response.Body.Close() }()
-
-		body, err := io.ReadAll(response.Body)
-		if err != nil {
-			return nil, fmt.Errorf("auth: reading JWK Set: %w", err)
-		}
-		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			return nil, newError(response.StatusCode, body)
+			return nil, err
 		}
 
 		keys, err := key.ParseSet(body)
@@ -211,29 +195,13 @@ func (c *Client) GetUser(ctx context.Context, jwt string) (*GetUserResult, error
 		return nil, ErrMissingJWT
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL.JoinPath("user").String(), nil)
+	body, _, err := exchange(ctx, c.httpClient, http.MethodGet, c.baseURL.JoinPath("user"), nil, jwt)
 	if err != nil {
-		return nil, fmt.Errorf("auth: building request: %w", err)
+		return nil, err
 	}
-	request.Header.Set("Authorization", "Bearer "+jwt)
-
-	response, err := c.httpClient.Do(request)
+	user, err := parseUser(body)
 	if err != nil {
-		return nil, fmt.Errorf("auth: executing request: %w", err)
+		return nil, err
 	}
-	defer func() { _ = response.Body.Close() }()
-
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("auth: reading response: %w", err)
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, newError(response.StatusCode, body)
-	}
-
-	user, err := profile.Parse(body)
-	if err != nil {
-		return nil, fmt.Errorf("auth: decoding user: %w", err)
-	}
-	return &GetUserResult{user: &User{inner: user}}, nil
+	return &GetUserResult{user: user}, nil
 }
