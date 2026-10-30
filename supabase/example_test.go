@@ -16,13 +16,13 @@ import (
 // options from the configuration package: a caller-supplied HTTP client and
 // global headers sent on every request.
 func ExampleNew() {
-	supabase, err := supabase.New(
+	client, err := supabase.New(
 		"https://PROJECT_ID.supabase.co",
 		"sb_publishable_...",
 		configuration.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
 		configuration.WithHeader("X-App-Version", "1.0.0+user.generated"),
 	)
-	fmt.Println(supabase != nil && err == nil)
+	fmt.Println(client != nil && err == nil)
 	// Output: true
 }
 
@@ -34,7 +34,7 @@ func ExampleClient_Database() {
 		Name string `json:"name"`
 	}
 
-	supabase, err := supabase.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
+	client, err := supabase.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -42,7 +42,7 @@ func ExampleClient_Database() {
 
 	instruments, response, err := postgrest.Collect(
 		context.Background(),
-		supabase.Database(),
+		client.Database(),
 		postgrest.
 			From[Instrument]("instruments").
 			Select("id, name"),
@@ -71,7 +71,7 @@ func ExampleClient_Auth() {
 		Piece  string `json:"piece"`
 	}
 
-	supabase, err := supabase.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
+	client, err := supabase.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -81,13 +81,13 @@ func ExampleClient_Auth() {
 	// Authorization: Bearer header.
 	token := "END_USER_ACCESS_TOKEN"
 
-	verified, err := supabase.Auth().GetClaims(context.Background(), token)
+	verified, err := client.Auth().GetClaims(context.Background(), token)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	userDatabase := supabase.Database().WithAccessTokenProvider(
+	userDatabase := client.Database().WithAccessTokenProvider(
 		func(context.Context) (string, error) { return token, nil },
 	)
 	logs, _, err := postgrest.Collect(

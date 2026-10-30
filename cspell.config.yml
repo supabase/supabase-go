@@ -58,14 +58,13 @@ patterns:
   - name: supabase-suffix
     pattern: /(Package |package |\/|`)supabase/g
 
-  # Local variable named "supabase" (aligned with docs for the JS, Swift,
-  # Flutter and Python SDKs). In Go source, a bare "supabase" is unambiguously
-  # the package name or a local variable of that name, never prose, however
-  # it's used (declaration, dot access, comparison, function argument, ...),
-  # so it's ignored wholesale via the *.go override below rather than by
-  # enumerating every syntactic shape it can appear in.
+  # In Go source, a bare "supabase" is unambiguously the package name, a
+  # log-message prefix or a module path segment, never prose, however it's
+  # used (dot access, string literal, concatenation, ...), so it's ignored
+  # wholesale via the *.go override below rather than by enumerating every
+  # syntactic shape it can appear in.
   # This will also loop in accidental lowercase brand references in
-  # in doc-comments, but that's a compromise we're accepting.
+  # doc-comments, but that's a compromise we're accepting.
   - name: supabase-identifier
     pattern: /\bsupabase\b/g
 

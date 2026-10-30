@@ -6,6 +6,8 @@ enable-default-rules = true
 [rule.exported]
 arguments = ["check-public-interface"]
 
+[rule.import-shadowing]
+
 [rule.package-naming]
 
 # The SDK's own initialisms, which revive's built-in list lacks.

@@ -9,9 +9,9 @@ import (
 // using the [time.RFC3339] layout.
 func TimeRFC3339(t *testing.T, value string) time.Time {
 	t.Helper()
-	time, err := time.Parse(time.RFC3339, value)
+	parsed, err := time.Parse(time.RFC3339, value)
 	if err != nil {
 		t.Fatalf("time.Parse failed for %v", value)
 	}
-	return time
+	return parsed
 }
