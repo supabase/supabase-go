@@ -101,3 +101,29 @@ arguments = ["check-public-interface"]
 # The SDK's own initialisms, which revive's built-in list lacks.
 [rule.var-naming]
 arguments = [[], ["JWK", "JWKS", "JWT", "MFA", "OIDC", "OTP", "PKCE", "RLS", "SDK", "TOTP"]]
+
+# Rules not enabled, grouped by reason.
+#
+# Already checked by another tool that scripts/lint.sh runs:
+# - atomic: go vet's atomic analyzer
+# - comment-spacings: gofumpt
+# - duplicated-imports: staticcheck's ST1019
+# - identical-ifelseif-conditions: staticcheck's SA4014
+# - string-of-int: go vet's stringintconv analyzer
+# - struct-tag: staticcheck's SA5008
+# - unconditional-recursion: staticcheck's SA5007
+# - unhandled-error: errcheck
+# - waitgroup-by-value: go vet's copylocks analyzer
+#
+# Would report nothing in this repository:
+# - epoch-naming, inefficient-map-lookup, time-equal: they need type information, which revive cannot load for a package that imports another module (https://github.com/revive-lint/revive/issues/1277)
+# - optimize-operands-order: it reports at confidence 0.3, below revive's default threshold of 0.8
+# - range-val-address, range-val-in-closure: revive switches them off at Go 1.22 and later
+# - use-errors-new: revive switches it off at Go 1.26 and later
+#
+# Flag idioms this codebase uses on purpose:
+# - modifies-parameter: reassigning a parameter, as when defaulting a nil one
+# - nested-structs: an anonymous struct as a field's type, which decodes a nested JSON object in place
+#
+# Enforce a limit or a list of the project's own choosing, and this codebase sets none:
+# - add-constant, argument-limit, banned-characters, cognitive-complexity, comments-density, cyclomatic, file-header, file-length-limit, function-length, function-result-limit, imports-blocklist, line-length-limit, max-control-nesting, max-public-structs, string-format
