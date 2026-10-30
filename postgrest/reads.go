@@ -69,7 +69,7 @@ type Query[Row any] interface {
 //     likewise at first resolution or on a renewal re-ask.
 //   - a wrapped transport or decoding failure.
 func Collect[Row any](ctx context.Context, client *Client, query Query[Row], options ...Option) ([]Row, Response, error) {
-	return collect[Row, []Row](ctx, client, query, options...)
+	return decodeQuery[Row, []Row](ctx, client, query, options...)
 }
 
 // CollectSingle executes the query through client and returns the single row
@@ -86,7 +86,7 @@ func CollectSingle[Row any](ctx context.Context, client *Client, query Query[Row
 		withAccept("application/vnd.pgrst.object+json"),
 	)
 
-	return collect[Row, Row](ctx, client, query, options...)
+	return decodeQuery[Row, Row](ctx, client, query, options...)
 }
 
 // CollectSingleMaybe executes the query through client for a result expected
@@ -128,10 +128,10 @@ func CollectRaw[Row any](ctx context.Context, client *Client, query RawQuery[Row
 	return decodeWhole[Row](ctx, client, query.rawState().request, options...)
 }
 
-// collect runs the query through the [Collect] family and decodes the whole
-// response body into T: Collect asks for []Row, CollectSingle for Row under the
-// singular Accept header.
-func collect[Row any, T any](ctx context.Context, client *Client, query Query[Row], options ...Option) (T, Response, error) {
+// decodeQuery runs the query through the [Collect] family and decodes the
+// whole response body into T: Collect asks for []Row, CollectSingle for Row
+// under the singular Accept header.
+func decodeQuery[Row any, T any](ctx context.Context, client *Client, query Query[Row], options ...Option) (T, Response, error) {
 	return decodeWhole[T](ctx, client, query.state().request, options...)
 }
 
@@ -140,7 +140,7 @@ func collect[Row any, T any](ctx context.Context, client *Client, query Query[Ro
 // differ only in the sealed accessor that supplied the request.
 func decodeWhole[T any](ctx context.Context, client *Client, requestState request.Request, options ...Option) (T, Response, error) {
 	options = append(slices.Clip(options), withRepresentation())
-	responseBody, response, err := execute(ctx, client, requestState, options...)
+	responseBody, response, err := send(ctx, client, requestState, options...)
 	var decoded T
 	if err != nil {
 		return decoded, Response{}, err
@@ -172,14 +172,14 @@ var (
 	_ Query[any] = OrderedDescendingFilterBuilder[any]{}
 )
 
-// execute sends requestState through a per-call copy of the client's HTTP
+// send runs requestState through a per-call copy of the client's HTTP
 // client, derived by the options, and returns the raw response body
 // alongside its [Response] metadata. It is the single boundary the executing
 // functions share: the client and the request's path are validated here
 // before any I/O, and a completed exchange's non-2xx status is shaped into
 // an [*Error] here. The exchange itself - header assembly, automatic retries
 // and access-token renewal - follows the contract documented on [Client].
-func execute(ctx context.Context, client *Client, requestState request.Request, options ...Option) ([]byte, Response, error) {
+func send(ctx context.Context, client *Client, requestState request.Request, options ...Option) ([]byte, Response, error) {
 	if client == nil {
 		return nil, Response{}, ErrMissingClient
 	}

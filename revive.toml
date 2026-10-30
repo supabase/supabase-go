@@ -2,6 +2,16 @@
 # set is enabled explicitly.
 enable-default-rules = true
 
+[rule.confusing-naming]
+
+[rule.confusing-results]
+
+[rule.constant-logical-expr]
+
+[rule.datarace]
+
+[rule.defer]
+
 # Sized make calls are exempt.
 [rule.enforce-map-style]
 arguments = ["literal"]
@@ -10,11 +20,23 @@ arguments = ["literal"]
 [rule.exported]
 arguments = ["check-public-interface"]
 
+[rule.identical-branches]
+
+[rule.identical-ifelseif-branches]
+
+[rule.identical-switch-branches]
+
+[rule.identical-switch-conditions]
+
 [rule.import-shadowing]
+
+[rule.marshal-receiver]
 
 [rule.multiline-if-init]
 
 [rule.package-naming]
+
+[rule.time-date]
 
 [rule.unnecessary-format]
 

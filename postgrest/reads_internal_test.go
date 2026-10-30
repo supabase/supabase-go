@@ -455,7 +455,7 @@ func recordingScriptedServer(t *testing.T, script ...scriptedResponse) (*httptes
 
 // countingProvider returns a provider vending tokens[i] on its i-th call
 // (repeating the last once exhausted) alongside a pointer to its invocation
-// count. execute calls the provider on the test's own goroutine, so the count
+// count. send calls the provider on the test's own goroutine, so the count
 // is read safely once Collect has returned.
 func countingProvider(tokens ...string) (configuration.AccessTokenProvider, *int) {
 	calls := 0
