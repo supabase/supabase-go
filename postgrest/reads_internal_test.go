@@ -564,10 +564,11 @@ func TestExecuteRenewalAppliesToMutations(t *testing.T) {
 	provider, calls := countingProvider("token-1", "token-2")
 	client := newRetryTestClient(t, server.URL).WithAccessTokenProvider(provider)
 
-	if _, err := Execute(
+	_, err := Execute(
 		t.Context(), client,
 		From[map[string]any]("instruments").Insert(map[string]any{"name": "viola"}),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 	if *calls != 2 {

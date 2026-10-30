@@ -65,9 +65,10 @@ func TestWithSchemaSendsContentProfileOnRPC(t *testing.T) {
 	server, recorder := newRecordingServer(t)
 	client := newClient(t, server.URL).WithSchema("personal")
 
-	if _, _, err := postgrest.Collect(
+	_, _, err := postgrest.Collect(
 		t.Context(), client, postgrest.RPC[map[string]any]("do_thing").Rows(),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
 	assertProfileHeaders(t, recorder.only(t), "", "personal")
@@ -79,9 +80,10 @@ func TestWithSchemaSendsAcceptProfileOnReadOnlyRPC(t *testing.T) {
 	server, recorder := newRecordingServer(t)
 	client := newClient(t, server.URL).WithSchema("personal")
 
-	if _, _, err := postgrest.Collect(
+	_, _, err := postgrest.Collect(
 		t.Context(), client, postgrest.RPC[map[string]any]("do_thing").Rows().ReadOnly(),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
 	assertProfileHeaders(t, recorder.only(t), "personal", "")

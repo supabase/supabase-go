@@ -87,8 +87,9 @@ func TestInjectedTransportReceivesCallContext(t *testing.T) {
 	}
 	ctx := context.WithValue(t.Context(), traceMarker{}, "SOME-MARKER")
 
-	if _, _, err := postgrest.Collect(ctx, client.Database(),
-		postgrest.From[struct{}]("instruments")); err != nil {
+	_, _, err = postgrest.Collect(ctx, client.Database(),
+		postgrest.From[struct{}]("instruments"))
+	if err != nil {
 		t.Fatalf("Collect through Database(): %v", err)
 	}
 	if _, err := client.Auth().GetUser(ctx, "END_USER_JWT"); err != nil {

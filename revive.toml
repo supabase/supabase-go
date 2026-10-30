@@ -12,6 +12,8 @@ arguments = ["check-public-interface"]
 
 [rule.import-shadowing]
 
+[rule.multiline-if-init]
+
 [rule.package-naming]
 
 [rule.unnecessary-format]

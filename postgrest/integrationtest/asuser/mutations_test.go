@@ -291,11 +291,12 @@ func TestUpdateFilteredRowReturningRepresentation(t *testing.T) {
 	client := newIntegrationClient(t)
 	title := "Update filtered row returning representation"
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(),
 		client,
 		postgrest.From[repertoirePiece]("repertoire").Insert(repertoirePiece{Title: title, Composer: "Glass"}),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("seed Execute: %v", err)
 	}
 
@@ -328,11 +329,12 @@ func TestUpdateClearsColumnWithExplicitNull(t *testing.T) {
 	client := newIntegrationClient(t)
 	title := "Update clears column with explicit null"
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(),
 		client,
 		postgrest.From[repertoirePiece]("repertoire").Insert(repertoirePiece{Title: title, Composer: "Glass"}),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("seed Execute: %v", err)
 	}
 
@@ -362,11 +364,12 @@ func TestUpdateMinimal(t *testing.T) {
 	client := newIntegrationClient(t)
 	title := "Update minimal"
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(),
 		client,
 		postgrest.From[repertoirePiece]("repertoire").Insert(repertoirePiece{Title: title, Composer: "Glass", Difficulty: 4}),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("seed Execute: %v", err)
 	}
 
@@ -430,11 +433,12 @@ func TestDeleteFilteredRowMinimal(t *testing.T) {
 	client := newIntegrationClient(t)
 	title := "Delete filtered row minimal"
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(),
 		client,
 		postgrest.From[repertoirePiece]("repertoire").Insert(repertoirePiece{Title: title, Composer: "Glass"}),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("seed Execute: %v", err)
 	}
 
@@ -470,11 +474,12 @@ func TestDeleteReturningDeletedRows(t *testing.T) {
 	client := newIntegrationClient(t)
 	title := "Delete returning deleted rows"
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(),
 		client,
 		postgrest.From[repertoirePiece]("repertoire").Insert(repertoirePiece{Title: title, Composer: "Bridge"}),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("seed Execute: %v", err)
 	}
 
@@ -547,21 +552,23 @@ func TestUpsertIgnoreDuplicatesKeepsExistingRow(t *testing.T) {
 	client := newIntegrationClient(t)
 	sku := "UPSERT-IGNORE-PK"
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(),
 		client,
 		postgrest.From[product]("products").Upsert(product{SKU: sku, Name: "Tuner", Price: 30}),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("seed upsert: %v", err)
 	}
 
-	if _, err := postgrest.Execute(
+	_, err = postgrest.Execute(
 		t.Context(),
 		client,
 		postgrest.From[product]("products").
 			Upsert(product{SKU: sku, Name: "Tuner", Price: 99}).
 			IgnoreDuplicates(),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("ignore-duplicates upsert: %v", err)
 	}
 
@@ -585,11 +592,12 @@ func TestUpsertOnConflictUniqueColumn(t *testing.T) {
 	client := newIntegrationClient(t)
 	barcode := "BARCODE-UPSERT-001"
 
-	if _, err := postgrest.Execute(
+	_, err := postgrest.Execute(
 		t.Context(),
 		client,
 		postgrest.From[product]("products").Upsert(product{SKU: "OC-SKU-A", Barcode: barcode, Name: "Music stand", Price: 20}),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("seed upsert: %v", err)
 	}
 
