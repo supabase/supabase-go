@@ -10,6 +10,8 @@ arguments = ["check-public-interface"]
 
 [rule.package-naming]
 
+[rule.unnecessary-format]
+
 [rule.unused-receiver]
 
 # The SDK's own initialisms, which revive's built-in list lacks.
