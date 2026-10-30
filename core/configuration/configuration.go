@@ -160,6 +160,9 @@ func New(entryModulePath core.ModulePath, rawURL, apiKey string, options ...Opti
 
 // HTTPClient performs an HTTP request. The standard library's [*http.Client] satisfies it.
 type HTTPClient interface {
+	// Do sends request and returns the response, whatever the status code, or
+	// an error. A response returned with a nil error has an open body, which
+	// the caller closes.
 	Do(request *http.Request) (*http.Response, error)
 }
 

@@ -1,0 +1,7 @@
+# A configuration file enables only the rules it names, so revive's default
+# set is enabled explicitly.
+enable-default-rules = true
+
+# The exported rule's default skips the methods of exported interfaces.
+[rule.exported]
+arguments = ["check-public-interface"]
