@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/supabase/supabase-go/auth"
 	"github.com/supabase/supabase-go/auth/customprovider"
 	"github.com/supabase/supabase-go/auth/mfafactor"
+	"github.com/supabase/supabase-go/auth/signout"
 	"github.com/supabase/supabase-go/auth/userdelete"
 	"github.com/supabase/supabase-go/auth/userinvite"
 	"github.com/supabase/supabase-go/core/pagination"
@@ -150,6 +153,113 @@ func bearerToken(request *http.Request) (string, bool) {
 		return "", false
 	}
 	return value, true
+}
+
+// ExampleClient_SignInWithPassword signs a long-running service in once, as
+// the account its operator created for it, and holds the Session rather than
+// a token string: the session renews its access token on demand, and a
+// Database client acts as this user with
+// WithAccessTokenProvider(session.AccessToken). Signing out with the local
+// scope when the service stops revokes this session alone, so other replicas
+// signed in as the same account stay signed in.
+func ExampleClient_SignInWithPassword() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	ctx := context.Background()
+
+	result, err := client.SignInWithPassword(ctx, auth.PasswordCredentials{
+		Email:    os.Getenv("SERVICE_EMAIL"),
+		Password: os.Getenv("SERVICE_PASSWORD"),
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	session := result.Session()
+	defer func() {
+		if _, err := session.SignOut(ctx, signout.WithLocalScope()); err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	fmt.Println("signed in as", session.User().Email())
+}
+
+// fileStore keeps one session's state in a file only its owner can read, an
+// absent file meaning nothing is stored.
+type fileStore struct {
+	path string
+}
+
+func (s fileStore) Load(_ context.Context) ([]byte, error) {
+	state, err := os.ReadFile(s.path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	return state, err
+}
+
+func (s fileStore) Save(_ context.Context, state []byte) error {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(s.path, state, 0o600)
+}
+
+func (s fileStore) Delete(_ context.Context) error {
+	if err := os.Remove(s.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// ExampleClient_SessionFromStore is a CLI whose session survives between
+// invocations: each run restores the session the previous run persisted, or
+// signs in when there is none or it has expired and persists the new one for
+// the next. The program owns the file and its permissions, and persistence
+// starts only once a sign-in has succeeded.
+func ExampleClient_SessionFromStore() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	configurationDirectory, err := os.UserConfigDir()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	store := fileStore{path: filepath.Join(configurationDirectory, "example-cli", "session.json")}
+	ctx := context.Background()
+
+	var session *auth.Session
+	restored, err := client.SessionFromStore(ctx, store)
+	switch {
+	case err == nil:
+		session = restored.Session()
+	case errors.Is(err, auth.ErrNoStoredSession), errors.Is(err, auth.ErrSessionExpired):
+		signedIn, err := client.SignInWithPassword(ctx, auth.PasswordCredentials{
+			Email:    os.Getenv("EXAMPLE_EMAIL"),
+			Password: os.Getenv("EXAMPLE_PASSWORD"),
+		})
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		session = signedIn.Session()
+		if err := session.Persist(ctx, store); err != nil {
+			fmt.Println(err)
+			return
+		}
+	default:
+		// The store could not be read, or the refresh failed transiently.
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("signed in as", session.User().Email())
 }
 
 // ExampleClient_Admin provisions a user account from a back-office job.

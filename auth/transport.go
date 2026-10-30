@@ -17,9 +17,9 @@ import (
 const apiVersion = "2024-01-01"
 
 // send executes one request through exchange for the calls that read no
-// response headers and present no user token.
-func send(ctx context.Context, httpClient configuration.HTTPClient, method string, endpoint *url.URL, payload any) ([]byte, error) {
-	body, _, err := exchange(ctx, httpClient, method, endpoint, payload, "")
+// response headers.
+func send(ctx context.Context, httpClient configuration.HTTPClient, method string, endpoint *url.URL, payload any, bearer string) ([]byte, error) {
+	body, _, err := exchange(ctx, httpClient, method, endpoint, payload, bearer)
 	return body, err
 }
 

@@ -1,10 +1,11 @@
 # Minimal local stack for the SDK integration tests, matching the CLI version
 # pinned in scripts/integration-test.sh (SUPABASE_CLI_VERSION).
 #
-# The tests exercise Postgres + PostgREST (the api service) only. Auth stays
-# enabled solely because `supabase status -o env` emits the stack's API keys
-# (PUBLISHABLE_KEY included) only while the auth service is enabled.
-# Every other service is disabled.
+# The tests exercise Postgres + PostgREST (the api service) and the auth
+# service, whose end-user sign-in, session and administration endpoints they
+# call. `supabase status -o env` emits the stack's API keys (PUBLISHABLE_KEY
+# included) only while the auth service is enabled. Every other service is
+# disabled.
 project_id = "supabase-go-integration"
 
 [api]

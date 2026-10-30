@@ -15,13 +15,13 @@ import (
 	"github.com/supabase/supabase-go/core/configuration"
 )
 
-// Client verifies end-user JWTs and fetches user profiles for one Supabase
-// project, and a Client constructed with a secret API key also administers
-// the project's users through [Client.Admin]. Construct a standalone client
-// with [New], or build one on a shared
-// [configuration.Configuration] with [NewFromConfiguration]. A Client caches
-// the project's signing keys internally, so construct one Client per project
-// and reuse it rather than constructing per request. A Client is safe for
+// Client verifies end-user JWTs, fetches user profiles and signs users in for
+// one Supabase project, and a Client constructed with a secret API key also
+// administers the project's users through [Client.Admin]. Construct a standalone client with
+// [New], or build one on a shared [configuration.Configuration] with
+// [NewFromConfiguration]. A Client caches the project's signing keys
+// internally, so construct one Client per project and reuse it rather than
+// constructing per request. A Client holds no user's state and is safe for
 // concurrent use by multiple goroutines.
 //
 // A Client authenticates with the project API key alone and holds no
@@ -71,7 +71,7 @@ func NewFromConfiguration(projectConfiguration *configuration.Configuration) *Cl
 // errors verbatim.
 func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.FetchFunc {
 	return func(ctx context.Context) ([]key.Key, error) {
-		body, err := send(ctx, httpClient, http.MethodGet, endpoint, nil)
+		body, err := send(ctx, httpClient, http.MethodGet, endpoint, nil, "")
 		if err != nil {
 			return nil, err
 		}
@@ -195,7 +195,7 @@ func (c *Client) GetUser(ctx context.Context, jwt string) (*GetUserResult, error
 		return nil, ErrMissingJWT
 	}
 
-	body, _, err := exchange(ctx, c.httpClient, http.MethodGet, c.baseURL.JoinPath("user"), nil, jwt)
+	body, err := send(ctx, c.httpClient, http.MethodGet, c.baseURL.JoinPath("user"), nil, jwt)
 	if err != nil {
 		return nil, err
 	}

@@ -46,6 +46,11 @@ supporting_symbols:
   - auth.ErrInvalidUserID
   - auth.ErrMissingIdentifier
   - auth.ErrMissingJWT
+  - auth.ErrMissingRefreshToken
+  - auth.ErrMissingStore
+  - auth.ErrNoStoredSession
+  - auth.ErrSessionExpired
+  - auth.ErrSignedOut
   - auth.Error
   - auth.Error.Error
   - auth.Error.HTTPError
@@ -364,10 +369,8 @@ features:
   auth.session.get_claims:
     status: implemented
     note: |
-      The token is an explicit required parameter. This server-side SDK holds
-      no session store yet, so there is no "current session" to default from -
-      the target use case is verifying tokens that arrive on inbound requests.
-      Session-sourced defaults arrive with the session management capabilities.
+      The token is an explicit parameter on auth.Client.GetClaims, since the
+      primary use case is verifying tokens that arrive on inbound requests.
     symbols:
       - auth.Client.GetClaims
     supporting_symbols:
@@ -395,10 +398,23 @@ features:
       - auth.JWTHeader.Algorithm
       - auth.JWTHeader.KeyID
       - auth.JWTHeader.Type
+  auth.session.get_session:
+    status: implemented
+    note: |
+      The session is a per-user value, auth.Session, rather than state held
+      by the client.
+    symbols:
+      - auth.Session.AccessToken
+      - auth.Session.RefreshToken
+      - auth.Session.User
+    supporting_symbols:
+      - auth.Session
   auth.session.get_user:
     status: implemented
     note: |
-      The token is an explicit required parameter, as for auth.session.get_claims.
+      The token is an explicit parameter, as for auth.session.get_claims. A
+      session holds the profile the server last served as auth.Session.User,
+      and a server-verified read passes auth.Session.AccessToken's result here.
     symbols:
       - auth.Client.GetUser
     supporting_symbols:
@@ -441,6 +457,43 @@ features:
       - auth.User.Role
       - auth.User.UpdatedAt
       - auth.User.UserMetadata
+  auth.session.refresh_session:
+    status: implemented
+    symbols:
+      - auth.RefreshResult
+      - auth.Session.Refresh
+  auth.session.set_session:
+    status: implemented
+    symbols:
+      - auth.Client.SessionFromTokens
+      - auth.SessionFromTokensResult
+      - auth.SessionFromTokensResult.Session
+  auth.session.sign_out:
+    status: implemented
+    symbols:
+      - auth.Session.SignOut
+    supporting_symbols:
+      - auth.SignOutResult
+      - auth/signout.Option
+      - auth/signout.Parameters
+      - auth/signout.Parameters.Scope
+      - auth/signout.Resolve
+      - auth/signout.WithLocalScope
+      - auth/signout.WithOthersScope
+  auth.sign_in.sign_in_with_password:
+    status: implemented
+    symbols:
+      - auth.Client.SignInWithPassword
+      - auth.PasswordCredentials
+      - auth.PasswordCredentials.Email
+      - auth.PasswordCredentials.Password
+      - auth.PasswordCredentials.Phone
+      - auth.SignInWithPasswordResult
+      - auth.SignInWithPasswordResult.Session
+      - auth.SignInWithPasswordResult.WeakPassword
+      - auth.WeakPassword
+      - auth.WeakPassword.Message
+      - auth.WeakPassword.Reasons
   client.observability.diagnostic_logging:
     status: implemented
     note: |
@@ -472,6 +525,30 @@ features:
     status: implemented
     symbols:
       - core/configuration.WithHeader
+  client.session_management.custom_storage:
+    status: implemented
+    note: |
+      The store is chosen per session, after sign-in, not per client,
+      because a Go process may hold a session per user. It is keyless: a
+      program that keeps many sessions in one backing store scopes each store
+      value to its session.
+    symbols:
+      - auth.Client.SessionFromStore
+      - auth.Session.Persist
+      - auth.SessionFromStoreResult
+      - auth.SessionFromStoreResult.Session
+      - auth.SessionStore
+      - auth.SessionStore.Delete
+      - auth.SessionStore.Load
+      - auth.SessionStore.Save
+  client.session_management.persist_session:
+    status: implemented
+    note: |
+      A session is in memory only until it persists to a store, so the
+      capability's "memory only for the lifetime of the instance" is the
+      default rather than a toggle.
+    symbols:
+      - auth.Session.Persist
   database.configuration.access_token:
     status: implemented
     symbols:

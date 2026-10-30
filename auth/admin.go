@@ -112,7 +112,7 @@ type UserAttributes struct {
 // decide whether the user starts confirmed. The server requires at least an
 // email or a phone number.
 func (a *Admin) CreateUser(ctx context.Context, attributes UserAttributes) (*CreateUserResult, error) {
-	body, err := send(ctx, a.httpClient, http.MethodPost, a.adminBaseURL.JoinPath("users"), attributes)
+	body, err := send(ctx, a.httpClient, http.MethodPost, a.adminBaseURL.JoinPath("users"), attributes, "")
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func (a *Admin) GetUser(ctx context.Context, userID string) (*GetUserResult, err
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
 	}
-	body, err := send(ctx, a.httpClient, http.MethodGet, a.adminBaseURL.JoinPath("users", userID), nil)
+	body, err := send(ctx, a.httpClient, http.MethodGet, a.adminBaseURL.JoinPath("users", userID), nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (a *Admin) UpdateUser(ctx context.Context, userID string, attributes UserAt
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
 	}
-	body, err := send(ctx, a.httpClient, http.MethodPut, a.adminBaseURL.JoinPath("users", userID), attributes)
+	body, err := send(ctx, a.httpClient, http.MethodPut, a.adminBaseURL.JoinPath("users", userID), attributes, "")
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +196,7 @@ func (a *Admin) DeleteUser(ctx context.Context, userID string, options ...userde
 	if userdelete.Resolve(options...).SoftDelete() {
 		payload = deleteUserPayload{ShouldSoftDelete: true}
 	}
-	if _, err := send(ctx, a.httpClient, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID), payload); err != nil {
+	if _, err := send(ctx, a.httpClient, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID), payload, ""); err != nil {
 		return nil, err
 	}
 	return &DeleteUserResult{}, nil
@@ -329,7 +329,7 @@ func (a *Admin) InviteUser(ctx context.Context, email string, options ...userinv
 		query.Set("redirect_to", redirectTo)
 		endpoint.RawQuery = query.Encode()
 	}
-	body, err := send(ctx, a.httpClient, http.MethodPost, endpoint, invitePayload{Email: email, Data: parameters.UserMetadata()})
+	body, err := send(ctx, a.httpClient, http.MethodPost, endpoint, invitePayload{Email: email, Data: parameters.UserMetadata()}, "")
 	if err != nil {
 		return nil, err
 	}
@@ -370,16 +370,15 @@ func (a *Admin) SignOut(ctx context.Context, jwt string, options ...signout.Opti
 	if jwt == "" {
 		return nil, ErrMissingJWT
 	}
-	endpoint := a.baseURL.JoinPath("logout")
-	endpoint.RawQuery = url.Values{"scope": {signout.Resolve(options...).Scope()}}.Encode()
-	if _, _, err := exchange(ctx, a.httpClient, http.MethodPost, endpoint, nil, jwt); err != nil {
+	if err := logout(ctx, a.httpClient, a.baseURL, jwt, signout.Resolve(options...).Scope()); err != nil {
 		return nil, err
 	}
 	return &SignOutResult{}, nil
 }
 
-// SignOutResult is the server's answer to [Admin.SignOut], whose wire success
-// is bodiless today: the result carries nothing until the wire does.
+// SignOutResult is the server's answer to [Admin.SignOut] and
+// [Session.SignOut], whose wire success is bodiless today: the result carries
+// nothing until the wire does.
 type SignOutResult struct{}
 
 // ListMFAFactors fetches the user's enrolled MFA factors. The id must be a
@@ -390,7 +389,7 @@ func (a *Admin) ListMFAFactors(ctx context.Context, userID string) (*ListMFAFact
 	if !isCanonicalUUID(userID) {
 		return nil, ErrInvalidUserID
 	}
-	body, err := send(ctx, a.httpClient, http.MethodGet, a.adminBaseURL.JoinPath("users", userID, "factors"), nil)
+	body, err := send(ctx, a.httpClient, http.MethodGet, a.adminBaseURL.JoinPath("users", userID, "factors"), nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -425,7 +424,7 @@ func (a *Admin) UpdateMFAFactor(ctx context.Context, userID, factorID string, op
 	}
 	parameters := mfafactor.Resolve(options...)
 	request := updateMFAFactorRequest{FriendlyName: parameters.FriendlyName(), Phone: parameters.Phone()}
-	body, err := send(ctx, a.httpClient, http.MethodPut, a.adminBaseURL.JoinPath("users", userID, "factors", factorID), request)
+	body, err := send(ctx, a.httpClient, http.MethodPut, a.adminBaseURL.JoinPath("users", userID, "factors", factorID), request, "")
 	if err != nil {
 		return nil, err
 	}
@@ -464,7 +463,7 @@ func (a *Admin) DeleteMFAFactor(ctx context.Context, userID, factorID string) (*
 	if !isCanonicalUUID(factorID) {
 		return nil, ErrInvalidFactorID
 	}
-	if _, err := send(ctx, a.httpClient, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID, "factors", factorID), nil); err != nil {
+	if _, err := send(ctx, a.httpClient, http.MethodDelete, a.adminBaseURL.JoinPath("users", userID, "factors", factorID), nil, ""); err != nil {
 		return nil, err
 	}
 	return &DeleteMFAFactorResult{}, nil
@@ -480,7 +479,7 @@ type DeleteMFAFactorResult struct{}
 // provider as stored. An identifier already registered is the server's
 // rejection, an [*Error] whose Code is "conflict".
 func (a *Admin) CreateCustomProvider(ctx context.Context, definition customprovider.Definition) (*CreateCustomProviderResult, error) {
-	body, err := send(ctx, a.httpClient, http.MethodPost, a.adminBaseURL.JoinPath("custom-providers"), definition)
+	body, err := send(ctx, a.httpClient, http.MethodPost, a.adminBaseURL.JoinPath("custom-providers"), definition, "")
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +507,7 @@ func (a *Admin) GetCustomProvider(ctx context.Context, identifier string) (*GetC
 	if identifier == "" {
 		return nil, ErrMissingIdentifier
 	}
-	body, err := send(ctx, a.httpClient, http.MethodGet, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), nil)
+	body, err := send(ctx, a.httpClient, http.MethodGet, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -538,7 +537,7 @@ func (a *Admin) ListCustomProviders(ctx context.Context, options ...customprovid
 		query.Set("type", providerType)
 		endpoint.RawQuery = query.Encode()
 	}
-	body, err := send(ctx, a.httpClient, http.MethodGet, endpoint, nil)
+	body, err := send(ctx, a.httpClient, http.MethodGet, endpoint, nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -572,7 +571,7 @@ func (a *Admin) UpdateCustomProvider(ctx context.Context, identifier string, opt
 	if identifier == "" {
 		return nil, ErrMissingIdentifier
 	}
-	body, err := send(ctx, a.httpClient, http.MethodPut, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), customprovider.Resolve(options...))
+	body, err := send(ctx, a.httpClient, http.MethodPut, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), customprovider.Resolve(options...), "")
 	if err != nil {
 		return nil, err
 	}
@@ -601,7 +600,7 @@ func (a *Admin) DeleteCustomProvider(ctx context.Context, identifier string) (*D
 	if identifier == "" {
 		return nil, ErrMissingIdentifier
 	}
-	if _, err := send(ctx, a.httpClient, http.MethodDelete, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), nil); err != nil {
+	if _, err := send(ctx, a.httpClient, http.MethodDelete, a.adminBaseURL.JoinPath("custom-providers", url.PathEscape(identifier)), nil, ""); err != nil {
 		return nil, err
 	}
 	return &DeleteCustomProviderResult{}, nil

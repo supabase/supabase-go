@@ -13,12 +13,37 @@ type authError string
 
 func (e authError) Error() string { return "auth: " + string(e) }
 
-// ErrMissingJWT is reported by [Client.GetClaims], [Client.GetUser] and
-// [Admin.SignOut] when the supplied token is empty.
+// ErrMissingJWT is reported by [Client.GetClaims], [Client.GetUser],
+// [Client.SessionFromTokens] and [Admin.SignOut] when the supplied token is
+// empty.
 const ErrMissingJWT = authError("JWT is required")
 
-// ErrMalformedJWT is reported by [Client.GetClaims] when the supplied token is
-// not a three-part base64url JWT carrying a JSON header and JSON claims.
+// ErrMissingRefreshToken is reported by [Client.SessionFromTokens] when the
+// supplied refresh token is empty, before any request is sent.
+const ErrMissingRefreshToken = authError("refresh token is required")
+
+// ErrMissingStore is reported by [Session.Persist] and
+// [Client.SessionFromStore] when the given store is nil.
+const ErrMissingStore = authError("session store is required")
+
+// ErrNoStoredSession is reported by [Client.SessionFromStore] when the store
+// holds nothing.
+const ErrNoStoredSession = authError("no stored session")
+
+// ErrSignedOut is reported by every operation on a [Session] that
+// [Session.SignOut] has ended, and by every operation on the zero Session.
+const ErrSignedOut = authError("session is signed out")
+
+// ErrSessionExpired is reported by every operation on a [Session] whose
+// access token expired after the server had refused to renew it, and by
+// [Client.SessionFromStore] when the stored session can no longer be
+// refreshed. It is always returned wrapping the server's rejection, an
+// [*Error] carrying the code the server answered the refresh with.
+const ErrSessionExpired = authError("session has expired")
+
+// ErrMalformedJWT is reported by [Client.GetClaims] and
+// [Client.SessionFromTokens] when the supplied token is not a three-part
+// base64url JWT carrying a JSON header and JSON claims.
 const ErrMalformedJWT = authError("JWT is malformed")
 
 // ErrExpiredJWT is reported by [Client.GetClaims] when the token's exp claim is
