@@ -111,7 +111,7 @@ func (c RPCRowsCall[T]) rawState() queryState[T] { return c.postState() }
 func (c RPCRowsCall[T]) executeState() queryState[T] { return c.postState() }
 
 // mutation implements [Mutation].
-func (c RPCRowsCall[T]) mutation() {}
+func (RPCRowsCall[T]) mutation() {}
 
 // RPCReadOnlyRowsCall is a rows-returning function call declared read-only,
 // sent as a GET that PostgREST runs in a READ ONLY transaction. Pass it to
@@ -197,7 +197,7 @@ func (c RPCVoidCall) executeState() queryState[struct{}] {
 }
 
 // mutation implements [Mutation].
-func (c RPCVoidCall) mutation() {}
+func (RPCVoidCall) mutation() {}
 
 // rpcPostRequest builds the POST form of a function call: the arguments as the
 // JSON request body, or the empty object when none were given so the function

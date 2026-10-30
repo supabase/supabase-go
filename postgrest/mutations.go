@@ -168,7 +168,7 @@ func (m MutationBuilder[T]) executeState() queryState[T] {
 }
 
 // mutation implements [Mutation].
-func (m MutationBuilder[T]) mutation() {}
+func (MutationBuilder[T]) mutation() {}
 
 // Compile-time proof that MutationBuilder satisfies both sealed interfaces:
 // [Query], so a read function decodes the rows a write returns, and
@@ -233,7 +233,7 @@ func (u UpsertBuilder[T]) executeState() queryState[T] {
 }
 
 // mutation implements [Mutation].
-func (u UpsertBuilder[T]) mutation() {}
+func (UpsertBuilder[T]) mutation() {}
 
 // Compile-time proof that UpsertBuilder satisfies both sealed interfaces, so a
 // read function decodes the rows an upsert returns and [Execute] sends it.
