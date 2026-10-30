@@ -215,7 +215,7 @@ type providerWire struct {
 	AuthorizationURL      string            `json:"authorization_url"`
 	TokenURL              string            `json:"token_url"`
 	UserinfoURL           string            `json:"userinfo_url"`
-	JwksURI               string            `json:"jwks_uri"`
+	JWKSURI               string            `json:"jwks_uri"`
 	CreatedAt             *time.Time        `json:"created_at"`
 	UpdatedAt             *time.Time        `json:"updated_at"`
 }
@@ -226,7 +226,7 @@ type discoveryWire struct {
 	AuthorizationEndpoint  string   `json:"authorization_endpoint"`
 	TokenEndpoint          string   `json:"token_endpoint"`
 	UserinfoEndpoint       string   `json:"userinfo_endpoint"`
-	JwksURI                string   `json:"jwks_uri"`
+	JWKSURI                string   `json:"jwks_uri"`
 	ScopesSupported        []string `json:"scopes_supported"`
 	ResponseTypesSupported []string `json:"response_types_supported"`
 	GrantTypesSupported    []string `json:"grant_types_supported"`
@@ -282,7 +282,7 @@ func fromWire(wire providerWire) CustomProvider {
 		authorizationURL:      wire.AuthorizationURL,
 		tokenURL:              wire.TokenURL,
 		userinfoURL:           wire.UserinfoURL,
-		jwksURI:               wire.JwksURI,
+		jwksURI:               wire.JWKSURI,
 		createdAt:             timeOrZero(wire.CreatedAt),
 		updatedAt:             timeOrZero(wire.UpdatedAt),
 	}
@@ -292,7 +292,7 @@ func fromWire(wire providerWire) CustomProvider {
 			authorizationEndpoint:  wire.DiscoveryDocument.AuthorizationEndpoint,
 			tokenEndpoint:          wire.DiscoveryDocument.TokenEndpoint,
 			userinfoEndpoint:       wire.DiscoveryDocument.UserinfoEndpoint,
-			jwksURI:                wire.DiscoveryDocument.JwksURI,
+			jwksURI:                wire.DiscoveryDocument.JWKSURI,
 			scopesSupported:        wire.DiscoveryDocument.ScopesSupported,
 			responseTypesSupported: wire.DiscoveryDocument.ResponseTypesSupported,
 			grantTypesSupported:    wire.DiscoveryDocument.GrantTypesSupported,

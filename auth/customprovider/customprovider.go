@@ -59,7 +59,7 @@ type updateRequest struct {
 	AuthorizationURL      string            `json:"authorization_url,omitzero"`
 	TokenURL              string            `json:"token_url,omitzero"`
 	UserinfoURL           string            `json:"userinfo_url,omitzero"`
-	JwksURI               string            `json:"jwks_uri,omitzero"`
+	JWKSURI               string            `json:"jwks_uri,omitzero"`
 }
 
 // WithName renames the provider.
@@ -202,7 +202,7 @@ func WithUserinfoURL(userinfoURL string) Option {
 // keys.
 func WithJWKSURI(jwksURI string) Option {
 	return func(parameters *Parameters) {
-		parameters.request.JwksURI = jwksURI
+		parameters.request.JWKSURI = jwksURI
 	}
 }
 

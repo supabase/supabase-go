@@ -7,3 +7,7 @@ enable-default-rules = true
 arguments = ["check-public-interface"]
 
 [rule.package-naming]
+
+# The SDK's own initialisms, which revive's built-in list lacks.
+[rule.var-naming]
+arguments = [[], ["JWK", "JWKS", "JWT", "MFA", "OIDC", "OTP", "PKCE", "RLS", "SDK", "TOTP"]]
