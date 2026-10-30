@@ -4,6 +4,8 @@ enable-default-rules = true
 
 [rule.bare-return]
 
+[rule.bool-literal-in-expr]
+
 [rule.call-to-gc]
 
 [rule.confusing-naming]
@@ -34,6 +36,10 @@ arguments = ["short"]
 [rule.enforce-slice-style]
 arguments = ["literal"]
 
+# A switch may have no default case, and one that has it puts it last.
+[rule.enforce-switch-style]
+arguments = ["allowNoDefault"]
+
 # The exported rule's default skips the methods of exported interfaces.
 [rule.exported]
 arguments = ["check-public-interface"]
@@ -62,6 +68,8 @@ arguments = ["check-public-interface"]
 
 [rule.marshal-receiver]
 
+[rule.modifies-value-receiver]
+
 [rule.multiline-if-init]
 
 [rule.package-directory-mismatch]
@@ -82,9 +90,15 @@ arguments = ["check-public-interface"]
 
 [rule.unnecessary-format]
 
+[rule.unnecessary-if]
+
 [rule.unnecessary-stmt]
 
+[rule.unsecure-url-scheme]
+
 [rule.unused-receiver]
+
+[rule.use-any]
 
 [rule.use-fmt-print]
 
