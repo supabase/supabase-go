@@ -306,7 +306,7 @@ func TestSelectRenamesColumns(t *testing.T) {
 		if _, present := row["name"]; present {
 			t.Errorf("rows[%d] carries name, want the column under its instrument alias alone", index)
 		}
-		if instrument, _ := row["instrument"].(string); instrument == "" {
+		if instrument, ok := row["instrument"].(string); !ok || instrument == "" {
 			t.Errorf("rows[%d][instrument] = %v, want a seeded instrument name", index, row["instrument"])
 		}
 	}

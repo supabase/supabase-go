@@ -1105,7 +1105,10 @@ func TestUserIsIndependentPerCall(t *testing.T) {
 	server := newSessionServer(t)
 	session := server.signIn(t, server.client(t), time.Hour)
 
-	tags := session.User().UserMetadata()["tags"].(map[string]any)
+	tags, ok := session.User().UserMetadata()["tags"].(map[string]any)
+	if !ok {
+		t.Fatalf("User() tags = %#v, want a map", session.User().UserMetadata()["tags"])
+	}
 	if tags["team"] != "platform" {
 		t.Fatalf("User() serves team %v, want the served platform", tags["team"])
 	}
