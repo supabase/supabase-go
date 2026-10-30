@@ -2,6 +2,10 @@
 # set is enabled explicitly.
 enable-default-rules = true
 
+# Sized make calls are exempt.
+[rule.enforce-map-style]
+arguments = ["literal"]
+
 # The exported rule's default skips the methods of exported interfaces.
 [rule.exported]
 arguments = ["check-public-interface"]

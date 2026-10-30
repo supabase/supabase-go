@@ -68,7 +68,7 @@ func (stampingTransport) RoundTrip(request *http.Request) (*http.Response, error
 // span from the request context, write the traceparent header - simulated
 // here without the dependency so the guarantee stays pinned in the fast tier.
 func TestInjectedTransportReceivesCallContext(t *testing.T) {
-	received := make(map[string]string)
+	received := map[string]string{}
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		received[request.URL.Path] = request.Header.Get("traceparent")
 		writer.Header().Set("Content-Type", "application/json")
