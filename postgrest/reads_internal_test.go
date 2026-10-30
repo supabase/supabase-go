@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/supabase/supabase-go/core/configuration"
-	internalHttp "github.com/supabase/supabase-go/postgrest/internal/http"
+	"github.com/supabase/supabase-go/postgrest/internal/exchange"
 )
 
-// The tests in this file substitute internal/http's RetrySleep seam, so they
+// The tests in this file substitute internal/exchange's RetrySleep seam, so they
 // must not call t.Parallel: parallel tests would race on the variable.
 
 // stubRetrySleep replaces RetrySleep for the duration of the test with an
@@ -24,10 +24,10 @@ import (
 // the context has ended.
 func stubRetrySleep(t *testing.T) *[]time.Duration {
 	t.Helper()
-	original := internalHttp.RetrySleep
-	t.Cleanup(func() { internalHttp.RetrySleep = original })
+	original := exchange.RetrySleep
+	t.Cleanup(func() { exchange.RetrySleep = original })
 	recorded := &[]time.Duration{}
-	internalHttp.RetrySleep = func(ctx context.Context, duration time.Duration) error {
+	exchange.RetrySleep = func(ctx context.Context, duration time.Duration) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -155,8 +155,8 @@ func TestCollectStopsAfterMaximumRetries(t *testing.T) {
 	if postgrestError.HTTPStatus != 520 {
 		t.Errorf("HTTPStatus = %d, want 520", postgrestError.HTTPStatus)
 	}
-	if got := len(*retryCounts); got != 1+internalHttp.MaximumRetries {
-		t.Errorf("requests = %d, want %d", got, 1+internalHttp.MaximumRetries)
+	if got := len(*retryCounts); got != 1+exchange.MaximumRetries {
+		t.Errorf("requests = %d, want %d", got, 1+exchange.MaximumRetries)
 	}
 	if want := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}; !slices.Equal(*sleeps, want) {
 		t.Errorf("delays = %v, want %v", *sleeps, want)
@@ -270,8 +270,8 @@ func TestCollectPerReadRetryOverridesClient(t *testing.T) {
 		if _, _, err := Collect(t.Context(), client, query); err == nil {
 			t.Fatal("Collect succeeded, want an error")
 		}
-		if got := len(*retryCounts) - 1; got != 1+internalHttp.MaximumRetries {
-			t.Errorf("requests without the option = %d, want %d", got, 1+internalHttp.MaximumRetries)
+		if got := len(*retryCounts) - 1; got != 1+exchange.MaximumRetries {
+			t.Errorf("requests without the option = %d, want %d", got, 1+exchange.MaximumRetries)
 		}
 	})
 
@@ -284,8 +284,8 @@ func TestCollectPerReadRetryOverridesClient(t *testing.T) {
 		if _, _, err := Collect(t.Context(), client, query, WithRetry(true)); err == nil {
 			t.Fatal("Collect succeeded, want an error")
 		}
-		if got := len(*retryCounts); got != 1+internalHttp.MaximumRetries {
-			t.Errorf("requests with WithRetry(true) = %d, want %d", got, 1+internalHttp.MaximumRetries)
+		if got := len(*retryCounts); got != 1+exchange.MaximumRetries {
+			t.Errorf("requests with WithRetry(true) = %d, want %d", got, 1+exchange.MaximumRetries)
 		}
 
 		// The override was scoped to that call: the same read without the
@@ -293,7 +293,7 @@ func TestCollectPerReadRetryOverridesClient(t *testing.T) {
 		if _, _, err := Collect(t.Context(), client, query); err == nil {
 			t.Fatal("Collect succeeded, want an error")
 		}
-		if got := len(*retryCounts) - (1 + internalHttp.MaximumRetries); got != 1 {
+		if got := len(*retryCounts) - (1 + exchange.MaximumRetries); got != 1 {
 			t.Errorf("requests without the option = %d, want 1", got)
 		}
 	})
@@ -650,12 +650,12 @@ func TestExecuteRenewalBudgetExhausted(t *testing.T) {
 	if postgrestError.HTTPStatus != http.StatusUnauthorized {
 		t.Errorf("HTTPStatus = %d, want 401", postgrestError.HTTPStatus)
 	}
-	if *calls != 1+internalHttp.MaximumRetries {
-		t.Errorf("provider calls = %d, want %d (initial plus %d renewals)", *calls, 1+internalHttp.MaximumRetries, internalHttp.MaximumRetries)
+	if *calls != 1+exchange.MaximumRetries {
+		t.Errorf("provider calls = %d, want %d (initial plus %d renewals)", *calls, 1+exchange.MaximumRetries, exchange.MaximumRetries)
 	}
 	recorded := *headers
-	if len(recorded) != 1+internalHttp.MaximumRetries {
-		t.Fatalf("requests = %d, want %d", len(recorded), 1+internalHttp.MaximumRetries)
+	if len(recorded) != 1+exchange.MaximumRetries {
+		t.Fatalf("requests = %d, want %d", len(recorded), 1+exchange.MaximumRetries)
 	}
 	for index, want := range []string{"Bearer token-1", "Bearer token-2", "Bearer token-3", "Bearer token-4"} {
 		if got := recorded[index].Get("Authorization"); got != want {

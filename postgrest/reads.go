@@ -7,7 +7,7 @@ import (
 	"slices"
 
 	"github.com/supabase/supabase-go/core/configuration"
-	"github.com/supabase/supabase-go/postgrest/internal/http"
+	"github.com/supabase/supabase-go/postgrest/internal/exchange"
 	"github.com/supabase/supabase-go/postgrest/internal/request"
 )
 
@@ -190,12 +190,12 @@ func execute(ctx context.Context, client *Client, requestState request.Request, 
 		return nil, Response{}, ErrMissingTable
 	}
 
-	settings := readSettings{httpClient: client.httpClient}
+	settings := readSettings{exchange: client.exchange}
 	for _, option := range options {
 		option(&settings)
 	}
 
-	result, err := settings.httpClient.Do(ctx, requestState)
+	result, err := settings.exchange.Do(ctx, requestState)
 	if err != nil {
 		return nil, Response{}, err
 	}
@@ -216,7 +216,7 @@ type Option func(*readSettings)
 // client. Each Option derives a further copy of that value, so an applied
 // option can never reach the client the copy was taken from.
 type readSettings struct {
-	httpClient http.Client
+	exchange exchange.Client
 }
 
 // WithRetry overrides the executing client's automatic-retry default for one
@@ -225,7 +225,7 @@ type readSettings struct {
 // backoff - is documented on [Client].
 func WithRetry(enabled bool) Option {
 	return func(settings *readSettings) {
-		settings.httpClient = settings.httpClient.WithRetry(enabled)
+		settings.exchange = settings.exchange.WithRetry(enabled)
 	}
 }
 
@@ -241,14 +241,14 @@ func WithRetry(enabled bool) Option {
 // fails the call with [ErrMissingAccessToken].
 func WithAccessTokenProvider(provider configuration.AccessTokenProvider) Option {
 	return func(settings *readSettings) {
-		settings.httpClient = settings.httpClient.WithTokenResolver(tokenResolver(provider))
+		settings.exchange = settings.exchange.WithTokenResolver(tokenResolver(provider))
 	}
 }
 
 // withAccept overrides the executing read request's default Accept header.
 func withAccept(value string) Option {
 	return func(settings *readSettings) {
-		settings.httpClient = settings.httpClient.WithAccept(value)
+		settings.exchange = settings.exchange.WithAccept(value)
 	}
 }
 
@@ -259,6 +259,6 @@ func withAccept(value string) Option {
 // byte-identical on the wire.
 func withRepresentation() Option {
 	return func(settings *readSettings) {
-		settings.httpClient = settings.httpClient.WithRepresentation()
+		settings.exchange = settings.exchange.WithRepresentation()
 	}
 }

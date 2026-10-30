@@ -5,3 +5,5 @@ enable-default-rules = true
 # The exported rule's default skips the methods of exported interfaces.
 [rule.exported]
 arguments = ["check-public-interface"]
+
+[rule.package-naming]

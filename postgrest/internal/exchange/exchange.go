@@ -1,11 +1,11 @@
-// Package http executes PostgREST requests: [Client.Do] runs the exchange
+// Package exchange executes PostgREST requests: [Client.Do] runs the exchange
 // loop for one built request, assembling headers, retrying transient
 // failures within the automatic-retry contract and renewing a rejected
 // access token through the attached resolver, then reports the final
 // response's status and body verbatim as a [Result]. A completed exchange is
 // never an error here, whatever its status code, so the caller shapes
 // user-facing failures from the Result it receives.
-package http
+package exchange
 
 import (
 	"context"

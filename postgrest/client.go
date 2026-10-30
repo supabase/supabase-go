@@ -6,7 +6,7 @@ import (
 
 	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
-	"github.com/supabase/supabase-go/postgrest/internal/http"
+	"github.com/supabase/supabase-go/postgrest/internal/exchange"
 )
 
 // Client executes Database queries against PostgREST, owning the pooled HTTP
@@ -40,7 +40,7 @@ import (
 // re-sends and transient retries spend from the same cap above, so one
 // call sends at most four requests.
 type Client struct {
-	httpClient http.Client
+	exchange exchange.Client
 }
 
 // New constructs a standalone PostgREST [Client] for the given project URL
@@ -70,7 +70,7 @@ func New(projectURL, apiKey string, options ...configuration.Option) (*Client, e
 // carry the authentication and global headers configured on
 // [configuration.Configuration.HTTPClient].
 func NewFromConfiguration(projectConfiguration *configuration.Configuration) *Client {
-	return &Client{httpClient: http.New(
+	return &Client{exchange: exchange.New(
 		projectConfiguration.HTTPClient(),
 		*projectConfiguration.BaseURL().JoinPath("rest", "v1"),
 		projectConfiguration.Retry(),
@@ -98,7 +98,7 @@ func NewFromConfiguration(projectConfiguration *configuration.Configuration) *Cl
 // single call. A nil provider is attached as one that fails the call with
 // [ErrMissingAccessToken].
 func (c *Client) WithAccessTokenProvider(provider configuration.AccessTokenProvider) *Client {
-	return &Client{httpClient: c.httpClient.WithTokenResolver(tokenResolver(provider))}
+	return &Client{exchange: c.exchange.WithTokenResolver(tokenResolver(provider))}
 }
 
 // tokenResolver adapts provider into the resolver an exchange calls: a
@@ -106,7 +106,7 @@ func (c *Client) WithAccessTokenProvider(provider configuration.AccessTokenProvi
 // token-resolution failure and a nil provider or empty token fails with
 // [ErrMissingAccessToken]. Both attachment sites use it, so every attached
 // provider carries the same failure semantics.
-func tokenResolver(provider configuration.AccessTokenProvider) http.TokenResolver {
+func tokenResolver(provider configuration.AccessTokenProvider) exchange.TokenResolver {
 	return func(ctx context.Context) (string, error) {
 		if provider == nil {
 			return "", ErrMissingAccessToken
@@ -136,5 +136,5 @@ func tokenResolver(provider configuration.AccessTokenProvider) http.TokenResolve
 //
 // [exposed to the API]: https://supabase.com/docs/guides/api/using-custom-schemas
 func (c *Client) WithSchema(schema string) *Client {
-	return &Client{httpClient: c.httpClient.WithSchema(schema)}
+	return &Client{exchange: c.exchange.WithSchema(schema)}
 }
