@@ -9,14 +9,17 @@
 project_id = "supabase-go-integration"
 
 [api]
-# Pinned explicitly (rather than trusting CLI defaults) so DEVELOPMENT.md's
-# port prerequisites stay true even if upstream defaults drift.
-port = 54321
+# Every port the stack publishes sits below 32768, where Linux's default
+# ephemeral port range starts. Any port in that range can be handed to an
+# outgoing connection while the stack starts, and Docker then cannot bind it.
+# The ports also sit off the CLI defaults, so the stack can run beside another
+# local Supabase project.
+port = 14321
 # Only the schemas the tests query; the CLI default also exposes graphql_public.
 schemas = ["public", "personal"]
 
 [db]
-port = 54322
+port = 14322
 # Required field; matches the pinned CLI's default Postgres image.
 major_version = 17
 
