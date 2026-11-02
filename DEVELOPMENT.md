@@ -44,7 +44,7 @@ Or, for all, from repository root:
 Lint and vulnerability scanning run via two scripts that are *exactly* what CI runs - same commands, same checksum-pinned tool versions (from the `go.mod` + `go.sum` of each tool module under [`tools/go/`](tools/go/)):
 
 ```bash
-./scripts/lint.sh       # gofumpt, go vet, staticcheck, errcheck, revive - all modules; then gopls check workspace-wide
+./scripts/lint.sh       # gofumpt, go vet, staticcheck, errcheck, revive - all modules; sdkchecker - published modules; then gopls check workspace-wide
 ./scripts/vulncheck.sh  # govulncheck - all modules
 ```
 

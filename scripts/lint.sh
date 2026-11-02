@@ -16,11 +16,14 @@ toolbin="$(mktemp -d)"
 trap 'rm -rf "${toolbin}"' EXIT
 (
   cd tools/go
+  # sdkchecker is this repository's own code, so its tests run before it does.
+  GOWORK=off go test ./sdkchecker/...
   GOWORK=off GOBIN="${toolbin}" go install \
     mvdan.cc/gofumpt \
     honnef.co/go/tools/cmd/staticcheck \
     github.com/kisielk/errcheck \
-    github.com/mgechev/revive
+    github.com/mgechev/revive \
+    ./sdkchecker
 )
 # gopls builds from its own tool module, which holds golang.org/x/tools at the
 # exact commit its release requires (see decisions.md).
@@ -51,6 +54,8 @@ for module in ${workspace_modules}; do
     "${toolbin}/staticcheck" ./...
     "${toolbin}/errcheck" ./...
     "${toolbin}/revive" -config "${revive_config}" -set_exit_status ./...
+    # sdkchecker's analyzers apply to the published modules' non-test files.
+    "${toolbin}/sdkchecker" -test=false ./...
   )
 done
 

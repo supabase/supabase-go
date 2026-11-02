@@ -130,10 +130,12 @@ arguments = [[], ["JWK", "JWKS", "JWT", "MFA", "OIDC", "OTP", "PKCE", "RLS", "SD
 # - waitgroup-by-value: go vet's copylocks analyzer
 #
 # Would report nothing in this repository:
-# - epoch-naming, inefficient-map-lookup, time-equal: they need type information, which revive cannot load for a package that imports another module (https://github.com/revive-lint/revive/issues/1277)
 # - optimize-operands-order: it reports at confidence 0.3, below revive's default threshold of 0.8
 # - range-val-address, range-val-in-closure: revive switches them off at Go 1.22 and later
 # - use-errors-new: revive switches it off at Go 1.26 and later
+#
+# Would pass or fail at random in this repository:
+# - epoch-naming, inefficient-map-lookup, time-equal: they need type information, and where a directory also holds external tests, revive type-checks only one of its two packages, chosen afresh on every run
 #
 # Flag idioms this codebase uses on purpose:
 # - modifies-parameter: reassigning a parameter, as when defaulting a nil one
