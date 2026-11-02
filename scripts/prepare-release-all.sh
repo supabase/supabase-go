@@ -12,8 +12,9 @@
 # the full picture: which modules release for their own changes (their
 # unreleased entries printed, to help grade each bump), which release only to
 # carry dependency upgrades and which stay put. It then prompts for each new
-# version, shows the complete plan - versions, pins and the changelog sections
-# it will write - and asks for confirmation before touching anything.
+# version beneath the module's public API changes since its last release,
+# shows the complete plan - versions, pins and the changelog sections it will
+# write - and asks for confirmation before touching anything.
 #
 # For a module released only to carry upgrades it writes the changelog section
 # the release needs: one 'Upgrades X from version Y to version Z.' bullet per
@@ -246,7 +247,8 @@ done
 # operator grades one bump at a time without scrolling: unreleased entries for
 # a module releasing its own changes, the upgrade lines being carried for a
 # module releasing only to carry them (its dependencies' versions are already
-# chosen, since prompting follows dependency order).
+# chosen, since prompting follows dependency order), then the module's public
+# API changes since its current version, for a module released before.
 chosen_modules=()
 chosen_versions=()
 for module in "${ordered_modules[@]}"; do
@@ -261,6 +263,10 @@ for module in "${ordered_modules[@]}"; do
       in_list "${dependency}" "${release_modules[@]}" || continue
       echo "    ${dependency} ${dependency_current} -> $(chosen_version "${dependency}")"
     done < <(sibling_requires "${module}")
+  fi
+  if [ -n "${current}" ] && ! ./scripts/api-diff.sh "${module}" "${current}" | sed 's/^/    /'; then
+    echo "Could not compare ${module} with ${current}, so stopping before anything is written." >&2
+    exit 1
   fi
   while :; do
     if ! read -r -p "New version for ${module} (current ${current:-unreleased}): " candidate; then
