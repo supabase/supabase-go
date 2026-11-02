@@ -9,11 +9,12 @@
 package main
 
 import (
-	"golang.org/x/tools/go/analysis/singlechecker"
+	"golang.org/x/tools/go/analysis/multichecker"
 
+	"github.com/supabase/supabase-go/tools/go/sdkchecker/doclink"
 	"github.com/supabase/supabase-go/tools/go/sdkchecker/unexportedreturn"
 )
 
 func main() {
-	singlechecker.Main(unexportedreturn.Analyzer)
+	multichecker.Main(doclink.Analyzer, unexportedreturn.Analyzer)
 }
