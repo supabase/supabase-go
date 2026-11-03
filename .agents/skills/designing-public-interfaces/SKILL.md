@@ -16,3 +16,11 @@ We must aim for consistency so patterns that already exist in this codebase shou
 The interior counterpart of this skill is `designing-internal-boundaries`, which governs how the types behind the exported surface keep their contracts compiler-enforced.
 
 A new or changed convention should also trigger the `recording-decisions` skill.
+
+## When not to add public API
+
+An exported identifier is added only when an SDK user needs to call it directly.
+Before writing one, state who outside the module calls it and why.
+If the answer is another package of our own, it is not public API.
+
+Reaching for an exported identifier to bridge a gap between two of our own packages means the shared thing belongs in a new internal package, or should be lifted into a common module.
