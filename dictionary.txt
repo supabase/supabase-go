@@ -11,6 +11,7 @@ commentchecker
 contravariance
 customprovider
 cyclop
+doclink
 dyld
 errcheck
 Errorf
@@ -19,7 +20,7 @@ firefox
 Firestore
 footgun
 fremdschämen
-Fset
+fset
 GOBIN
 GOENV
 GOEXPERIMENT
@@ -58,6 +59,7 @@ mfafactor
 mistargeted
 mockability
 modcache
+multichecker
 multimap
 nativeness
 nullable
@@ -88,7 +90,6 @@ scrypt
 sdkchecker
 signout
 signup
-singlechecker
 SLSA
 SQLSTATE
 staticcheck

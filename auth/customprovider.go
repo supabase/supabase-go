@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/supabase/supabase-go/auth/internal/customprovider"
+	internal "github.com/supabase/supabase-go/auth/internal/customprovider"
 )
 
 // CustomProvider is one custom OAuth 2.0 or OIDC sign-in provider, as the
@@ -14,7 +14,7 @@ import (
 // when the server supplied no value, and accessors for the other type's
 // fields return zero values.
 type CustomProvider struct {
-	inner customprovider.CustomProvider
+	inner internal.CustomProvider
 }
 
 // ID returns the provider's unique ID, the UUID the server generated for it.
@@ -118,7 +118,7 @@ func (p CustomProvider) UpdatedAt() time.Time { return p.inner.UpdatedAt() }
 // accessors return copies the caller may retain and modify freely, nil when
 // the document declares no value.
 type OIDCDiscoveryDocument struct {
-	inner customprovider.DiscoveryDocument
+	inner internal.DiscoveryDocument
 }
 
 // Issuer returns the issuer the document declares.
@@ -155,7 +155,7 @@ func (d OIDCDiscoveryDocument) SubjectTypesSupported() []string {
 
 // parseCustomProvider decodes a provider response.
 func parseCustomProvider(body []byte) (*CustomProvider, error) {
-	inner, err := customprovider.Parse(body)
+	inner, err := internal.Parse(body)
 	if err != nil {
 		return nil, fmt.Errorf("auth: decoding custom provider: %w", err)
 	}
@@ -164,7 +164,7 @@ func parseCustomProvider(body []byte) (*CustomProvider, error) {
 
 // parseCustomProviderList decodes a provider listing response.
 func parseCustomProviderList(body []byte) ([]CustomProvider, error) {
-	inners, err := customprovider.ParseList(body)
+	inners, err := internal.ParseList(body)
 	if err != nil {
 		return nil, fmt.Errorf("auth: decoding custom provider list: %w", err)
 	}
