@@ -25,16 +25,6 @@ version="$1"; shift
 
 echo "Prepare Release..."
 
-is_workspace_module() {
-  local candidate="$1" module
-  for module in ${workspace_modules}; do
-    if [ "${module#./}" = "${candidate}" ]; then
-      return 0
-    fi
-  done
-  return 1
-}
-
 if ! is_workspace_module "${module_dir}"; then
   echo "'${module_dir}' is not a published (go.work) module. Choose one of:" >&2
   printf '%s\n' "${workspace_modules}" >&2

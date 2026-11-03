@@ -23,7 +23,8 @@ A module's version lives in its Git tags.
 Tags for a module in a subdirectory [are path-prefixed](https://go.dev/ref/mod#vcs-version) - module `github.com/supabase/supabase-go/auth` at `v0.1.0-alpha.1` means tag `auth/v0.1.0-alpha.1` - while `require` lines always carry the plain version, never the tag prefix, because they already include the module name.
 
 In the tree, the newest version heading in a module's [changelog](CHANGELOG.md) declares that module's current version: `scripts/prepare-release.sh` writes it and [the Release Tags workflow](.github/workflows/release-tags.yml) reads it to know what to tag.
-Choose each module's next version by hand from the entries under the `## Unreleased` heading of its changelog, which accumulate as changes merge.
+Choose each module's next version by hand from the entries under the `## Unreleased` heading of its changelog, which accumulate as changes merge, and from `./scripts/api-diff.sh <module>`, which lists the module's public API changes since its newest declared version.
+An incompatible change in that list with no changelog entry is an entry missing.
 A module whose changelog has no `## Unreleased` section has nothing to release, and the prepare script refuses to prepare it.
 
 We treat `v1` as a long-term commitment to backward compatibility, in line with Go's own module versioning philosophy. Because Go enforces [Semantic Import Versioning](https://go.dev/doc/modules/major-version), bumping a module to `v2` requires changing its import path (appending `/v2`). This requires changes to all downstream consumers, forcing them to manually rewrite their imports, reflecting the breaking nature of the major release. To avoid this friction and ecosystem fragmentation, our goal is to evolve the SDK's APIs backward-compatibly indefinitely and never require a `v2` release.
@@ -105,7 +106,7 @@ From a release branch (it refuses to run on `main`), run it with no arguments:
 It gathers every module whose changelog holds `## Unreleased` entries, then walks the rest of the plan interactively, in dependency order throughout:
 
 1. A module with no changes of its own, requiring a sibling that is releasing, is offered - never forced - as a pins-only release. Declining is the norm and loses nothing: a `require` is a floor that [minimal version selection](https://go.dev/ref/mod#minimal-version-selection) resolves upward in consumer builds, so an older pin never goes stale and never blocks a newer sibling. Accept only when consumers should receive the new modules by upgrading that one module alone - the root `supabase` client's reason to exist, and rarely true of anything else.
-2. Each released module's new version is prompted for beneath the context that grades it: its own unreleased entries, or - for a pins-only release - the upgrades it would carry.
+2. Each released module's new version is prompted for beneath the context that grades it: its own unreleased entries, or - for a pins-only release - the upgrades it would carry, followed by its public API changes since its current version.
 3. The whole plan is shown - versions, every pin movement and the changelog sections to be written - behind one final confirmation before anything is touched.
 
 For a pins-only module the script writes the changelog section its release needs, one `Upgrades X from version Y to version Z.` bullet per upgraded sibling and nothing more: the substance lives in the sibling's own changelog, deliberately not repeated.

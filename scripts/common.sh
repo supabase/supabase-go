@@ -16,6 +16,18 @@ enumerate_workspace_modules() {
   printf '%s\n' "${dirs}"
 }
 
+# Succeed when $1 names one of the workspace module directories, written
+# without the leading ./ that enumerate_workspace_modules prints, such as core.
+is_workspace_module() {
+  local candidate="$1" module
+  for module in $(enumerate_workspace_modules); do
+    if [ "${module#./}" = "${candidate}" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 # Enumerate the non-published module directories carrying integration-test
 # code: each workspace module's adjacent integrationtest module plus their
 # shared integration-testing/testkit fixtures module. These sit outside go.work

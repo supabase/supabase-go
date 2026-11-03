@@ -6,6 +6,7 @@ go 1.26.0
 tool (
 	github.com/kisielk/errcheck
 	github.com/mgechev/revive
+	golang.org/x/exp/cmd/apidiff
 	golang.org/x/vuln/cmd/govulncheck
 	honnef.co/go/tools/cmd/staticcheck
 	mvdan.cc/gofumpt
@@ -30,6 +31,7 @@ require (
 	github.com/mgechev/revive v1.17.1 // indirect
 	github.com/revive-lint/dots v1.1.0 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
+	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e // indirect
 	golang.org/x/exp/typeparams v0.0.0-20260611194520-c48552f49976 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
