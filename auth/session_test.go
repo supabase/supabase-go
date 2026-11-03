@@ -809,6 +809,85 @@ func TestSignOutGlobalRevokesFirst(t *testing.T) {
 			t.Errorf("store deletes = %d holding %s, want the store cleared", store.deleteCount(), store.stored())
 		}
 		assertSignedOut(t, session)
+		if result, err := session.SignOut(t.Context()); err != nil || result == nil {
+			t.Errorf("a repeat SignOut = (%v, %v), want the empty result", result, err)
+		}
+		if hits := server.requestsTo(tokenPath); len(hits) != 2 {
+			t.Errorf("token requests = %d, want the sign-in and the rejected refresh alone", len(hits))
+		}
+	})
+
+	t.Run("a rejected refresh of an unexpired token sends the token", func(t *testing.T) {
+		server := newSessionServer(t)
+		session := server.signIn(t, server.client(t), expiresSoon)
+		server.script(tokenPath, refreshRejected.answer())
+
+		if result, err := session.SignOut(t.Context()); err != nil || result == nil {
+			t.Fatalf("SignOut = (%v, %v), want the empty result", result, err)
+		}
+		if paths := server.requestPaths(); !slices.Equal(paths, []string{tokenPath, tokenPath, logoutPath}) {
+			t.Fatalf("requests = %v, want the sign-in, the rejected refresh and then the logout", paths)
+		}
+		if bearer := server.requestsTo(logoutPath)[0].authorization; bearer != "Bearer "+server.mintedTokens()[0] {
+			t.Errorf("logout bearer = %q, want the still-valid token the sign-in minted", bearer)
+		}
+		assertSignedOut(t, session)
+	})
+
+	t.Run("a store that cannot be cleared after a rejected refresh is reported with the rejection", func(t *testing.T) {
+		server := newSessionServer(t)
+		session := server.signIn(t, server.client(t), expiredAlready)
+		store := &recordingStore{deleteErr: errors.New("disk gone")}
+		if err := session.Persist(t.Context(), store); err != nil {
+			t.Fatalf("Persist: %v", err)
+		}
+		server.script(tokenPath, refreshRejected.answer())
+
+		result, err := session.SignOut(t.Context())
+		if result != nil || !errors.Is(err, store.deleteErr) {
+			t.Errorf("SignOut = (%v, %v), want the store's error wrapped beside the rejection", result, err)
+		}
+		assertServerError(t, err, refreshRejected)
+		assertSignedOut(t, session)
+	})
+
+	t.Run("a sign-out joining a read's rejected refresh ends the session as signed out", func(t *testing.T) {
+		server := newSessionServer(t)
+		session := server.signIn(t, server.client(t), expiredAlready)
+		hold := make(chan struct{})
+		rejection := refreshRejected.answer()
+		rejection.hold = hold
+		server.script(tokenPath, rejection)
+
+		var readToken string
+		var readErr error
+		var group sync.WaitGroup
+		group.Go(func() { readToken, readErr = session.AccessToken(t.Context()) })
+		server.awaitRequests(t, tokenPath, 2)
+
+		signOutContext := newWaitObservingContext(t.Context())
+		var result *auth.SignOutResult
+		var signOutErr error
+		group.Go(func() { result, signOutErr = session.SignOut(signOutContext) })
+		select {
+		case <-signOutContext.waiting:
+		case <-time.After(5 * time.Second):
+			t.Fatal("the sign-out never waited on the refresh in flight")
+		}
+		close(hold)
+		group.Wait()
+
+		if readToken != "" || !errors.Is(readErr, auth.ErrSignedOut) {
+			t.Errorf("the refreshing read = (%q, %v), want ErrSignedOut, a sign-out having asked to end the session", readToken, readErr)
+		}
+		if result != nil {
+			t.Errorf("SignOut() result = %v beside the error, want nil", result)
+		}
+		assertServerError(t, signOutErr, refreshRejected)
+		if hits := server.requestsTo(logoutPath); len(hits) != 0 {
+			t.Errorf("logout requests = %d, want none after the rejected refresh", len(hits))
+		}
+		assertSignedOut(t, session)
 	})
 
 	t.Run("a transient refresh failure keeps the session and sends nothing", func(t *testing.T) {
@@ -832,6 +911,23 @@ func TestSignOutGlobalRevokesFirst(t *testing.T) {
 			t.Errorf("store deletes = %d, want none", store.deleteCount())
 		}
 		assertRecovers(t, server, session)
+	})
+
+	t.Run("a transient refresh failure of an unexpired token sends the token", func(t *testing.T) {
+		server := newSessionServer(t)
+		session := server.signIn(t, server.client(t), expiresSoon)
+		server.script(tokenPath, unavailable.answer())
+
+		if result, err := session.SignOut(t.Context()); err != nil || result == nil {
+			t.Fatalf("SignOut = (%v, %v), want the empty result", result, err)
+		}
+		if paths := server.requestPaths(); !slices.Equal(paths, []string{tokenPath, tokenPath, logoutPath}) {
+			t.Fatalf("requests = %v, want the sign-in, the failed refresh and then the logout", paths)
+		}
+		if bearer := server.requestsTo(logoutPath)[0].authorization; bearer != "Bearer "+server.mintedTokens()[0] {
+			t.Errorf("logout bearer = %q, want the still-valid token the sign-in minted", bearer)
+		}
+		assertSignedOut(t, session)
 	})
 
 	t.Run("a store that cannot be cleared is reported after the session ended", func(t *testing.T) {
@@ -944,11 +1040,32 @@ func TestSignOutLocalRefreshesAnExpiringTokenFirst(t *testing.T) {
 		assertSignedOut(t, session)
 	})
 
-	t.Run("a failed refresh sends nothing and reports the failure", func(t *testing.T) {
+	t.Run("a failed refresh of an unexpired token sends the token", func(t *testing.T) {
 		for _, failure := range []scriptedError{unavailable, refreshAlreadyUsed} {
 			t.Run(failure.code, func(t *testing.T) {
 				server := newSessionServer(t)
 				session := server.signIn(t, server.client(t), expiresSoon)
+				server.script(tokenPath, failure.answer())
+
+				if result, err := session.SignOut(t.Context(), signout.WithLocalScope()); err != nil || result == nil {
+					t.Fatalf("SignOut = (%v, %v), want the empty result", result, err)
+				}
+				if paths := server.requestPaths(); !slices.Equal(paths, []string{tokenPath, tokenPath, logoutPath}) {
+					t.Fatalf("requests = %v, want the sign-in, the failed refresh and then the logout", paths)
+				}
+				if bearer := server.requestsTo(logoutPath)[0].authorization; bearer != "Bearer "+server.mintedTokens()[0] {
+					t.Errorf("logout bearer = %q, want the held token the sign-in minted", bearer)
+				}
+				assertSignedOut(t, session)
+			})
+		}
+	})
+
+	t.Run("a failed refresh of an expired token sends nothing and reports the failure", func(t *testing.T) {
+		for _, failure := range []scriptedError{unavailable, refreshAlreadyUsed} {
+			t.Run(failure.code, func(t *testing.T) {
+				server := newSessionServer(t)
+				session := server.signIn(t, server.client(t), expiredAlready)
 				server.script(tokenPath, failure.answer())
 
 				result, err := session.SignOut(t.Context(), signout.WithLocalScope())
@@ -962,6 +1079,20 @@ func TestSignOutLocalRefreshesAnExpiringTokenFirst(t *testing.T) {
 				assertSignedOut(t, session)
 			})
 		}
+	})
+
+	t.Run("a refresh that says the session is gone sends nothing even while the token is unexpired", func(t *testing.T) {
+		server := newSessionServer(t)
+		session := server.signIn(t, server.client(t), expiresSoon)
+		server.script(tokenPath, refreshRejected.answer())
+
+		if result, err := session.SignOut(t.Context(), signout.WithLocalScope()); err != nil || result == nil {
+			t.Fatalf("SignOut = (%v, %v), want the empty result", result, err)
+		}
+		if paths := server.requestPaths(); !slices.Equal(paths, []string{tokenPath, tokenPath}) {
+			t.Fatalf("requests = %v, want the sign-in and the refused refresh alone", paths)
+		}
+		assertSignedOut(t, session)
 	})
 
 	t.Run("a refresh that says the session is gone counts as already signed out", func(t *testing.T) {
@@ -1046,6 +1177,26 @@ func TestSignOutOthersLeavesSessionLive(t *testing.T) {
 		}
 	})
 
+	t.Run("a remembered rejection of an unexpired token sends the token", func(t *testing.T) {
+		server := newSessionServer(t)
+		session := server.signIn(t, server.client(t), expiresSoon)
+		server.script(tokenPath, refreshRejected.answer())
+		if accessToken, err := session.AccessToken(t.Context()); err != nil || accessToken != server.mintedTokens()[0] {
+			t.Fatalf("AccessToken() = (%q, %v), want the still-valid token after the rejected refresh", accessToken, err)
+		}
+
+		if result, err := session.SignOut(t.Context(), signout.WithOthersScope()); err != nil || result == nil {
+			t.Fatalf("SignOut = (%v, %v), want the empty result", result, err)
+		}
+		if paths := server.requestPaths(); !slices.Equal(paths, []string{tokenPath, tokenPath, logoutPath}) {
+			t.Fatalf("requests = %v, want the sign-in, the read's rejected refresh and then the logout, with no second refresh", paths)
+		}
+		if bearer := server.requestsTo(logoutPath)[0].authorization; bearer != "Bearer "+server.mintedTokens()[0] {
+			t.Errorf("logout bearer = %q, want the still-valid token", bearer)
+		}
+		assertHoldsMinted(t, server, session, 0)
+	})
+
 	t.Run("a transient refresh failure keeps the session and sends nothing", func(t *testing.T) {
 		server := newSessionServer(t)
 		session := server.signIn(t, server.client(t), expiredAlready)
@@ -1060,6 +1211,23 @@ func TestSignOutOthersLeavesSessionLive(t *testing.T) {
 			t.Errorf("logout requests = %d, want none after the failed refresh", len(hits))
 		}
 		assertRecovers(t, server, session)
+	})
+
+	t.Run("a transient refresh failure of an unexpired token sends the token", func(t *testing.T) {
+		server := newSessionServer(t)
+		session := server.signIn(t, server.client(t), expiresSoon)
+		server.script(tokenPath, unavailable.answer())
+
+		if result, err := session.SignOut(t.Context(), signout.WithOthersScope()); err != nil || result == nil {
+			t.Fatalf("SignOut = (%v, %v), want the empty result", result, err)
+		}
+		if paths := server.requestPaths(); !slices.Equal(paths, []string{tokenPath, tokenPath, logoutPath}) {
+			t.Fatalf("requests = %v, want the sign-in, the failed refresh and then the logout", paths)
+		}
+		if bearer := server.requestsTo(logoutPath)[0].authorization; bearer != "Bearer "+server.mintedTokens()[0] {
+			t.Errorf("logout bearer = %q, want the still-valid token", bearer)
+		}
+		assertHoldsMinted(t, server, session, 0)
 	})
 
 	t.Run("an ended session returns ErrSignedOut", func(t *testing.T) {

@@ -4,6 +4,8 @@
 // made with no options states the global scope, the server's own default.
 package signout
 
+import "github.com/supabase/supabase-go/auth/internal/scopes"
+
 // Parameters is the resolved set of sign-out parameters for one call. The
 // zero value holds none.
 type Parameters struct {
@@ -16,7 +18,7 @@ type Option func(*Parameters)
 
 // Resolve applies options over the global scope and returns the result.
 func Resolve(options ...Option) Parameters {
-	parameters := Parameters{scope: "global"}
+	parameters := Parameters{scope: scopes.Global}
 	for _, option := range options {
 		option(&parameters)
 	}
@@ -26,7 +28,7 @@ func Resolve(options ...Option) Parameters {
 // WithLocalScope revokes only the session the presented token belongs to.
 func WithLocalScope() Option {
 	return func(parameters *Parameters) {
-		parameters.scope = "local"
+		parameters.scope = scopes.Local
 	}
 }
 
@@ -34,7 +36,7 @@ func WithLocalScope() Option {
 // belongs to.
 func WithOthersScope() Option {
 	return func(parameters *Parameters) {
-		parameters.scope = "others"
+		parameters.scope = scopes.Others
 	}
 }
 

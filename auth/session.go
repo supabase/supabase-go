@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/supabase/supabase-go/auth/internal/scopes"
 	"github.com/supabase/supabase-go/auth/internal/session"
 	"github.com/supabase/supabase-go/auth/internal/token"
 	"github.com/supabase/supabase-go/auth/signout"
@@ -67,8 +68,9 @@ type SessionStore interface {
 
 	// Save replaces the state the store holds with state, a slice the store
 	// may keep. A failed Save is returned by the call that caused the write,
-	// except after a refresh started by [Session.AccessToken] or
-	// [Client.SessionFromStore], when the failure reaches no caller.
+	// except after a refresh started by [Session.AccessToken],
+	// [Session.SignOut] or [Client.SessionFromStore], when the failure
+	// reaches no caller.
 	Save(ctx context.Context, state []byte) error
 
 	// Delete clears the state the store holds. A failed Delete is returned by
@@ -163,34 +165,37 @@ type RefreshResult struct{}
 // counts as success under every scope, and session_not_found under
 // [signout.WithLocalScope] alone.
 //
-// An access token inside its expiry margin is refreshed first. Under
+// An access token inside its expiry margin is refreshed first, and when that
+// refresh fails the token is sent as it is while unexpired. Under
 // [signout.WithLocalScope] the refresh is for the revocation alone, its
 // result kept nowhere, and an answer of refresh_token_not_found,
 // session_not_found or session_expired counts as success, the session being
-// gone already. Under the other scopes the refresh is the session's own, and
-// one the server rejects ends the session without a request to revoke
-// anything: as signed out for a bare call, which returns the server's
-// rejection, and as expired under [signout.WithOthersScope], which returns
-// [ErrSessionExpired] wrapping it. Any other failed refresh is returned
-// with nothing sent.
+// gone already. Under the other scopes the refresh is the session's own, as
+// before any request, and one the server rejects once the token has expired
+// ends the session without a request to revoke anything: as signed out for a
+// bare call, which returns the server's rejection, and as expired under
+// [signout.WithOthersScope], which returns [ErrSessionExpired] wrapping it.
+// Any other failed refresh of an expired token is returned with nothing
+// sent.
 //
-// A store that cannot be cleared is reported as the wrapped error,
-// alongside a failed revocation under [signout.WithLocalScope]. On a
-// session that has already ended, a bare call or [signout.WithLocalScope]
-// returns success without a request, and [signout.WithOthersScope] returns
-// [ErrSignedOut] or [ErrSessionExpired].
+// A store that cannot be cleared is reported as the wrapped error, alongside
+// a failed revocation under [signout.WithLocalScope] or the rejection that
+// ended the session under a bare call. On a session that has already ended,
+// a bare call or [signout.WithLocalScope] returns success without a request,
+// and [signout.WithOthersScope] returns [ErrSignedOut] or
+// [ErrSessionExpired].
 func (s *Session) SignOut(ctx context.Context, options ...signout.Option) (*SignOutResult, error) {
 	scope := signout.Resolve(options...).Scope()
 	if s.inner == nil {
-		if scope == "others" {
+		if scope == scopes.Others {
 			return nil, ErrSignedOut
 		}
 		return &SignOutResult{}, nil
 	}
 	switch scope {
-	case "local":
+	case scopes.Local:
 		return s.signOutLocally(ctx)
-	case "others":
+	case scopes.Others:
 		return s.revokeOthers(ctx)
 	}
 	return s.signOutGlobally(ctx)
@@ -198,22 +203,23 @@ func (s *Session) SignOut(ctx context.Context, options ...signout.Option) (*Sign
 
 // signOutGlobally asks the server to revoke every session the user holds and
 // ends this one once it has. A session that had already ended counts as
-// signed out, and a refresh the server rejects ends it as signed out and
-// reports the rejection.
+// signed out, and a refresh the server rejects once the access token has
+// expired ends it as signed out and reports the rejection, with a clear that
+// failed joined.
 func (s *Session) signOutGlobally(ctx context.Context) (*SignOutResult, error) {
-	bearer, err := s.inner.FreshToken(ctx, session.SignedOut)
+	bearer, clearErr, err := s.inner.SignOutToken(ctx)
 	if err != nil {
 		var ended *session.EndedError
-		if !errors.As(err, &ended) {
-			return nil, err
+		if errors.As(err, &ended) {
+			return &SignOutResult{}, nil
 		}
-		if ended.Status == session.SignedOut && ended.Cause != nil {
-			return nil, ended.Cause
+		if clearErr != nil {
+			err = errors.Join(err, storeClearError(clearErr))
 		}
-		return &SignOutResult{}, nil
+		return nil, err
 	}
-	err = logout(ctx, s.client.httpClient, s.client.baseURL, bearer, "global")
-	if err != nil && !nothingLeftToRevoke(err, "global") {
+	err = logout(ctx, s.client.httpClient, s.client.baseURL, bearer, scopes.Global)
+	if err != nil && !nothingLeftToRevoke(err, scopes.Global) {
 		return nil, err
 	}
 	if _, err := s.inner.End(ctx); err != nil {
@@ -227,15 +233,16 @@ func (s *Session) signOutGlobally(ctx context.Context) (*SignOutResult, error) {
 }
 
 // revokeOthers asks the server to revoke every session the user holds but
-// this one, which stays as it is unless the refresh before the request is
-// rejected, which ends it as expired.
+// this one, which the request leaves as it is. The access token is obtained
+// as for any request, so a refresh the server rejects once the token has
+// expired ends the session as expired before anything is sent.
 func (s *Session) revokeOthers(ctx context.Context) (*SignOutResult, error) {
-	bearer, err := s.inner.FreshToken(ctx, session.Expired)
+	bearer, err := s.AccessToken(ctx)
 	if err != nil {
-		return nil, sessionError(err)
+		return nil, err
 	}
-	err = logout(ctx, s.client.httpClient, s.client.baseURL, bearer, "others")
-	if err != nil && !nothingLeftToRevoke(err, "others") {
+	err = logout(ctx, s.client.httpClient, s.client.baseURL, bearer, scopes.Others)
+	if err != nil && !nothingLeftToRevoke(err, scopes.Others) {
 		return nil, err
 	}
 	return &SignOutResult{}, nil
@@ -263,24 +270,25 @@ func (s *Session) signOutLocally(ctx context.Context) (*SignOutResult, error) {
 // revokeHeld revokes the session that held describes on the server, under
 // the local scope. Its access token is sent while outside the expiry margin,
 // and is otherwise refreshed once for this request alone, the result kept
-// nowhere. A refresh that fails sends nothing: one the server answers
-// refresh_token_not_found, session_not_found or session_expired reports
-// success, the session being gone already, and any other failure is
-// reported.
+// nowhere. When that refresh fails, an answer of refresh_token_not_found,
+// session_not_found or session_expired reports success with nothing sent,
+// the session being gone already, any other failure sends the held token
+// while it is unexpired, and is otherwise reported with nothing sent.
 func (s *Session) revokeHeld(ctx context.Context, held session.State) error {
 	bearer := held.AccessToken()
 	if held.ExpiresAt().Sub(s.client.now()) <= expiryMargin {
 		renewed, err := s.client.refreshGrant(ctx, held.RefreshToken())
-		if err != nil {
-			if sessionGone(err) {
-				return nil
-			}
+		switch {
+		case err == nil:
+			bearer = renewed.AccessToken()
+		case sessionGone(err):
+			return nil
+		case !s.client.now().Before(held.ExpiresAt()):
 			return err
 		}
-		bearer = renewed.AccessToken()
 	}
-	err := logout(ctx, s.client.httpClient, s.client.baseURL, bearer, "local")
-	if nothingLeftToRevoke(err, "local") {
+	err := logout(ctx, s.client.httpClient, s.client.baseURL, bearer, scopes.Local)
+	if nothingLeftToRevoke(err, scopes.Local) {
 		return nil
 	}
 	return err
@@ -465,7 +473,7 @@ func nothingLeftToRevoke(err error, scope string) bool {
 	case "user_not_found":
 		return true
 	case "session_not_found":
-		return scope == "local"
+		return scope == scopes.Local
 	}
 	return false
 }
