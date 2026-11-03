@@ -1,4 +1,5 @@
 aaguid
+analysistest
 apidiff
 apikey
 asproject
@@ -18,6 +19,7 @@ firefox
 Firestore
 footgun
 fremdschämen
+Fset
 GOBIN
 GOENV
 GOEXPERIMENT
@@ -80,10 +82,13 @@ PRODSEC
 reassignable
 reauthentication
 rebalance
+Reportf
 RSASSA
 scrypt
+sdkchecker
 signout
 signup
+singlechecker
 SLSA
 SQLSTATE
 staticcheck
@@ -102,6 +107,7 @@ tsquery
 tstzrange
 tsvector
 typestate
+unexportedreturn
 unrepresentable
 upsert
 urls

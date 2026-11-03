@@ -42,7 +42,7 @@ The compliance gate is the accepted exception because its checks are defined org
 ## Linting is native and unbundled (no `golangci-lint`)
 
 **What**:  
-Run each linter as a plain `go vet` / `go run <tool>@<version>` command rather than via the `golangci-lint` aggregator and a `.golangci.yml`.
+Run each linter as its own command rather than through the `golangci-lint` aggregator and a `.golangci.yml`.
 
 **Why**:  
 Every CI check must be byte-for-byte reproducible at a developer's workstation - the same command locally and in CI.
@@ -52,15 +52,11 @@ The trade-off accepted: more verbose CI/local instructions, in exchange for tran
 ## Linter selection filtered by "prevent expensive/breaking-API mistakes"
 
 **What**:  
-Keep `gofumpt`, `go vet`, `staticcheck`, `errcheck`, `revive` (+ `govulncheck`).
-Don't adopt `cyclop`, `exhaustruct` or `goimports` for now.
+Admit a linter only when it passes the guiding test below, which `cyclop`, `exhaustruct` and `goimports` do not.
 
 **Why**:  
 The guiding test is whether a check helps avoid mistakes that would later force a major refactor or a breaking public-API change.
 `revive` earns its place because it is the only tool in the gate that requires a doc comment on every exported identifier, which [`standard.md`](standard.md) demands, and that checks exported names for stutter and initialism casing (a bad exported name today is a breaking rename tomorrow).
-`go vet` excludes style checks by policy and staticcheck's stylecheck checks a doc comment's form only where one exists.
-golint, the Go project's own style linter, was frozen in 2021 with revive as its drop-in successor.
-It runs from a committed [`revive.toml`](revive.toml) that enables its default set and adds checks on top, never removing one, and [`scripts/lint.sh`](scripts/lint.sh) names that file explicitly so a contributor's own revive configuration cannot change the gate.
 
 ## The two Go-version environments are kept discrete
 
@@ -145,7 +141,7 @@ Centralizing the literal in `Error()` removes per-sentinel repetition, a render 
 
 **What**:  
 Every GitHub Actions `uses:` is pinned to a full 40-character commit SHA with a trailing version comment - first-party `actions/*` included, no exemption.
-The Go tooling (linters, govulncheck) is pinned by checksum in dedicated tool modules under `tools/go/`, each with a committed `go.sum`.
+The Go tooling is pinned by checksum in dedicated tool modules under `tools/go/`, each with a committed `go.sum`.
 The spell checker (cspell) is pinned the same way one ecosystem over: its full dependency tree is locked by integrity hash in a committed [`tools/node/package-lock.json`](tools/node/package-lock.json), installed via `npm ci`.
 GitHub's "require SHA-pinned actions" setting is enabled for this repository.
 
