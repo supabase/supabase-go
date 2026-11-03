@@ -4,20 +4,12 @@
 # Requires Docker (the stack's services are containers) and curl. Run from the
 # repository root.
 #
-# The Supabase CLI release ships two co-located binaries - a `supabase` shim
-# and the `supabase-go` CLI it forwards to - fetched from its pinned GitHub
-# release, verified against a committed SHA-256 and installed into Go's own bin
-# directory (GOBIN, else GOPATH/bin) - writable, on the developer's PATH and
-# outside the checkout, so a read-only working tree is fine. It needs no Node
-# and keeps the CLI off the cspell npm manifest (unrelated tools). First-party:
-# curl plus a checksum, no third-party action.
-#
-# Why not `go install` it, given the Go toolchain right here? Its module
-# (github.com/supabase/cli) now lives in apps/cli-go while the repo root carries
-# no go.mod, so the module proxy resolves that path only to the stale v1
-# root-module history rather than the v2 code, and its go.mod additionally
-# carries local `replace` directives that `go install pkg@version` refuses
-# outright. The verified release binary is the pinned way in.
+# The Supabase CLI binary is fetched from its pinned GitHub release, verified
+# against a committed SHA-256 and installed into Go's own bin directory (GOBIN,
+# else GOPATH/bin) - writable, on the developer's PATH and outside the
+# checkout, so a read-only working tree is fine. It needs no Node and keeps the
+# CLI off the cspell npm manifest (unrelated tools). First-party: curl plus a
+# checksum, no third-party action.
 #
 # Bump SUPABASE_CLI_VERSION and the checksums together, via
 # scripts/upgrade-to-latest-supabase-cli.sh. If the new CLI changes the
@@ -56,7 +48,7 @@ gobin="$(go env GOBIN)"
 SUPABASE_CLI="${gobin}/supabase"
 
 # Fetch unless the pinned version is already installed there (a bump re-fetches).
-if [[ ! -x "${SUPABASE_CLI}" ]] || [[ ! -x "${gobin}/supabase-go" ]] || ! "${SUPABASE_CLI}" --version 2>/dev/null | grep -qF "${SUPABASE_CLI_VERSION}"; then
+if [[ ! -x "${SUPABASE_CLI}" ]] || ! "${SUPABASE_CLI}" --version 2>/dev/null | grep -qF "${SUPABASE_CLI_VERSION}"; then
   archive="supabase_${SUPABASE_CLI_VERSION}_${cli_os}_${cli_arch}.tar.gz"
   url="https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/${archive}"
   echo "==> installing pinned Supabase CLI ${SUPABASE_CLI_VERSION} to ${gobin} (${cli_os}/${cli_arch})"
@@ -69,12 +61,9 @@ if [[ ! -x "${SUPABASE_CLI}" ]] || [[ ! -x "${gobin}/supabase-go" ]] || ! "${SUP
   else
     echo "${cli_sha256}  ${gobin}/${archive}" | shasum -a 256 -c -
   fi
-  # `supabase` is a thin shim that forwards to its co-located `supabase-go`
-  # sibling (the actual CLI), so both must land in the same directory - extract
-  # the whole archive, not just one member.
-  tar -xzf "${gobin}/${archive}" -C "${gobin}"
+  tar -xzf "${gobin}/${archive}" -C "${gobin}" supabase
   rm -f "${gobin}/${archive}"
-  chmod +x "${gobin}/supabase" "${gobin}/supabase-go"
+  chmod +x "${SUPABASE_CLI}"
 fi
 
 echo "Integration Test..."
