@@ -152,66 +152,105 @@ type RefreshResult struct{}
 
 // SignOut ends the session and revokes it on the server. A bare call revokes
 // every session the user holds: the server is asked first and the session
-// ends only once revocation succeeded, a failure leaving the session live
-// and returning the error. With [signout.WithLocalScope] the session ends
-// and its store is cleared first, and the server then revokes this session
-// alone, its answer reported after the session has ended. An access token
-// inside its expiry margin is refreshed once for that revocation, the result
-// kept nowhere. With [signout.WithOthersScope] the server revokes every
-// other session and this one stays live. An answer of session_not_found or
-// user_not_found counts as success, except under [signout.WithOthersScope],
-// where it reports this session's own revocation. A store that cannot be
-// cleared is reported as the wrapped error, alongside a failed revocation
-// under [signout.WithLocalScope].
+// ends only once revocation succeeded, any other answer leaving the session
+// live and returning the error. An answer of session_not_found is such an
+// error: this session was already revoked and no other was, so the call
+// ended nothing, and [signout.WithLocalScope] then ends the session. With
+// [signout.WithLocalScope] the session ends and its store is cleared first,
+// and the server then revokes this session alone, its answer reported after
+// the session has ended. With [signout.WithOthersScope] the server revokes
+// every other session and this one stays live. An answer of user_not_found
+// counts as success under every scope, and session_not_found under
+// [signout.WithLocalScope] alone.
+//
+// An access token inside its expiry margin is refreshed first. Under
+// [signout.WithLocalScope] the refresh is for the revocation alone, its
+// result kept nowhere, and an answer of refresh_token_not_found,
+// session_not_found or session_expired counts as success, the session being
+// gone already. Under the other scopes the refresh is the session's own, and
+// one the server rejects ends the session without a request to revoke
+// anything: as signed out for a bare call, which returns the server's
+// rejection, and as expired under [signout.WithOthersScope], which returns
+// [ErrSessionExpired] wrapping it. Any other failed refresh is returned
+// with nothing sent.
+//
+// A store that cannot be cleared is reported as the wrapped error,
+// alongside a failed revocation under [signout.WithLocalScope]. On a
+// session that has already ended, a bare call or [signout.WithLocalScope]
+// returns success without a request, and [signout.WithOthersScope] returns
+// [ErrSignedOut] or [ErrSessionExpired].
 func (s *Session) SignOut(ctx context.Context, options ...signout.Option) (*SignOutResult, error) {
-	if s.inner == nil {
-		return nil, ErrSignedOut
-	}
 	scope := signout.Resolve(options...).Scope()
-	if scope == "local" {
-		return s.signOutLocally(ctx)
-	}
-
-	bearer, err := s.AccessToken(ctx)
-	if err != nil {
-		return nil, err
-	}
-	err = logout(ctx, s.client.httpClient, s.client.baseURL, bearer, scope)
-	if scope == "others" {
-		if err != nil {
-			return nil, err
+	if s.inner == nil {
+		if scope == "others" {
+			return nil, ErrSignedOut
 		}
 		return &SignOutResult{}, nil
 	}
-	if err != nil && !goalStateReached(err) {
+	switch scope {
+	case "local":
+		return s.signOutLocally(ctx)
+	case "others":
+		return s.revokeOthers(ctx)
+	}
+	return s.signOutGlobally(ctx)
+}
+
+// signOutGlobally asks the server to revoke every session the user holds and
+// ends this one once it has. A session that had already ended counts as
+// signed out, and a refresh the server rejects ends it as signed out and
+// reports the rejection.
+func (s *Session) signOutGlobally(ctx context.Context) (*SignOutResult, error) {
+	bearer, err := s.inner.FreshToken(ctx, session.SignedOut)
+	if err != nil {
+		var ended *session.EndedError
+		if !errors.As(err, &ended) {
+			return nil, err
+		}
+		if ended.Status == session.SignedOut && ended.Cause != nil {
+			return nil, ended.Cause
+		}
+		return &SignOutResult{}, nil
+	}
+	err = logout(ctx, s.client.httpClient, s.client.baseURL, bearer, "global")
+	if err != nil && !nothingLeftToRevoke(err, "global") {
 		return nil, err
 	}
 	if _, err := s.inner.End(ctx); err != nil {
+		var ended *session.EndedError
+		if errors.As(err, &ended) {
+			return &SignOutResult{}, nil
+		}
 		return nil, storeClearError(err)
 	}
 	return &SignOutResult{}, nil
 }
 
+// revokeOthers asks the server to revoke every session the user holds but
+// this one, which stays as it is unless the refresh before the request is
+// rejected, which ends it as expired.
+func (s *Session) revokeOthers(ctx context.Context) (*SignOutResult, error) {
+	bearer, err := s.inner.FreshToken(ctx, session.Expired)
+	if err != nil {
+		return nil, sessionError(err)
+	}
+	err = logout(ctx, s.client.httpClient, s.client.baseURL, bearer, "others")
+	if err != nil && !nothingLeftToRevoke(err, "others") {
+		return nil, err
+	}
+	return &SignOutResult{}, nil
+}
+
 // signOutLocally ends the session before the server is called, then revokes
-// the ended session with the freshest bearer in hand: the captured access
-// token, refreshed once when it is inside the expiry margin, with the result
-// kept nowhere. A failed revocation and a failed clear are reported together.
+// the ended session. A failed revocation and a failed clear are reported
+// together, and a session that had already ended counts as signed out.
 func (s *Session) signOutLocally(ctx context.Context) (*SignOutResult, error) {
 	held, clearErr := s.inner.End(ctx)
 	var ended *session.EndedError
 	if errors.As(clearErr, &ended) {
-		return nil, sessionError(clearErr)
+		return &SignOutResult{}, nil
 	}
-	bearer := held.AccessToken()
-	if held.ExpiresAt().Sub(s.client.now()) < expiryMargin {
-		if renewed, err := s.client.refreshGrant(ctx, held.RefreshToken()); err == nil {
-			bearer = renewed.AccessToken()
-		}
-	}
-	revokeErr := logout(ctx, s.client.httpClient, s.client.baseURL, bearer, "local")
-	if goalStateReached(revokeErr) {
-		revokeErr = nil
-	}
+	revokeErr := s.revokeHeld(ctx, held)
 	if clearErr != nil {
 		clearErr = storeClearError(clearErr)
 	}
@@ -219,6 +258,32 @@ func (s *Session) signOutLocally(ctx context.Context) (*SignOutResult, error) {
 		return nil, err
 	}
 	return &SignOutResult{}, nil
+}
+
+// revokeHeld revokes the session that held describes on the server, under
+// the local scope. Its access token is sent while outside the expiry margin,
+// and is otherwise refreshed once for this request alone, the result kept
+// nowhere. A refresh that fails sends nothing: one the server answers
+// refresh_token_not_found, session_not_found or session_expired reports
+// success, the session being gone already, and any other failure is
+// reported.
+func (s *Session) revokeHeld(ctx context.Context, held session.State) error {
+	bearer := held.AccessToken()
+	if held.ExpiresAt().Sub(s.client.now()) <= expiryMargin {
+		renewed, err := s.client.refreshGrant(ctx, held.RefreshToken())
+		if err != nil {
+			if sessionGone(err) {
+				return nil
+			}
+			return err
+		}
+		bearer = renewed.AccessToken()
+	}
+	err := logout(ctx, s.client.httpClient, s.client.baseURL, bearer, "local")
+	if nothingLeftToRevoke(err, "local") {
+		return nil
+	}
+	return err
 }
 
 // Persist writes the session to store at once and on every later change of
@@ -387,15 +452,37 @@ func definitiveRejection(err error) bool {
 	return status >= 400 && status < 500 && status != http.StatusTooManyRequests
 }
 
-// goalStateReached reports whether a sign-out failure says the server was
-// already in the state the sign-out exists to reach: the session, or the
-// user, no longer exists.
-func goalStateReached(err error) bool {
+// nothingLeftToRevoke reports whether a revocation's failure says the server
+// holds nothing left to revoke for scope: the user no longer exists, or, for
+// the local scope, this session no longer exists. Under the other scopes a
+// missing session says nothing of the sessions the call was to revoke.
+func nothingLeftToRevoke(err error, scope string) bool {
 	var serverError *Error
 	if !errors.As(err, &serverError) {
 		return false
 	}
-	return serverError.Code == "session_not_found" || serverError.Code == "user_not_found"
+	switch serverError.Code {
+	case "user_not_found":
+		return true
+	case "session_not_found":
+		return scope == "local"
+	}
+	return false
+}
+
+// sessionGone reports whether a refresh failure says the session can never
+// be refreshed again: its refresh token or the session itself was not found,
+// or the session expired, timed out or was replaced by a newer sign-in.
+func sessionGone(err error) bool {
+	var serverError *Error
+	if !errors.As(err, &serverError) {
+		return false
+	}
+	switch serverError.Code {
+	case "refresh_token_not_found", "session_not_found", "session_expired":
+		return true
+	}
+	return false
 }
 
 // sessionError translates the session machinery's errors into this package's:
@@ -417,13 +504,9 @@ func sessionError(err error) error {
 	return err
 }
 
-// storeClearError translates the error of a session's end: an already ended
-// session is [ErrSignedOut] and a store that could not be cleared is wrapped.
+// storeClearError wraps the error of a store that could not be cleared when
+// the session ended.
 func storeClearError(err error) error {
-	var ended *session.EndedError
-	if errors.As(err, &ended) {
-		return sessionError(err)
-	}
 	return fmt.Errorf("auth: clearing session store: %w", err)
 }
 

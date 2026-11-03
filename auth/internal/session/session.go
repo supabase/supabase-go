@@ -55,8 +55,9 @@ const (
 )
 
 // EndedError is the error every operation on an ended [Session] reports.
-// Status is why the session ended and Cause, for [Expired], the refresh
-// failure the server answered with.
+// Status is why the session ended and Cause the refresh failure that ended
+// it, when one did: always for [Expired], and for [SignedOut] when a
+// sign-out's own refresh was rejected.
 type EndedError struct {
 	Status Status
 	Cause  error
@@ -195,7 +196,7 @@ func (s *Session) Token(ctx context.Context) (string, error) {
 		return token, err
 	}
 
-	_, err = s.renew(ctx)
+	_, err = s.renew(ctx, Expired)
 	var ended *EndedError
 	if errors.As(err, &ended) {
 		return "", err
@@ -215,6 +216,66 @@ func (s *Session) Token(ctx context.Context) (string, error) {
 	return token, err
 }
 
+// FreshToken returns the access token for a request the caller sends at
+// once, refreshing first when the token is inside the expiry margin and
+// joining a refresh already in flight. Unlike [Session.Token] it works
+// around no failed refresh: a transient failure is returned with the session
+// as it was, and a rejection, remembered or answered now, ends the session
+// with status ending and is returned as the [*EndedError] carrying it as
+// Cause. An already ended session returns its [*EndedError].
+func (s *Session) FreshToken(ctx context.Context, ending Status) (string, error) {
+	var token string
+	var err error
+	var clearing write
+	var refresh, endingNow bool
+	s.locked(func() {
+		switch {
+		case s.status != Live:
+			err = s.endedErrorLocked()
+		case s.state.expiresAt.Sub(s.now()) > s.expiryMargin:
+			token = s.state.accessToken
+		case s.rejected:
+			clearing, endingNow = s.endLocked(ending, s.rejection), true
+			err = s.endedErrorLocked()
+		default:
+			refresh = true
+		}
+	})
+	if endingNow {
+		_ = s.perform(ctx, clearing)
+	}
+	if !refresh {
+		return token, err
+	}
+
+	_, err = s.renew(ctx, ending)
+	if err == nil {
+		s.locked(func() {
+			if s.status != Live {
+				err = s.endedErrorLocked()
+				return
+			}
+			token = s.state.accessToken
+		})
+		return token, err
+	}
+	if !s.definitive(err) {
+		return "", err
+	}
+	// renew ended the session only if the token had expired. A rejection
+	// inside the margin ends it too, with the same status.
+	s.locked(func() {
+		if s.status == Live {
+			clearing, endingNow = s.endLocked(ending, err), true
+		}
+		err = s.endedErrorLocked()
+	})
+	if endingNow {
+		_ = s.perform(ctx, clearing)
+	}
+	return "", err
+}
+
 // Refresh renews the session now, joining a refresh already in flight. It
 // returns the refresh failure as the [RefreshFunc] reported it, a
 // [*WriteError] when the renewed state was committed but its store write
@@ -222,7 +283,7 @@ func (s *Session) Token(ctx context.Context) (string, error) {
 // call's definitive rejection ended it. The failure of the clear an ending
 // causes is returned to no caller.
 func (s *Session) Refresh(ctx context.Context) error {
-	writeErr, err := s.renew(ctx)
+	writeErr, err := s.renew(ctx, Expired)
 	switch {
 	case err != nil:
 		return err
@@ -242,8 +303,9 @@ func (s *Session) Refresh(ctx context.Context) error {
 // before the panic carries on up the starter's stack. The caller that starts
 // a refresh commits its result only if the session's generation is unchanged
 // when it returns, and it alone writes the store, after releasing the
-// waiters.
-func (s *Session) renew(ctx context.Context) (writeErr, err error) {
+// waiters. A definitive rejection of an access token that has expired ends
+// the session with status ending.
+func (s *Session) renew(ctx context.Context, ending Status) (writeErr, err error) {
 	var started *flight
 	var refreshToken string
 	var generation uint64
@@ -308,7 +370,7 @@ func (s *Session) renew(ctx context.Context) (writeErr, err error) {
 			s.rejection = refreshErr
 			started.err = refreshErr
 			if !s.now().Before(s.state.expiresAt) {
-				pending, hasPending = s.endLocked(Expired, refreshErr), true
+				pending, hasPending = s.endLocked(ending, refreshErr), true
 				started.err = s.endedErrorLocked()
 			}
 		case ctx.Err() != nil:
