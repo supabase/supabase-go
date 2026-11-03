@@ -118,7 +118,7 @@ audit_go_tool_module() {
     # the report links. go get tool cannot stand in: it moves only the tool
     # directive providers, leaving a direct require where it is.
     echo "  bump: GOWORK=off go -C ${module_directory} get${declared_bumps} && GOWORK=off go -C ${module_directory} mod tidy"
-    echo "  afterwards run: go -C ${module_directory} work use && ./scripts/lint.sh && ./scripts/vulncheck.sh"
+    echo "  afterwards run: go -C ${module_directory} work use && ./scripts/lint.sh && ./scripts/vulncheck.sh && ./scripts/comment-check.sh"
   fi
 }
 
