@@ -32,8 +32,8 @@ const ErrMissingStore = authError("session store is required")
 const ErrNoStoredSession = authError("no stored session")
 
 // ErrSignedOut is reported on a [Session] that [Session.SignOut] has ended,
-// and on the zero Session, by every operation but a sign-out, and by a
-// sign-out with [signout.WithOthersScope].
+// and on the zero Session, by every operation but a sign-out and
+// [Session.AutoRefresh], and by a sign-out with [signout.WithOthersScope].
 const ErrSignedOut = authError("session is signed out")
 
 // ErrSessionExpired is reported on a [Session] whose access token expired

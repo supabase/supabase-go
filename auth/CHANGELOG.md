@@ -18,6 +18,12 @@ A per-user session, `Session`, with password sign-in:
 - `SessionStore`, the interface a program implements to keep a session between runs
 - sentinel errors `ErrSignedOut`, `ErrSessionExpired`, `ErrNoStoredSession`, `ErrMissingRefreshToken` and `ErrMissingStore`
 
+Background refresh and session events:
+
+- `Session.AutoRefresh`, a blocking loop that renews the access token ahead of expiry until its context is cancelled
+- `Session.AddEventListener`, with `SessionEvent` and its `SessionEventName` constants `SessionEventInitialSession`, `SessionEventTokenRefreshed` and `SessionEventSignedOut`
+- `SignOutReason`, carried by `SessionEventSignedOut`, with `SignOutReasonUserInitiated` and `SignOutReasonSessionExpired`
+
 ### Changed
 
 Call-scoped functional options moved from the package root into per-family packages, each owning its `Option` type and constructors:

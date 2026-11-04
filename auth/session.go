@@ -25,35 +25,48 @@ const expiryMargin = 30 * time.Second
 // Session is one signed-in user's live session with the Auth server: the
 // access token the user's requests carry, the refresh token that renews it
 // and the user's profile as the server last served it. Its state changes
-// only through its own methods. Hold one Session per signed-in user and
-// share it freely: a Session is safe for concurrent use by multiple
-// goroutines, every read reflects the latest state and a copy of a Session
-// is the same session. A Session holds no resource that needs releasing and
-// starts no long-lived goroutine, so one that is no longer wanted is simply
-// dropped.
+// only through its own methods.
 //
-// The access token is renewed on demand, by [Session.AccessToken] and
-// [Session.Refresh], with at most one refresh in flight at a time whose
-// result concurrent callers share. A caller's context bounds its own wait
-// alone, so a caller that gives up fails no other. A refresh the server
-// answers with a 400 whose code is refresh_token_not_found,
-// refresh_token_already_used, session_not_found, session_expired,
-// user_banned or validation_failed rejects the refresh token for good: no
-// later refresh of the session sends it again, and the session ends once
-// thirty seconds or less of its access token remain. A refresh that gets no
-// answer, or a 5xx, 408, 409 or 429 answer, is retried with the same token:
-// the first retry waits 200 milliseconds and each later one twice as long,
-// to at most thirty seconds, every wait varied by up to a quarter either way
-// and lengthened to a Retry-After header's wait when that is longer, and the
-// retry after the first wait of thirty seconds is the last. The caller's
-// context ending ends the retries with its error. Any other failure leaves
-// the session as it was, with no retry.
+// Hold one Session per signed-in user and share it freely:
+//   - It is safe for concurrent use by multiple goroutines.
+//   - Every read reflects the latest state.
+//   - A copy of a Session is the same session.
+//   - It holds no resource that needs releasing and starts no long-lived
+//     goroutine, so one that is no longer wanted is simply dropped.
+//
+// The access token is renewed on demand by [Session.AccessToken] and
+// [Session.Refresh], and ahead of expiry by [Session.AutoRefresh]. A
+// listener added with [Session.AddEventListener] receives each change as a
+// [SessionEvent].
+//
+// At most one refresh is in flight at a time, and concurrent callers share
+// its result. A caller's context bounds only its own wait, so a caller that
+// gives up fails no other. What follows a failed refresh depends on the
+// answer:
+//   - A 400 whose code is refresh_token_not_found, refresh_token_already_used,
+//     session_not_found, session_expired, user_banned or validation_failed
+//     rejects the refresh token for good. No later refresh of the session
+//     sends it again, and the session ends once thirty seconds or less of its
+//     access token remain.
+//   - No answer, or a 5xx, 408, 409 or 429 answer, is retried with the same
+//     token on the schedule below.
+//   - Any other failure leaves the session as it was, with no retry.
+//
+// The retry schedule:
+//   - The first retry waits 200 milliseconds and each later one twice as
+//     long, to at most thirty seconds.
+//   - Every wait varies by up to a quarter either way, and is lengthened to
+//     a Retry-After header's wait when that is longer.
+//   - The retry after the first wait of thirty seconds is the last.
+//   - The caller's context ending ends the retries with its error.
 //
 // A session also ends when [Session.SignOut] ends it. An ended session holds
-// no credentials: every operation returns [ErrSignedOut], or
-// [ErrSessionExpired] when it ended by expiring, while [Session.RefreshToken]
-// returns "" and [Session.User] nil. The zero Session answers as a
-// signed-out one.
+// no credentials:
+//   - Every operation returns [ErrSignedOut], or [ErrSessionExpired] when the
+//     session ended by expiring.
+//   - [Session.RefreshToken] returns "" and [Session.User] returns nil.
+//
+// The zero Session answers as a signed-out one.
 //
 // A Session lives in memory until [Session.Persist] hands it a
 // [SessionStore], which it then writes on every change of its tokens or user
@@ -80,8 +93,8 @@ type SessionStore interface {
 	// Save replaces the state the store holds with state, a slice the store
 	// may keep. A failed Save is returned by the call that caused the write,
 	// except after a refresh started by [Session.AccessToken],
-	// [Session.SignOut] or [Client.SessionFromStore], when the failure
-	// reaches no caller.
+	// [Session.AutoRefresh], [Session.SignOut] or [Client.SessionFromStore],
+	// when the failure reaches no caller.
 	Save(ctx context.Context, state []byte) error
 
 	// Delete clears the state the store holds. A failed Delete is returned by

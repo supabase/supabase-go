@@ -3,15 +3,18 @@
 // concurrent use: one refresh in flight at a time whose result every waiting
 // caller shares unless the caller that started it gave up, a generation that
 // fences a refresh overtaken by the session's end and store writes that reach
-// the caller's store one at a time, in commit order. The network crosses the
-// package boundary as the [RefreshFunc] the caller supplies and the verdict on
-// its failures as the caller's [Options.Definitive], so no request is built
-// and no error shaped here.
+// the caller's store one at a time, in commit order. Listeners are told of
+// each change in that order, once the store holds it. The network crosses
+// the package boundary as the [RefreshFunc] the caller supplies and the
+// verdict on its failures as the caller's [Options.Definitive], so no
+// request is built and no error shaped here.
 package session
 
 import (
 	"context"
 	"errors"
+	"math"
+	"slices"
 	"sync"
 	"time"
 )
@@ -47,16 +50,52 @@ type Options struct {
 }
 
 // Status is whether a [Session] is live and, once it is not, why it ended.
-type Status int
+type Status string
 
 const (
 	// Live is a session whose tokens are in use.
-	Live Status = iota
+	Live Status = "Live"
+
 	// SignedOut is a session [Session.End] ended.
-	SignedOut
+	SignedOut Status = "SignedOut"
+
 	// Expired is a session that ended because its access token expired after
 	// the server had refused to renew it.
-	Expired
+	Expired Status = "Expired"
+)
+
+// Change is one change to a [Session] that its listeners are told of.
+// Status is the status the session ended with for [Ended], the session's
+// status as it stood when the listener was added for [Added] and [Live] for
+// [Refreshed].
+type Change struct {
+	Kind   ChangeKind
+	Status Status
+
+	// sequence is the place in commit order of the store write the change
+	// caused, which the store holds before a listener is told of it.
+	sequence uint64
+}
+
+// terminal reports whether the change is the last a listener is told of: the
+// session ended, or stood ended when the listener was added.
+func (c Change) terminal() bool {
+	return c.Status != Live
+}
+
+// ChangeKind is which change a [Change] reports.
+type ChangeKind string
+
+const (
+	// Added is the first change every listener is told of: the session as it
+	// stands when the listener is added.
+	Added ChangeKind = "Added"
+
+	// Refreshed is a refresh that committed renewed state.
+	Refreshed ChangeKind = "Refreshed"
+
+	// Ended is the session's end.
+	Ended ChangeKind = "Ended"
 )
 
 // EndedError is the error every operation on an ended [Session] reports.
@@ -99,24 +138,43 @@ type Session struct {
 
 	// mutex guards the state below and is never held across a refresh or a
 	// store call. It is taken only by the locked method, so a panic never
-	// leaves it held.
-	mutex      sync.Mutex
-	state      State
-	status     Status
-	cause      error
-	rejected   bool
-	rejection  error
-	generation uint64
-	inflight   *flight
-	sequence   uint64
+	// leaves it held. completed is the place in commit order of the latest
+	// write whose store call has returned, and storeDone is signaled, under
+	// mutex, each time one returns.
+	mutex         sync.Mutex
+	state         State
+	status        Status
+	cause         error
+	rejected      bool
+	rejection     error
+	generation    uint64
+	inflight      *flight
+	sequence      uint64
+	completed     uint64
+	storeDone     sync.Cond
+	registrations []*registration
+
+	// done is closed when the session ends.
+	done chan struct{}
 
 	// storeMutex is held across every store call, so writes reach the store
 	// one at a time, and across [Session.Persist]'s first write to a new store.
 	// Each holder releases it by defer, so a store that panics never leaves it
-	// held.
+	// held. store is written with both storeMutex and mutex held, so either
+	// serves to read it.
 	storeMutex sync.Mutex
 	store      Store
 	written    uint64
+}
+
+// registration is one added listener: the changes queued for it, in commit
+// order, whether a goroutine is delivering them and whether it has been
+// removed. All of it is read and written with the session's mutex held.
+type registration struct {
+	listener func(Change)
+	queue    []Change
+	running  bool
+	removed  bool
 }
 
 // flight is one in-flight refresh: done is closed once it has finished, and
@@ -141,14 +199,18 @@ type write struct {
 
 // New constructs a live Session over state.
 func New(state State, options Options) *Session {
-	return &Session{
+	session := &Session{
 		refresh:      options.Refresh,
 		definitive:   options.Definitive,
 		expiryMargin: options.ExpiryMargin,
 		now:          options.Now,
 		state:        state,
+		status:       Live,
+		done:         make(chan struct{}),
 		store:        options.Store,
 	}
+	session.storeDone.L = &session.mutex
+	return session
 }
 
 // locked calls f with mutex held and releases it however f ends, a panic
@@ -164,6 +226,26 @@ func (s *Session) State() State {
 	var state State
 	s.locked(func() { state = s.state })
 	return state
+}
+
+// Expiry returns the instant the access token expires and whether the server
+// has rejected the refresh token, the zero time once the session has ended.
+func (s *Session) Expiry() (expiresAt time.Time, rejected bool) {
+	s.locked(func() { expiresAt, rejected = s.state.expiresAt, s.rejected })
+	return expiresAt, rejected
+}
+
+// Done returns a channel that is closed once the session has ended.
+func (s *Session) Done() <-chan struct{} {
+	return s.done
+}
+
+// Ended returns the [*EndedError] once the session has ended, nil while it is
+// live.
+func (s *Session) Ended() error {
+	var err error
+	s.locked(func() { err = s.endedErrorLocked() })
+	return err
 }
 
 // Token returns the access token when more than the expiry margin remains
@@ -218,7 +300,7 @@ func (s *Session) tokenEnding(ctx context.Context, ending Status) (token string,
 		return token, clearErr, err
 	}
 
-	writeErr, err := s.renew(ctx, ending)
+	writeErr, err := s.renew(ctx, ending, s.expiryMargin)
 	var ended *EndedError
 	if errors.As(err, &ended) {
 		return "", nil, err
@@ -269,7 +351,18 @@ func (s *Session) endedOr(err error) error {
 // Refresh returns the remembered rejection without a request. The failure of
 // the clear an ending causes is returned to no caller.
 func (s *Session) Refresh(ctx context.Context) error {
-	writeErr, err := s.renew(ctx, Expired)
+	return s.RefreshWithin(ctx, always)
+}
+
+// always is the time left on an access token that no token has, so a refresh
+// within it is a refresh whatever the token has left.
+const always = time.Duration(math.MaxInt64)
+
+// RefreshWithin renews the session as [Session.Refresh] does when within or
+// less remains before the access token expires, or when a definitive
+// rejection is remembered, and otherwise returns nil without a request.
+func (s *Session) RefreshWithin(ctx context.Context, within time.Duration) error {
+	writeErr, err := s.renew(ctx, Expired, within)
 	switch {
 	case err != nil:
 		return s.endedOr(err)
@@ -283,23 +376,25 @@ func (s *Session) Refresh(ctx context.Context) error {
 // token, waits for it and reports its outcome: err is nil when renewed state
 // was committed, the refresh failure otherwise and an [*EndedError] when the
 // session had ended before the refresh ran or its result was discarded, and
-// writeErr is the failure of a store write this call performed. A refresh
-// whose starter's context ended before it succeeded is abandoned rather than
-// shared, and its waiters start one of their own, as they do when a panic
-// interrupts the refresh or the commit of its result before the panic carries
-// on up the starter's stack. The caller that starts a refresh commits its
-// result only if the session's generation is unchanged when it returns, and
-// it alone writes the store, after releasing the waiters. A definitive
-// rejection is remembered and returned as it is, and a remembered rejection
-// is returned without a refresh. Either ends the session once the access
-// token is inside the expiry margin, with status ending or [SignedOut] once
-// any caller waiting on the refresh asked for it and the rejection as cause.
-func (s *Session) renew(ctx context.Context, ending Status) (writeErr, err error) {
+// writeErr is the failure of a store write this call performed. While more
+// than within remains before the access token expires and no rejection is
+// remembered, nothing is sent and both are nil. A refresh whose starter's
+// context ended before it succeeded is abandoned rather than shared, and its
+// waiters start one of their own, as they do when a panic interrupts the
+// refresh or the commit of its result before the panic carries on up the
+// starter's stack. The caller that starts a refresh commits its result only
+// if the session's generation is unchanged when it returns, and it alone
+// writes the store, after releasing the waiters. A definitive rejection is
+// remembered and returned as it is, and a remembered rejection is returned
+// without a refresh. Either ends the session once the access token is inside
+// the expiry margin, with status ending or [SignedOut] once any caller
+// waiting on the refresh asked for it and the rejection as cause.
+func (s *Session) renew(ctx context.Context, ending Status, within time.Duration) (writeErr, err error) {
 	var started *flight
 	var refreshToken string
 	var generation uint64
 	var pending write
-	var hasPending bool
+	var hasPending, fresh bool
 	for started == nil {
 		var joined *flight
 		s.locked(func() {
@@ -309,6 +404,8 @@ func (s *Session) renew(ctx context.Context, ending Status) (writeErr, err error
 			case s.rejected:
 				err = s.rejection
 				pending, hasPending = s.rejectLocked(s.rejection, ending)
+			case s.state.expiresAt.Sub(s.now()) > within:
+				fresh = true
 			case s.inflight != nil:
 				joined = s.inflight
 				if ending == SignedOut {
@@ -326,6 +423,9 @@ func (s *Session) renew(ctx context.Context, ending Status) (writeErr, err error
 				writeErr = s.perform(ctx, pending)
 			}
 			return writeErr, err
+		}
+		if fresh {
+			return nil, nil
 		}
 		if joined != nil {
 			select {
@@ -363,6 +463,7 @@ func (s *Session) renew(ctx context.Context, ending Status) (writeErr, err error
 			s.rejected = false
 			s.rejection = nil
 			pending, hasPending = s.capture(renewed.encode()), true
+			s.notifyLocked(Change{Kind: Refreshed, Status: Live, sequence: pending.sequence})
 		case s.definitive(refreshErr):
 			started.err = refreshErr
 			pending, hasPending = s.rejectLocked(refreshErr, started.ending)
@@ -405,10 +506,16 @@ func (s *Session) Persist(ctx context.Context, store Store) error {
 		return endedErr
 	}
 
-	if err := store.Save(ctx, first.document); err != nil {
+	err := store.Save(ctx, first.document)
+	s.locked(func() {
+		if err == nil {
+			s.store = store
+		}
+		s.completedLocked(first.sequence)
+	})
+	if err != nil {
 		return err
 	}
-	s.store = store
 	s.written = first.sequence
 	return nil
 }
@@ -449,14 +556,17 @@ func (s *Session) rejectLocked(rejection error, status Status) (write, bool) {
 }
 
 // endLocked ends the session with status and cause, bumps the generation,
-// drops the state from memory and returns the captured clear of the store. It
-// is called with mutex held.
+// drops the state from memory, tells the listeners and returns the captured
+// clear of the store. It is called with mutex held.
 func (s *Session) endLocked(status Status, cause error) write {
 	s.status = status
 	s.cause = cause
 	s.state = State{}
 	s.generation++
-	return s.capture(nil)
+	close(s.done)
+	clearing := s.capture(nil)
+	s.notifyLocked(Change{Kind: Ended, Status: status, sequence: clearing.sequence})
+	return clearing
 }
 
 // endedErrorLocked builds the [*EndedError] for the session's status, nil
@@ -485,8 +595,103 @@ func (s *Session) perform(ctx context.Context, pending write) error {
 		return nil
 	}
 	s.written = pending.sequence
+	defer s.locked(func() { s.completedLocked(pending.sequence) })
 	if pending.document == nil {
 		return s.store.Delete(ctx)
 	}
 	return s.store.Save(ctx, pending.document)
+}
+
+// completedLocked records that the store call for the write at sequence in
+// commit order has returned and wakes the deliveries waiting on it. It is
+// called with mutex held.
+func (s *Session) completedLocked(sequence uint64) {
+	s.completed = max(s.completed, sequence)
+	s.storeDone.Broadcast()
+}
+
+// AddListener adds listener to be told of every later change, the first
+// being [Added], and returns the function that removes it. Each change is
+// queued for the listener in the critical section that commits it and
+// delivered by a goroutine the session starts while the queue is not empty,
+// one change at a time, in order, with no lock held and once the store holds
+// the state the change describes. The listener is removed on its own after a
+// terminal change. Removing it discards the changes not yet delivered without
+// waiting for a delivery in progress, and does nothing when repeated. A
+// listener that panics ends its delivery goroutine with the panic.
+func (s *Session) AddListener(listener func(Change)) (remove func()) {
+	registered := &registration{listener: listener}
+	s.locked(func() {
+		s.registrations = append(s.registrations, registered)
+		s.enqueueLocked(registered, Change{Kind: Added, Status: s.status, sequence: s.sequence})
+	})
+	return func() {
+		s.locked(func() { s.removeLocked(registered) })
+	}
+}
+
+// notifyLocked queues change for every listener. It is called with mutex
+// held.
+func (s *Session) notifyLocked(change Change) {
+	for _, registered := range s.registrations {
+		s.enqueueLocked(registered, change)
+	}
+}
+
+// enqueueLocked queues change for registered and starts its delivery
+// goroutine when none is running. It is called with mutex held.
+func (s *Session) enqueueLocked(registered *registration, change Change) {
+	registered.queue = append(registered.queue, change)
+	if !registered.running {
+		registered.running = true
+		go s.deliver(registered)
+	}
+}
+
+// removeLocked removes registered and discards its queue. It is called with
+// mutex held.
+func (s *Session) removeLocked(registered *registration) {
+	registered.removed = true
+	registered.queue = nil
+	if index := slices.Index(s.registrations, registered); index >= 0 {
+		s.registrations = slices.Delete(s.registrations, index, index+1)
+	}
+}
+
+// deliver delivers registered's queued changes in order until the queue is
+// empty or the listener is removed, removing it after a terminal change.
+func (s *Session) deliver(registered *registration) {
+	for {
+		var next Change
+		var empty bool
+		s.locked(func() {
+			if registered.removed || len(registered.queue) == 0 {
+				registered.running = false
+				registered.queue = nil
+				empty = true
+				return
+			}
+			next = registered.queue[0]
+			registered.queue = registered.queue[1:]
+		})
+		if empty {
+			return
+		}
+		s.awaitStore(next.sequence)
+		registered.listener(next)
+		if next.terminal() {
+			s.locked(func() { s.removeLocked(registered) })
+		}
+	}
+}
+
+// awaitStore waits until the store call for the write at sequence in commit
+// order, or a later one, has returned, or returns at once when the session
+// persists to no store.
+func (s *Session) awaitStore(sequence uint64) {
+	s.locked(func() {
+		for s.store != nil && s.completed < sequence {
+			s.storeDone.Wait()
+		}
+	})
 }

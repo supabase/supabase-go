@@ -156,6 +156,26 @@ func TestLoggingSkippedWhenLevelDisabled(t *testing.T) {
 	sendGet(t, projectConfiguration.HTTPClient(), server.URL, nil)
 }
 
+func TestLoggerReturnsTheConfiguredLogger(t *testing.T) {
+	logger := slog.New(&capturingHandler{})
+	projectConfiguration, err := configuration.New(core.ModulePathRoot, "https://PROJECT_ID.supabase.co", "API_KEY",
+		configuration.WithLogger(logger))
+	if err != nil {
+		t.Fatalf("configuration.New: %v", err)
+	}
+	if projectConfiguration.Logger() != logger {
+		t.Errorf("Logger() = %v, want the logger WithLogger set", projectConfiguration.Logger())
+	}
+
+	projectConfiguration, err = configuration.New(core.ModulePathRoot, "https://PROJECT_ID.supabase.co", "API_KEY")
+	if err != nil {
+		t.Fatalf("configuration.New: %v", err)
+	}
+	if got := projectConfiguration.Logger(); got == nil || got.Enabled(context.Background(), slog.LevelError) {
+		t.Errorf("Logger() without WithLogger = %v, want one that discards everything", got)
+	}
+}
+
 func TestWithLoggerNilIgnored(t *testing.T) {
 	server, _ := recordingServer(t)
 	projectConfiguration, err := configuration.New(core.ModulePathRoot, server.URL, "API_KEY",

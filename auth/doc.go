@@ -49,7 +49,9 @@
 // one from tokens obtained elsewhere and [Client.SessionFromStore] restores
 // one a previous run persisted through [Session.Persist]. A Session renews
 // its access token on demand through [Session.AccessToken], which a Database
-// client takes as its access-token provider, and ends with [Session.SignOut].
+// client takes as its access-token provider, or ahead of expiry through
+// [Session.AutoRefresh], reports each change to the listeners
+// [Session.AddEventListener] adds and ends with [Session.SignOut].
 //
 // [Client.Admin] is the project's administration surface - creating,
 // fetching, updating, listing, inviting and deleting users, minting the

@@ -52,7 +52,8 @@ enumerate_example_modules() {
     examples/rls-backend \
     examples/database-standalone \
     examples/tracing-otel \
-    examples/admin-provisioning
+    examples/admin-provisioning \
+    examples/auth-session-service
 }
 
 # Enumerate every non-published consumer-shaped module: the adjacent test

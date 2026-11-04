@@ -194,6 +194,84 @@ func ExampleClient_SignInWithPassword() {
 	fmt.Println("signed in as", session.User().Email())
 }
 
+// ExampleSession_AutoRefresh keeps a long-running service's session fresh
+// for as long as the service runs. AutoRefresh blocks, so it runs on a
+// goroutine of its own and is stopped by cancelling its context, and the
+// service waits for it to return before signing out, so that no refresh can
+// land after the sign-out. Its return value says how the loop ended: nil for
+// a cancellation or a sign-out, ErrSessionExpired for a session the server
+// refused to renew.
+func ExampleSession_AutoRefresh() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	result, err := client.SignInWithPassword(ctx, auth.PasswordCredentials{
+		Email:    os.Getenv("SERVICE_EMAIL"),
+		Password: os.Getenv("SERVICE_PASSWORD"),
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	session := result.Session()
+
+	refreshing := make(chan error, 1)
+	go func() { refreshing <- session.AutoRefresh(ctx) }()
+
+	// The service's own work runs here, reading session.AccessToken as it
+	// goes, until it is time to stop.
+
+	cancel()
+	if err := <-refreshing; err != nil {
+		fmt.Println("session ended:", err)
+	}
+	if _, err := session.SignOut(context.Background(), signout.WithLocalScope()); err != nil {
+		fmt.Println(err)
+	}
+}
+
+// ExampleSession_AddEventListener reacts to the end of a session, telling a
+// deliberate sign-out from an expiry by the reason the event carries. The
+// listener runs on a goroutine the session starts for it, never on the one
+// that changed the session, so it may call the session freely.
+func ExampleSession_AddEventListener() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	ctx := context.Background()
+
+	result, err := client.SignInWithPassword(ctx, auth.PasswordCredentials{
+		Email:    os.Getenv("SERVICE_EMAIL"),
+		Password: os.Getenv("SERVICE_PASSWORD"),
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	session := result.Session()
+
+	remove := session.AddEventListener(func(event auth.SessionEvent) {
+		switch event.Name() {
+		case auth.SessionEventTokenRefreshed:
+			fmt.Println("tokens rotated")
+		case auth.SessionEventSignedOut:
+			if event.SignOutReason() == auth.SignOutReasonSessionExpired {
+				fmt.Println("the server refused to renew the session: sign in again")
+				return
+			}
+			fmt.Println("signed out")
+		}
+	})
+	defer remove()
+}
+
 // fileStore keeps one session's state in a file only its owner can read, an
 // absent file meaning nothing is stored.
 type fileStore struct {
