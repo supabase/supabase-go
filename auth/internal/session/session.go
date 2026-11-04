@@ -55,8 +55,9 @@ const (
 )
 
 // EndedError is the error every operation on an ended [Session] reports.
-// Status is why the session ended and Cause, for [Expired], the refresh
-// failure the server answered with.
+// Status is why the session ended and Cause the refresh failure that ended
+// it, when one did: always for [Expired], and for [SignedOut] when the
+// refresh a sign-out waited on was rejected.
 type EndedError struct {
 	Status Status
 	Cause  error
@@ -116,11 +117,14 @@ type Session struct {
 // flight is one in-flight refresh: done is closed once it has finished, and
 // err and abandoned, read only after that, are its failure and whether it was
 // abandoned, by its starter giving up or by a panic, in which case its waiters
-// start a refresh of their own.
+// start a refresh of their own. ending is the status a definitive rejection
+// ends the session with, [SignedOut] once any caller waiting on the refresh
+// asked for it, and is read and written with the session's mutex held.
 type flight struct {
 	done      chan struct{}
 	err       error
 	abandoned bool
+	ending    Status
 }
 
 // write is one store operation captured under the state lock: the document
@@ -168,10 +172,28 @@ func (s *Session) State() State {
 // Token returns an [*EndedError] once the session has ended and ctx's error
 // when ctx ends while waiting on a refresh.
 func (s *Session) Token(ctx context.Context) (string, error) {
-	var token string
-	var err error
+	token, _, err := s.tokenEnding(ctx, Expired)
+	return token, s.endedOr(err)
+}
+
+// SignOutToken returns the access token for the request that signs the
+// session out everywhere, as [Session.Token] does, except in what a
+// definitive rejection of an expired access token does: the session ends as
+// [SignedOut] rather than [Expired], and the rejection is returned as it is
+// rather than as the [*EndedError] it caused. clearErr is the failure of the
+// clear that ending caused, when this call performed it. A session that had
+// already ended returns its [*EndedError].
+func (s *Session) SignOutToken(ctx context.Context) (token string, clearErr, err error) {
+	return s.tokenEnding(ctx, SignedOut)
+}
+
+// tokenEnding is [Session.Token] with ending the status a definitive
+// rejection of an expired access token ends the session with, that
+// rejection returned as it is, and clearErr the failure of the clear this
+// call performed for that ending.
+func (s *Session) tokenEnding(ctx context.Context, ending Status) (token string, clearErr, err error) {
 	var clearing write
-	var ending, refresh bool
+	var endingNow, refresh bool
 	s.locked(func() {
 		now := s.now()
 		switch {
@@ -184,35 +206,56 @@ func (s *Session) Token(ctx context.Context) (string, error) {
 		case now.Before(s.state.expiresAt):
 			token = s.state.accessToken
 		default:
-			clearing, ending = s.endLocked(Expired, s.rejection), true
-			err = s.endedErrorLocked()
+			clearing, endingNow = s.endLocked(ending, s.rejection), true
+			err = s.rejection
 		}
 	})
-	if ending {
-		_ = s.perform(ctx, clearing)
+	if endingNow {
+		clearErr = s.perform(ctx, clearing)
 	}
 	if !refresh {
-		return token, err
+		return token, clearErr, err
 	}
 
-	_, err = s.renew(ctx)
+	writeErr, err := s.renew(ctx, ending)
 	var ended *EndedError
 	if errors.As(err, &ended) {
-		return "", err
+		return "", nil, err
 	}
 	if err != nil && ctx.Err() != nil {
-		return "", err
+		return "", writeErr, err
 	}
 
 	s.locked(func() {
 		switch {
-		case s.status != Live:
+		case s.status != Live && (err == nil || !s.definitive(err)):
+			// Committed and then ended, or failed transiently on a session
+			// that has ended since.
 			err = s.endedErrorLocked()
+		case s.status != Live:
+			// Rejected, and the session has ended: the rejection stands,
+			// with the failure of the clear renew performed when the
+			// rejection ended it.
+			clearErr = writeErr
 		case err == nil || s.now().Before(s.state.expiresAt):
 			token, err = s.state.accessToken, nil
 		}
 	})
-	return token, err
+	return token, clearErr, err
+}
+
+// endedOr returns the [*EndedError] when the session has ended, and err
+// otherwise, a nil err included.
+func (s *Session) endedOr(err error) error {
+	if err == nil {
+		return nil
+	}
+	s.locked(func() {
+		if s.status != Live {
+			err = s.endedErrorLocked()
+		}
+	})
+	return err
 }
 
 // Refresh renews the session now, joining a refresh already in flight. It
@@ -222,10 +265,10 @@ func (s *Session) Token(ctx context.Context) (string, error) {
 // call's definitive rejection ended it. The failure of the clear an ending
 // causes is returned to no caller.
 func (s *Session) Refresh(ctx context.Context) error {
-	writeErr, err := s.renew(ctx)
+	writeErr, err := s.renew(ctx, Expired)
 	switch {
 	case err != nil:
-		return err
+		return s.endedOr(err)
 	case writeErr != nil:
 		return &WriteError{Err: writeErr}
 	}
@@ -235,15 +278,18 @@ func (s *Session) Refresh(ctx context.Context) error {
 // renew joins the in-flight refresh or starts one with the current refresh
 // token, waits for it and reports its outcome: err is nil when renewed state
 // was committed, the refresh failure otherwise and an [*EndedError] when the
-// session has ended, and writeErr is the failure of a store write this call
-// performed. A refresh whose starter's context ended before it succeeded is
-// abandoned rather than shared, and its waiters start one of their own, as
-// they do when a panic interrupts the refresh or the commit of its result
-// before the panic carries on up the starter's stack. The caller that starts
-// a refresh commits its result only if the session's generation is unchanged
-// when it returns, and it alone writes the store, after releasing the
-// waiters.
-func (s *Session) renew(ctx context.Context) (writeErr, err error) {
+// session had ended before the refresh ran or its result was discarded, and
+// writeErr is the failure of a store write this call performed. A refresh
+// whose starter's context ended before it succeeded is abandoned rather than
+// shared, and its waiters start one of their own, as they do when a panic
+// interrupts the refresh or the commit of its result before the panic carries
+// on up the starter's stack. The caller that starts a refresh commits its
+// result only if the session's generation is unchanged when it returns, and
+// it alone writes the store, after releasing the waiters. A definitive
+// rejection of an access token that has expired ends the session, with
+// status ending or [SignedOut] once any caller waiting on the refresh asked
+// for it and the rejection as cause, and is returned as it is.
+func (s *Session) renew(ctx context.Context, ending Status) (writeErr, err error) {
 	var started *flight
 	var refreshToken string
 	var generation uint64
@@ -255,8 +301,11 @@ func (s *Session) renew(ctx context.Context) (writeErr, err error) {
 				err = s.endedErrorLocked()
 			case s.inflight != nil:
 				joined = s.inflight
+				if ending == SignedOut {
+					joined.ending = SignedOut
+				}
 			default:
-				started = &flight{done: make(chan struct{})}
+				started = &flight{done: make(chan struct{}), ending: ending}
 				s.inflight = started
 				refreshToken = s.state.refreshToken
 				generation = s.generation
@@ -308,8 +357,7 @@ func (s *Session) renew(ctx context.Context) (writeErr, err error) {
 			s.rejection = refreshErr
 			started.err = refreshErr
 			if !s.now().Before(s.state.expiresAt) {
-				pending, hasPending = s.endLocked(Expired, refreshErr), true
-				started.err = s.endedErrorLocked()
+				pending, hasPending = s.endLocked(started.ending, refreshErr), true
 			}
 		case ctx.Err() != nil:
 			started.abandoned = true

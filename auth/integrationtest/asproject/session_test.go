@@ -18,8 +18,8 @@ var definitiveRefreshCodes = []string{"refresh_token_not_found", "session_not_fo
 // TestRefreshAfterRevocation is the boundary between the project and a
 // signed-in user: the project revokes a session with the secret key and the
 // user's Session observes it. A refresh is rejected definitively while the
-// unexpired access token still reads, a bare SignOut of a revoked session
-// reports success because its goal state is already reached and
+// unexpired access token still reads, a bare SignOut of a revoked session is
+// refused, its session kept for the local sign-out that then ends it, and
 // WithOthersScope surfaces the same answer as the error it is, leaving its
 // session live.
 func TestRefreshAfterRevocation(t *testing.T) {
@@ -41,6 +41,10 @@ func TestRefreshAfterRevocation(t *testing.T) {
 		return result.Session()
 	}
 	first, second := signIn(), signIn()
+	firstAccessToken, err := first.AccessToken(t.Context())
+	if err != nil {
+		t.Fatalf("AccessToken of the first session: %v", err)
+	}
 	secondAccessToken, err := second.AccessToken(t.Context())
 	if err != nil {
 		t.Fatalf("AccessToken of the second session: %v", err)
@@ -68,11 +72,17 @@ func TestRefreshAfterRevocation(t *testing.T) {
 		t.Errorf("the rejected session holds (%+v, %q), want the adopted user and refresh token kept", profile, session.RefreshToken())
 	}
 
-	if result, err := first.SignOut(t.Context()); err != nil || result == nil {
-		t.Errorf("a bare SignOut of a revoked session = (%v, %v), want the empty result", result, err)
+	if result, err := first.SignOut(t.Context()); result != nil || !errors.As(err, &serverError) || serverError.HTTPStatus != http.StatusForbidden || serverError.Code != "session_not_found" {
+		t.Errorf("a bare SignOut of a revoked session = (%v, %v), want *auth.Error with HTTP 403 and code session_not_found", result, err)
+	}
+	if accessToken, err := first.AccessToken(t.Context()); err != nil || accessToken != firstAccessToken {
+		t.Errorf("AccessToken() after that SignOut = (%q, %v), want the session kept live", accessToken, err)
+	}
+	if result, err := first.SignOut(t.Context(), signout.WithLocalScope()); err != nil || result == nil {
+		t.Errorf("SignOut with WithLocalScope of a revoked session = (%v, %v), want the empty result", result, err)
 	}
 	if accessToken, err := first.AccessToken(t.Context()); accessToken != "" || !errors.Is(err, auth.ErrSignedOut) {
-		t.Errorf("AccessToken() after that SignOut = (%q, %v), want ErrSignedOut", accessToken, err)
+		t.Errorf("AccessToken() after the local SignOut = (%q, %v), want ErrSignedOut", accessToken, err)
 	}
 	if first.RefreshToken() != "" || first.User() != nil {
 		t.Error("the signed-out session still holds credentials")

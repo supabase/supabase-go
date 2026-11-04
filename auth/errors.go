@@ -30,15 +30,18 @@ const ErrMissingStore = authError("session store is required")
 // holds nothing.
 const ErrNoStoredSession = authError("no stored session")
 
-// ErrSignedOut is reported by every operation on a [Session] that
-// [Session.SignOut] has ended, and by every operation on the zero Session.
+// ErrSignedOut is reported on a [Session] that [Session.SignOut] has ended,
+// and on the zero Session, by every operation but a sign-out, and by a
+// sign-out with [signout.WithOthersScope].
 const ErrSignedOut = authError("session is signed out")
 
-// ErrSessionExpired is reported by every operation on a [Session] whose
-// access token expired after the server had refused to renew it, and by
-// [Client.SessionFromStore] when the stored session can no longer be
-// refreshed. It is always returned wrapping the server's rejection, an
-// [*Error] carrying the code the server answered the refresh with.
+// ErrSessionExpired is reported on a [Session] whose access token expired
+// after the server had refused to renew it by every operation but a
+// sign-out, by a sign-out with [signout.WithOthersScope] whose refresh the
+// server rejected and by [Client.SessionFromStore] when the stored session
+// can no longer be refreshed. It is always returned wrapping the server's
+// rejection, an [*Error] carrying the code the server answered the refresh
+// with.
 const ErrSessionExpired = authError("session has expired")
 
 // ErrMalformedJWT is reported by [Client.GetClaims] and
