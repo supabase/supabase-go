@@ -31,3 +31,7 @@ user.transient/
 # tests and gopls all maintain it). A committed copy would dirty itself after
 # each release once the new sibling tags become fetchable. See decisions.md.
 go.work.sum
+
+# Seen in our supabase/ folder, containing a file called cli-latest.
+# Clearly transient and not to be tracked.
+.temp/
