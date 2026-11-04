@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/supabase/supabase-go/core/responses"
 )
@@ -82,6 +83,10 @@ const ErrMissingIdentifier = authError("provider identifier is required")
 // [error code]: https://supabase.com/docs/guides/auth/debugging/error-codes
 type Error struct {
 	responses.HTTPError
+
+	// retryAfter is the wait the answer's Retry-After header asked for, and
+	// zero when it stated none.
+	retryAfter time.Duration
 }
 
 // Error renders the failure as "auth: <message> (code <code>, HTTP <status>)",
@@ -100,16 +105,17 @@ type errorBody struct {
 	ErrorDescription string `json:"error_description"`
 }
 
-// newError builds an [*Error] from a non-2xx Auth response. A body that is not
-// the documented error JSON (for example, HTML from an intermediary) is
-// preserved raw in Message so no diagnostic information is lost.
-func newError(httpStatus int, responseBody []byte) *Error {
+// newError builds an [*Error] from a non-2xx Auth response, retryAfter being
+// the wait its Retry-After header asked for. A body that is not the
+// documented error JSON (for example, HTML from an intermediary) is preserved
+// raw in Message so no diagnostic information is lost.
+func newError(httpStatus int, responseBody []byte, retryAfter time.Duration) *Error {
 	var parsed errorBody
 	if err := json.Unmarshal(responseBody, &parsed); err != nil {
-		return &Error{responses.HTTPError{
+		return &Error{HTTPError: responses.HTTPError{
 			HTTPStatus: httpStatus,
 			Message:    string(responseBody),
-		}}
+		}, retryAfter: retryAfter}
 	}
 
 	code := parsed.Code
@@ -123,9 +129,9 @@ func newError(httpStatus int, responseBody []byte) *Error {
 	if message == "" {
 		message = string(responseBody)
 	}
-	return &Error{responses.HTTPError{
+	return &Error{HTTPError: responses.HTTPError{
 		HTTPStatus: httpStatus,
 		Code:       code,
 		Message:    message,
-	}}
+	}, retryAfter: retryAfter}
 }

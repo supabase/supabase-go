@@ -26,6 +26,7 @@ import (
 
 // recordedRequest is one request an adminServer served, as the wire saw it.
 type recordedRequest struct {
+	at            time.Time
 	method        string
 	path          string
 	escapedPath   string
