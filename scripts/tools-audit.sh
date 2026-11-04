@@ -64,7 +64,7 @@ grep -hoE 'uses: [A-Za-z0-9._/-]+@[0-9a-f]{40} # [^ ]+' .github/workflows/*.yml 
 audit_go_tool_module() {
   local module_directory="$1"
   local module_updates tool_packages tool_modules direct_modules
-  local declared_updates transitive_updates module_path current_version latest_version label
+  local declared_bumps transitive_updates module_path current_version latest_version label
   local module_go_line workspace_go_line
   echo
   echo "==> Go tooling (${module_directory}, pinned by go.mod + go.sum)"
@@ -90,7 +90,7 @@ audit_go_tool_module() {
   tool_packages="$(GOWORK=off go -C "${module_directory}" mod edit -json | jq -r '.Tool[].Path')"
   tool_modules="$(GOWORK=off go -C "${module_directory}" list -f '{{with .Module}}{{.Path}}{{end}}' ${tool_packages} | sort -u)"
   direct_modules="$(GOWORK=off go -C "${module_directory}" mod edit -json | jq -r '.Require[] | select(.Indirect != true) | .Path')"
-  declared_updates=0
+  declared_bumps=""
   transitive_updates=0
   while read -r module_path current_version latest_version; do
     if printf '%s\n' "${tool_modules}" | grep -qxF "${module_path}"; then
@@ -101,22 +101,24 @@ audit_go_tool_module() {
       transitive_updates=$((transitive_updates + 1))
       continue
     fi
-    declared_updates=$((declared_updates + 1))
+    declared_bumps="${declared_bumps} ${module_path}@${latest_version}"
     echo "  ${module_path} (${label}) ${current_version}: ${highlight}${latest_version} available${reset}"
     echo "    release notes: https://pkg.go.dev/${module_path}@${latest_version}"
   done <<< "${module_updates}"
   # Transitive-only updates still conclude current: minimum version selection
   # holds undeclared modules where the declared requirements put them, so they
   # move when a declared bump requires newer.
-  if [ "${declared_updates}" -eq 0 ]; then
+  if [ -z "${declared_bumps}" ]; then
     echo "  ✅ all current (${transitive_updates} transitive module update(s) exist deeper in the graph)"
   else
     if [ "${transitive_updates}" -gt 0 ]; then
       echo "  plus ${transitive_updates} transitive module update(s), raised only as far as the declared modules require"
     fi
-    echo "  bump every tool: GOWORK=off go -C ${module_directory} get tool && GOWORK=off go -C ${module_directory} mod tidy"
-    echo "  bump one module: GOWORK=off go -C ${module_directory} get <module>@latest && GOWORK=off go -C ${module_directory} mod tidy"
-    echo "  afterwards run: go -C ${module_directory} work use && ./scripts/lint.sh && ./scripts/vulncheck.sh"
+    # The bump names each module reported, at the version whose release notes
+    # the report links. go get tool cannot stand in: it moves only the tool
+    # directive providers, leaving a direct require where it is.
+    echo "  bump: GOWORK=off go -C ${module_directory} get${declared_bumps} && GOWORK=off go -C ${module_directory} mod tidy"
+    echo "  afterwards run: go -C ${module_directory} work use && ./scripts/lint.sh && ./scripts/vulncheck.sh && ./scripts/comment-check.sh"
   fi
 }
 

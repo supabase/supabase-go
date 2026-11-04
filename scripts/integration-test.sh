@@ -4,20 +4,12 @@
 # Requires Docker (the stack's services are containers) and curl. Run from the
 # repository root.
 #
-# The Supabase CLI release ships two co-located binaries - a `supabase` shim
-# and the `supabase-go` CLI it forwards to - fetched from its pinned GitHub
-# release, verified against a committed SHA-256 and installed into Go's own bin
-# directory (GOBIN, else GOPATH/bin) - writable, on the developer's PATH and
-# outside the checkout, so a read-only working tree is fine. It needs no Node
-# and keeps the CLI off the cspell npm manifest (unrelated tools). First-party:
-# curl plus a checksum, no third-party action.
-#
-# Why not `go install` it, given the Go toolchain right here? Its module
-# (github.com/supabase/cli) now lives in apps/cli-go while the repo root carries
-# no go.mod, so the module proxy resolves that path only to the stale v1
-# root-module history rather than the v2 code, and its go.mod additionally
-# carries local `replace` directives that `go install pkg@version` refuses
-# outright. The verified release binary is the pinned way in.
+# The Supabase CLI binary is fetched from its pinned GitHub release, verified
+# against a committed SHA-256 and installed into Go's own bin directory (GOBIN,
+# else GOPATH/bin) - writable, on the developer's PATH and outside the
+# checkout, so a read-only working tree is fine. It needs no Node and keeps the
+# CLI off the cspell npm manifest (unrelated tools). First-party: curl plus a
+# checksum, no third-party action.
 #
 # Bump SUPABASE_CLI_VERSION and the checksums together, via
 # scripts/upgrade-to-latest-supabase-cli.sh. If the new CLI changes the
@@ -27,7 +19,7 @@ set -euo pipefail
 
 source "$(dirname "$0")/common.sh"
 
-SUPABASE_CLI_VERSION="2.121.0"
+SUPABASE_CLI_VERSION="3.0.0"
 
 case "$(uname -s)" in
   Linux) cli_os="linux" ;;
@@ -43,10 +35,10 @@ esac
 # rewrites each arm's checksum in place, looked up by archive name in the
 # release's checksums.txt.
 case "${cli_os}_${cli_arch}" in
-  darwin_amd64) cli_sha256="8e6696259bc187e48ef2732669e1e45539a630a6486e91484dd60dc50b2a676f" ;;
-  darwin_arm64) cli_sha256="a696418082800fea178d6efeadf66cbaa501f653657b525c95d570d7b2f47d67" ;;
-  linux_amd64) cli_sha256="4b481189efbdc57cf2d37bdee5f1a0d29574314398564b32a6dfb76c0fcf275f" ;;
-  linux_arm64) cli_sha256="896278173cd7c3632e9340e546129606a26e696e90bcaaa6f7b7490fe218efc7" ;;
+  darwin_amd64) cli_sha256="d14cdb8536eb37b0f3b6d8c70fa5497b941f71005f0b2ac152b6e6c62864529c" ;;
+  darwin_arm64) cli_sha256="3b0bfc4602cd7d55ffc78a6b72443d3b8e5fdd856b777e75977978dceb3e44cc" ;;
+  linux_amd64) cli_sha256="eeb61edcd59a4735fcb5e58596574f25d03d420efca779f43ddb307e1cc5c754" ;;
+  linux_arm64) cli_sha256="243474fb5b491a0df04682fc1941cc5519559a1178ae01c225c633eda2e8acb8" ;;
   *) echo "No pinned checksum for ${cli_os}_${cli_arch}" >&2; exit 1 ;;
 esac
 
@@ -56,7 +48,7 @@ gobin="$(go env GOBIN)"
 SUPABASE_CLI="${gobin}/supabase"
 
 # Fetch unless the pinned version is already installed there (a bump re-fetches).
-if [[ ! -x "${SUPABASE_CLI}" ]] || [[ ! -x "${gobin}/supabase-go" ]] || ! "${SUPABASE_CLI}" --version 2>/dev/null | grep -qF "${SUPABASE_CLI_VERSION}"; then
+if [[ ! -x "${SUPABASE_CLI}" ]] || ! "${SUPABASE_CLI}" --version 2>/dev/null | grep -qF "${SUPABASE_CLI_VERSION}"; then
   archive="supabase_${SUPABASE_CLI_VERSION}_${cli_os}_${cli_arch}.tar.gz"
   url="https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/${archive}"
   echo "==> installing pinned Supabase CLI ${SUPABASE_CLI_VERSION} to ${gobin} (${cli_os}/${cli_arch})"
@@ -69,12 +61,9 @@ if [[ ! -x "${SUPABASE_CLI}" ]] || [[ ! -x "${gobin}/supabase-go" ]] || ! "${SUP
   else
     echo "${cli_sha256}  ${gobin}/${archive}" | shasum -a 256 -c -
   fi
-  # `supabase` is a thin shim that forwards to its co-located `supabase-go`
-  # sibling (the actual CLI), so both must land in the same directory - extract
-  # the whole archive, not just one member.
-  tar -xzf "${gobin}/${archive}" -C "${gobin}"
+  tar -xzf "${gobin}/${archive}" -C "${gobin}" supabase
   rm -f "${gobin}/${archive}"
-  chmod +x "${gobin}/supabase" "${gobin}/supabase-go"
+  chmod +x "${SUPABASE_CLI}"
 fi
 
 echo "Integration Test..."

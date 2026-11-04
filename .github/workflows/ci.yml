@@ -51,16 +51,14 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
           cache: false
-      # Restores the pinned Supabase CLI binaries that the script below
+      # Restores the pinned Supabase CLI binary that the script below
       # otherwise fetches from its GitHub release. The pinned version and its
       # checksums live in that script, so hashing it keys the cache: any bump
       # re-keys automatically. A missing or stale restore is safe - the script
       # verifies the installed version and re-fetches on mismatch.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            ~/go/bin/supabase
-            ~/go/bin/supabase-go
+          path: ~/go/bin/supabase
           key: supabase-cli-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/integration-test.sh') }}
       - run: ./scripts/integration-test.sh
 

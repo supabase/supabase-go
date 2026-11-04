@@ -173,7 +173,7 @@ A versioned label turns the OS move into a reviewable one-line bump - the digest
 
 **What**:  
 Every `actions/setup-go` step sets `cache: false`.
-Caching that earns its place is an explicit `actions/cache` step with a reasoned key, as the integration-test job does for the Supabase CLI binaries.
+Caching that earns its place is an explicit `actions/cache` step with a reasoned key, as the integration-test job does for the Supabase CLI binary.
 
 **Why**:  
 The implicit cache keys on a root `go.mod`, which this `go.work`-rooted repository does not have, so its restore has never succeeded here.
