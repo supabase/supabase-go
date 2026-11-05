@@ -180,6 +180,20 @@ for example in $(enumerate_example_modules); do
         go run . reconcile
         go run . offboard "${user}"
         ;;
+      examples/auth-session-service)
+        # The service signs in as an account its operator created, so the
+        # harness registers one over the Auth REST API first, as an
+        # application's own sign-up flow would.
+        export SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}"
+        export SERVICE_EMAIL="service-$(date +%s)-$$@example.com"
+        export SERVICE_PASSWORD="service-password-$$"
+        curl --fail --silent --show-error --output /dev/null \
+          --header "apikey: ${PUBLISHABLE_KEY}" \
+          --header "Content-Type: application/json" \
+          --data "{\"email\":\"${SERVICE_EMAIL}\",\"password\":\"${SERVICE_PASSWORD}\"}" \
+          "${API_URL}/auth/v1/signup"
+        go run . -run-for=3s
+        ;;
       *)
         export SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}"
         go run .

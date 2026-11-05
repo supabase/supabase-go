@@ -32,6 +32,10 @@ user.transient/
 # each release once the new sibling tags become fetchable. See decisions.md.
 go.work.sum
 
+# Seen in our supabase/ folder, containing a file called cli-latest.
+# Clearly transient and not to be tracked.
+.temp/
+
 # The hash lines scripts/verify-release.sh and scripts/seed-module-proxy.sh
 # record for scripts/seed-release.sh to compare, transient to each release.
 /.verify-release-hashes.txt

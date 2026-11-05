@@ -7,6 +7,14 @@ Refer to [GitHub `../CHANGELOG.md`](https://github.com/supabase/supabase-go/blob
 
 ## Unreleased
 
+### Added
+
+Background refresh and session events:
+
+- `Session.AutoRefresh`, a blocking loop that renews the access token ahead of expiry until its context is cancelled
+- `Session.AddEventListener`, with `SessionEvent` and its `SessionEventName` constants `SessionEventInitialSession`, `SessionEventTokenRefreshed` and `SessionEventSignedOut`
+- `SignOutReason`, carried by `SessionEventSignedOut`, with `SignOutReasonUserInitiated` and `SignOutReasonSessionExpired`
+
 ### Fixed
 
 Aligns our implementation of `Session` refresh with the [cross-SDK refresh spec](https://github.com/supabase/sdk/blob/514799681e4303147b7a86fafaba71c67e2ef785/packages/capability-matrix/specs/auth/session/refresh_session.md):

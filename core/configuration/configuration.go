@@ -200,3 +200,9 @@ func (c *Configuration) BaseURL() *url.URL {
 	clone := *c.baseURL
 	return &clone
 }
+
+// Logger returns the [slog.Logger] that receives the SDK's log emissions: the
+// one [WithLogger] set, or one that discards everything.
+func (c *Configuration) Logger() *slog.Logger {
+	return c.logger
+}

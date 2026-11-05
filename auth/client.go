@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
@@ -34,6 +35,7 @@ type Client struct {
 	httpClient configuration.HTTPClient
 	baseURL    *url.URL
 	keys       *cache.Cache
+	logger     *slog.Logger
 	now        func() time.Time
 }
 
@@ -61,6 +63,7 @@ func NewFromConfiguration(projectConfiguration *configuration.Configuration) *Cl
 		httpClient: httpClient,
 		baseURL:    baseURL,
 		keys:       cache.NewCache(jwkSetFetch(httpClient, baseURL.JoinPath(".well-known", "jwks.json"))),
+		logger:     projectConfiguration.Logger(),
 		now:        time.Now,
 	}
 }
