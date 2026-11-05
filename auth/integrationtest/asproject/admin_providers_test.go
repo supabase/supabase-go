@@ -89,7 +89,7 @@ func TestAdminCustomProviderLifecycle(t *testing.T) {
 		t.Errorf("ClientID = %q, want the unchosen field left alone", updated.ClientID())
 	}
 
-	if _, err := admin.DeleteCustomProvider(t.Context(), identifier); err != nil {
+	if _, err = admin.DeleteCustomProvider(t.Context(), identifier); err != nil {
 		t.Fatalf("DeleteCustomProvider: %v", err)
 	}
 	_, err = admin.GetCustomProvider(t.Context(), identifier)

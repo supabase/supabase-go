@@ -796,8 +796,7 @@ func TestDelimitedIdentifierTableNameSingleDot(t *testing.T) {
 	// failure (not an HTTP error) is the observable signature of `.` here, and
 	// the contrast with the double-dot 404 is the point of having both tests
 	// (see TestDelimitedIdentifierTableNameDoubleDot).
-	var typedError *postgrest.Error
-	if errors.As(err, &typedError) {
+	if typedError, ok := errors.AsType[*postgrest.Error](err); ok {
 		t.Fatalf("got *postgrest.Error %v, want a decoding error (200 OpenAPI object)", typedError)
 	}
 }

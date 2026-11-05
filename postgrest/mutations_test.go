@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/supabase/supabase-go/postgrest"
+	"github.com/supabase/supabase-go/postgrest/internal/respond"
 )
 
 // rowWithChannel is a row type encoding/json cannot marshal, used to prove an
@@ -33,13 +34,17 @@ func captureServer(t *testing.T, status int, responseBody string) (*httptest.Ser
 	t.Helper()
 	record := &captured{}
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		record.body, _ = io.ReadAll(request.Body)
+		requestBody, err := io.ReadAll(request.Body)
+		if err != nil {
+			t.Errorf("reading request body: %v", err)
+		}
+		record.body = requestBody
 		record.request = request.Clone(request.Context())
 		if responseBody != "" {
 			writer.Header().Set("Content-Type", "application/json")
 		}
 		writer.WriteHeader(status)
-		_, _ = writer.Write([]byte(responseBody))
+		respond.Body(t, writer, []byte(responseBody))
 	}))
 	t.Cleanup(server.Close)
 	return server, record

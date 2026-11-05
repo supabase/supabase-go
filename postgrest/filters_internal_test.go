@@ -41,7 +41,7 @@ var gopherTeam = team{
 	},
 }
 
-var virtualRouterRedundancyProtocolMAC, _ = net.ParseMAC("00:00:5e:00:01:01")
+var virtualRouterRedundancyProtocolMAC = net.HardwareAddr{0x00, 0x00, 0x5e, 0x00, 0x01, 0x01}
 
 func TestRenderFilterValue(t *testing.T) {
 	testCases := []struct {

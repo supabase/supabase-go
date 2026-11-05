@@ -81,17 +81,25 @@ func practiceLogsHandler(client *supabase.Client) http.Handler {
 }
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+// run seeds a practice-log row for a throwaway user, serves the backend on a
+// local port, calls it with the user's token and prints the rows it answers
+// with.
+func run() (err error) {
 	projectURL := os.Getenv("SUPABASE_URL")
 	publishableKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
 	if projectURL == "" || publishableKey == "" {
-		fmt.Fprintln(os.Stderr, "SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set - run via scripts/integration-test.sh")
-		os.Exit(1)
+		return errors.New("SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set - run via scripts/integration-test.sh")
 	}
 
 	client, err := supabase.New(projectURL, publishableKey)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "supabase.New:", err)
-		os.Exit(1)
+		return fmt.Errorf("supabase.New: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -99,8 +107,7 @@ func main() {
 
 	userID, token, err := signUpDemoUser(ctx, projectURL, publishableKey)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "signing up demo user:", err)
-		os.Exit(1)
+		return fmt.Errorf("signing up demo user: %w", err)
 	}
 
 	// Seed one row as the demo user - the insert policy requires the row's
@@ -115,38 +122,46 @@ func main() {
 		),
 	)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "inserting practice log:", err)
-		os.Exit(1)
+		return fmt.Errorf("inserting practice log: %w", err)
 	}
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "listening:", err)
-		os.Exit(1)
+		return fmt.Errorf("listening: %w", err)
 	}
 	server := &http.Server{Handler: practiceLogsHandler(client)}
-	go func() { _ = server.Serve(listener) }()
-	defer func() { _ = server.Shutdown(ctx) }()
+	served := make(chan error, 1)
+	go func() { served <- server.Serve(listener) }()
+	// Deferred, the shutdown runs on every path out of run, a panic included,
+	// and its failure joins the error run returns.
+	defer func() {
+		if shutdownErr := server.Shutdown(ctx); shutdownErr != nil {
+			err = errors.Join(err, fmt.Errorf("shutting down: %w", shutdownErr))
+		}
+		if serveErr := <-served; !errors.Is(serveErr, http.ErrServerClosed) {
+			err = errors.Join(err, fmt.Errorf("serving: %w", serveErr))
+		}
+	}()
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		"http://"+listener.Addr().String()+"/practice-logs", nil)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "building request:", err)
-		os.Exit(1)
+		return fmt.Errorf("building request: %w", err)
 	}
 	request.Header.Set("Authorization", "Bearer "+token)
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "calling backend:", err)
-		os.Exit(1)
+		return fmt.Errorf("calling backend: %w", err)
 	}
-	defer func() { _ = response.Body.Close() }()
-	body, err := io.ReadAll(response.Body)
-	if err != nil || response.StatusCode != http.StatusOK {
-		fmt.Fprintf(os.Stderr, "backend answered %d: %s (%v)\n", response.StatusCode, body, err)
-		os.Exit(1)
+	body, err := readAll(response.Body)
+	if err != nil {
+		return fmt.Errorf("reading the backend's response: %w", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("backend answered %d: %s", response.StatusCode, body)
 	}
 	fmt.Printf("backend served the verified user's rows: %s", body)
+	return nil
 }
 
 // signUpDemoUser registers a throwaway user over the Auth REST API and returns
@@ -170,9 +185,11 @@ func signUpDemoUser(ctx context.Context, projectURL, publishableKey string) (use
 	if err != nil {
 		return "", "", err
 	}
-	defer func() { _ = response.Body.Close() }()
+	body, err := readAll(response.Body)
+	if err != nil {
+		return "", "", err
+	}
 	if response.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(response.Body)
 		return "", "", fmt.Errorf("signup answered %d: %s", response.StatusCode, body)
 	}
 	var session struct {
@@ -181,8 +198,15 @@ func signUpDemoUser(ctx context.Context, projectURL, publishableKey string) (use
 			ID string `json:"id"`
 		} `json:"user"`
 	}
-	if err := json.NewDecoder(response.Body).Decode(&session); err != nil {
+	if err := json.Unmarshal(body, &session); err != nil {
 		return "", "", err
 	}
 	return session.User.ID, session.AccessToken, nil
+}
+
+// readAll reads body to its end and closes it, even when a read panics. It
+// fails when the read or the close fails.
+func readAll(body io.ReadCloser) (content []byte, err error) {
+	defer func() { err = errors.Join(err, body.Close()) }()
+	return io.ReadAll(body)
 }

@@ -224,6 +224,29 @@ func TestAutoRefreshEndsOnRejectionAtMargin(t *testing.T) {
 	})
 }
 
+func TestAutoRefreshReportsAStoreThatCannotBeCleared(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		server := newInProcessSessionServer(t)
+		session := server.signIn(t, server.client(t), time.Hour)
+		store := &recordingStore{deleteErr: errors.New("disk gone")}
+		if err := session.Persist(t.Context(), store); err != nil {
+			t.Fatalf("Persist: %v", err)
+		}
+		server.script(tokenPath, refreshRejected.answer())
+		stop := startAutoRefresh(t, session)
+
+		time.Sleep(time.Hour - autoRefreshLead)
+		synctest.Wait()
+		time.Sleep(autoRefreshLead - 30*time.Second)
+		synctest.Wait()
+		err := stop()
+		if !errors.Is(err, auth.ErrSessionExpired) || !errors.Is(err, store.deleteErr) {
+			t.Errorf("AutoRefresh returned %v, want ErrSessionExpired with the store's error joined", err)
+		}
+		assertServerError(t, err, refreshRejected)
+	})
+}
+
 func TestAutoRefreshStopsCleanly(t *testing.T) {
 	t.Run("cancelled while it sleeps", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {

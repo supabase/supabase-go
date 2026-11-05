@@ -23,6 +23,14 @@ Aligns our implementation of `Session` refresh with the [cross-SDK refresh spec]
 - a refresh the server rejects ends the session once thirty seconds or less of its access token remain, with `ErrSessionExpired`
 - a rejected refresh token is not sent again
 
+A session store that cannot be cleared when the session expires is reported, where before the failure reached no caller:
+
+- `Session.AccessToken`, `Session.Refresh` and `Client.SessionFromStore` return the failed `SessionStore.Delete` wrapped and joined with `ErrSessionExpired`
+
+A response body that cannot be closed fails the call as a transport error, as one that cannot be read does, where before the failure was ignored:
+
+- every operation of `Client`, `Admin` and `Session` that sends a request
+
 ## `v0.1.0-alpha.3` (2026-11-05)
 
 ### Added

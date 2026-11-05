@@ -51,21 +51,32 @@ func newMockAuthServer(t *testing.T, signers ...testkit.Signer) *mockAuthServer 
 		mock.jwkSetAPIVersion = request.Header.Get("X-Supabase-Api-Version")
 		if mock.jwkSetStatus != http.StatusOK {
 			writer.WriteHeader(mock.jwkSetStatus)
-			_, _ = writer.Write([]byte(`{"code":"unexpected_failure","message":"discovery unavailable"}`))
+			writeBody(t, writer, []byte(`{"code":"unexpected_failure","message":"discovery unavailable"}`))
 			return
 		}
 		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode(map[string]any{"keys": mock.keys})
+		if err := json.NewEncoder(writer).Encode(map[string]any{"keys": mock.keys}); err != nil {
+			t.Errorf("encoding the JWK Set: %v", err)
+		}
 	})
 	mux.HandleFunc("/auth/v1/user", func(writer http.ResponseWriter, request *http.Request) {
 		mock.userHits.Add(1)
 		mock.userAPIVersion = request.Header.Get("X-Supabase-Api-Version")
 		writer.WriteHeader(mock.userStatus)
-		_, _ = writer.Write([]byte(mock.userBody))
+		writeBody(t, writer, []byte(mock.userBody))
 	})
 	mock.server = httptest.NewServer(mux)
 	t.Cleanup(mock.server.Close)
 	return mock
+}
+
+// writeBody writes body to the response. A failed write fails t without
+// stopping the test, so a handler may call it from the server's goroutine.
+func writeBody(t *testing.T, writer http.ResponseWriter, body []byte) {
+	t.Helper()
+	if _, err := writer.Write(body); err != nil {
+		t.Errorf("writing the response body: %v", err)
+	}
 }
 
 // client builds an auth client wired to the mock server, configured by
@@ -172,7 +183,7 @@ func newSessionHandlers(t *testing.T) *sessionServer {
 	}
 	server.mux.HandleFunc("/auth/v1/.well-known/jwks.json", func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write(testkit.JWKSetDocument(t, server.signer))
+		writeBody(t, writer, testkit.JWKSetDocument(t, server.signer))
 	})
 	server.mux.HandleFunc("/", server.handle)
 	return server
@@ -199,7 +210,11 @@ func (s *sessionServer) RoundTrip(request *http.Request) (response *http.Respons
 	if served.Body == nil {
 		served.Body = http.NoBody
 	}
-	defer func() { _ = served.Body.Close() }()
+	defer func() {
+		if closeErr := served.Body.Close(); closeErr != nil {
+			s.t.Errorf("closing the request body: %v", closeErr)
+		}
+	}()
 	recorder := httptest.NewRecorder()
 	s.mux.ServeHTTP(recorder, served)
 	return recorder.Result(), nil
@@ -254,7 +269,10 @@ func (s *sessionServer) handle(writer http.ResponseWriter, request *http.Request
 		body = []byte(sessionUserDocument)
 	}
 	writer.WriteHeader(next.status)
-	_, _ = writer.Write(body)
+	// An answer with no body writes none, since a 204 allows no write at all.
+	if len(body) > 0 {
+		writeBody(s.t, writer, body)
+	}
 }
 
 // mint builds a token response whose access token, signed by the server's

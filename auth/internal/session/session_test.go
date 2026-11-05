@@ -37,15 +37,20 @@ func TestPanickingCommitLeavesSessionUsable(t *testing.T) {
 				t.Errorf("recovered %v, want the verdict's panic passed on", recovered)
 			}
 		}()
-		_ = live.Refresh(t.Context())
+		clearErr, err := live.Refresh(t.Context())
+		t.Fatalf("Refresh = (%v, %v), want the verdict's panic passed on", clearErr, err)
 	}()
 
-	refreshed := make(chan error, 1)
-	go func() { refreshed <- live.Refresh(t.Context()) }()
+	type outcome struct{ clearErr, err error }
+	refreshed := make(chan outcome, 1)
+	go func() {
+		clearErr, err := live.Refresh(t.Context())
+		refreshed <- outcome{clearErr, err}
+	}()
 	select {
-	case err := <-refreshed:
-		if !errors.Is(err, refused) {
-			t.Errorf("Refresh after the panic = %v, want the refresh failure", err)
+	case got := <-refreshed:
+		if got.clearErr != nil || !errors.Is(got.err, refused) {
+			t.Errorf("Refresh after the panic = (%v, %v), want no failed clear and the refresh failure", got.clearErr, got.err)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Refresh after the panic blocked on a lock or flight the panic left held")

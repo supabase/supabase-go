@@ -172,20 +172,16 @@ func (d Definition) Payload() any {
 		JWKSURI:               d.jwksURI,
 	}
 	if d.pkceDisabled {
-		payload.PKCEEnabled = pointerTo(false)
+		payload.PKCEEnabled = new(false)
 	}
 	if d.startDisabled {
-		payload.Enabled = pointerTo(false)
+		payload.Enabled = new(false)
 	}
 	if d.emailOptional {
-		payload.EmailOptional = pointerTo(true)
+		payload.EmailOptional = new(true)
 	}
 	if d.skipNonceCheck {
-		payload.SkipNonceCheck = pointerTo(true)
+		payload.SkipNonceCheck = new(true)
 	}
 	return payload
 }
-
-// pointerTo returns a pointer to value, for the payload fields whose absence
-// elects a server default.
-func pointerTo(value bool) *bool { return &value }

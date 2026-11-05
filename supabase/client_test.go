@@ -72,11 +72,13 @@ func TestInjectedTransportReceivesCallContext(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		received[request.URL.Path] = request.Header.Get("traceparent")
 		writer.Header().Set("Content-Type", "application/json")
+		body := []byte(`[]`)
 		if request.URL.Path == "/auth/v1/user" {
-			_, _ = writer.Write([]byte(`{"id":"USER_ID"}`))
-			return
+			body = []byte(`{"id":"USER_ID"}`)
 		}
-		_, _ = writer.Write([]byte(`[]`))
+		if _, err := writer.Write(body); err != nil {
+			t.Errorf("writing the response body: %v", err)
+		}
 	}))
 	defer server.Close()
 

@@ -2,6 +2,10 @@
 # Static-analysis suite across every module. Run by CI and locally, identically.
 # Tool versions are checksum-pinned in the tool modules under tools/go; we build
 # those pinned tools once, then run the binaries against each module.
+#
+# The suite does not run the fieldalignment analyzer.
+# Struct fields are ordered for readers, in source and on pkg.go.dev, not for size.
+# A struct is reordered for size only when its size is shown to matter.
 set -euo pipefail
 
 source "$(dirname "$0")/common.sh"
@@ -23,6 +27,8 @@ trap 'rm -rf "${toolbin}"' EXIT
     honnef.co/go/tools/cmd/staticcheck \
     github.com/kisielk/errcheck \
     github.com/mgechev/revive \
+    golang.org/x/tools/go/analysis/passes/shadow/cmd/shadow \
+    golang.org/x/tools/go/analysis/passes/reflectvaluecompare/cmd/reflectvaluecompare \
     ./sdkchecker
 )
 # gopls builds from its own tool module, which holds golang.org/x/tools at the
@@ -52,7 +58,9 @@ for module in ${workspace_modules}; do
     fi
     go vet ./...
     "${toolbin}/staticcheck" ./...
-    "${toolbin}/errcheck" ./...
+    "${toolbin}/errcheck" -blank ./...
+    "${toolbin}/shadow" ./...
+    "${toolbin}/reflectvaluecompare" ./...
     "${toolbin}/revive" -config "${revive_config}" -set_exit_status ./...
     # sdkchecker's analyzers apply to the published modules' non-test files.
     "${toolbin}/sdkchecker" -test=false ./...
@@ -77,7 +85,9 @@ for module in $(enumerate_adjacent_test_modules) $(enumerate_example_modules); d
     fi
     GOWORK=off go vet ./...
     GOWORK=off "${toolbin}/staticcheck" ./...
-    GOWORK=off "${toolbin}/errcheck" ./...
+    GOWORK=off "${toolbin}/errcheck" -blank ./...
+    GOWORK=off "${toolbin}/shadow" ./...
+    GOWORK=off "${toolbin}/reflectvaluecompare" ./...
     "${toolbin}/revive" -config "${revive_config}" -set_exit_status ./...
   )
 done
@@ -96,10 +106,11 @@ done
 # Like gofumpt above, gopls check reports findings without failing - it always
 # exits zero - so fail on any output. The simplifier and unused-symbol
 # analyzers (infertypeargs among them) report at information severity, below
-# check's default warning-severity cutoff, so -severity=info is required to
-# fail on everything an editor's problems panel shows.
+# check's default warning-severity cutoff, and the modernizers and quick fixes
+# report at hint severity, below that, so -severity=hint is required to fail on
+# everything gopls reports in an editor.
 echo "==> workspace-wide gopls check"
-diagnostics="$(find . \( -path './.*' -o -name node_modules -o -name user.transient \) -prune -o -name '*.go' -print0 | xargs -0 "${toolbin}/gopls" check -severity=info)"
+diagnostics="$(find . \( -path './.*' -o -name node_modules -o -name user.transient \) -prune -o -name '*.go' -print0 | xargs -0 "${toolbin}/gopls" check -severity=hint)"
 if [ -n "${diagnostics}" ]; then
   echo "gopls check found:"
   echo "${diagnostics}"

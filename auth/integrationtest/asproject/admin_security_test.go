@@ -36,15 +36,17 @@ func enrollTOTPFactor(t *testing.T, projectURL, apiKey, accessToken, friendlyNam
 	if err != nil {
 		t.Fatalf("enrolling TOTP factor: %v", err)
 	}
-	defer func() { _ = response.Body.Close() }()
+	body, err := io.ReadAll(response.Body)
+	if err = errors.Join(err, response.Body.Close()); err != nil {
+		t.Fatalf("reading the enroll response body: %v", err)
+	}
 	if response.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(response.Body)
 		t.Fatalf("enrolling TOTP factor: HTTP %d: %s - is auth.mfa.totp enabled in config.toml?", response.StatusCode, body)
 	}
 	var factor struct {
 		ID string `json:"id"`
 	}
-	if err := json.NewDecoder(response.Body).Decode(&factor); err != nil {
+	if err := json.Unmarshal(body, &factor); err != nil {
 		t.Fatalf("decoding enroll response: %v", err)
 	}
 	if factor.ID == "" {
@@ -191,7 +193,7 @@ func TestAdminMFAFactors(t *testing.T) {
 		t.Errorf("FriendlyName = %q, want the rename to have held", untouched.FriendlyName())
 	}
 
-	if _, err := admin.DeleteMFAFactor(t.Context(), user.ID, factorID); err != nil {
+	if _, err = admin.DeleteMFAFactor(t.Context(), user.ID, factorID); err != nil {
 		t.Fatalf("DeleteMFAFactor: %v", err)
 	}
 	afterDelete, err := admin.ListMFAFactors(t.Context(), user.ID)

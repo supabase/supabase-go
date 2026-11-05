@@ -297,7 +297,7 @@ func parseListUsersResult(body []byte, header http.Header) (*ListUsersResult, er
 // header, whose shape is <url>; rel="next", <url>; rel="last". It reports
 // false when the header holds no such rel or no readable page number.
 func pageLink(header http.Header, rel string) (int, bool) {
-	for _, link := range strings.Split(header.Get("Link"), ",") {
+	for link := range strings.SplitSeq(header.Get("Link"), ",") {
 		target, parameters, found := strings.Cut(link, ";")
 		if !found || !strings.Contains(parameters, `rel="`+rel+`"`) {
 			continue

@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -35,11 +36,19 @@ type instrument struct {
 }
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+// run queries the seeded instruments inside a span of its own, exporting the
+// spans to stdout.
+func run() (err error) {
 	projectURL := os.Getenv("SUPABASE_URL")
 	publishableKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
 	if projectURL == "" || publishableKey == "" {
-		fmt.Fprintln(os.Stderr, "SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set - run via scripts/integration-test.sh")
-		os.Exit(1)
+		return errors.New("SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set - run via scripts/integration-test.sh")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -51,11 +60,16 @@ func main() {
 	// propagator is a no-op).
 	exporter, err := stdouttrace.New()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "stdouttrace.New:", err)
-		os.Exit(1)
+		return fmt.Errorf("stdouttrace.New: %w", err)
 	}
 	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter))
-	defer func() { _ = tracerProvider.Shutdown(ctx) }()
+	// Shutdown exports the batched spans. Deferred, it runs on every path out
+	// of run, a panic included, and its failure joins the error run returns.
+	defer func() {
+		if shutdownErr := tracerProvider.Shutdown(ctx); shutdownErr != nil {
+			err = errors.Join(err, fmt.Errorf("shutting down the tracer provider: %w", shutdownErr))
+		}
+	}()
 	otel.SetTracerProvider(tracerProvider)
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 
@@ -65,8 +79,7 @@ func main() {
 	client, err := supabase.New(projectURL, publishableKey,
 		configuration.WithHTTPClient(&http.Client{Transport: otelhttp.NewTransport(nil)}))
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "supabase.New:", err)
-		os.Exit(1)
+		return fmt.Errorf("supabase.New: %w", err)
 	}
 
 	// In an application the active span usually exists already, opened by
@@ -81,10 +94,10 @@ func main() {
 		postgrest.From[instrument]("instruments").Select("id, name"))
 	span.End()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Collect:", err)
-		os.Exit(1)
+		return fmt.Errorf("postgrest.Collect: %w", err)
 	}
 
 	fmt.Fprintf(os.Stderr, "queried %d instruments inside trace %s\n",
 		len(instruments), span.SpanContext().TraceID())
+	return nil
 }
