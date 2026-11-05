@@ -141,7 +141,7 @@ func (c *Client) GetClaims(ctx context.Context, jwt string) (*GetClaimsResult, e
 	// or absent alg) or one without a key id - is verified by the Auth server,
 	// which trusts the returned claims only when it answers 200.
 	if !key.Supported(header.Algorithm()) || header.KeyID() == "" {
-		if _, err := c.GetUser(ctx, jwt); err != nil {
+		if _, err = c.GetUser(ctx, jwt); err != nil {
 			return nil, err
 		}
 		return &GetClaimsResult{claims: &Claims{inner: claims}, header: header, signature: decoded.Signature()}, nil

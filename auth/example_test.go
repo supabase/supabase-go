@@ -325,17 +325,17 @@ func ExampleClient_SessionFromStore() {
 	case err == nil:
 		session = restored.Session()
 	case errors.Is(err, auth.ErrNoStoredSession), errors.Is(err, auth.ErrSessionExpired):
-		signedIn, err := client.SignInWithPassword(ctx, auth.PasswordCredentials{
+		signedIn, signInErr := client.SignInWithPassword(ctx, auth.PasswordCredentials{
 			Email:    os.Getenv("EXAMPLE_EMAIL"),
 			Password: os.Getenv("EXAMPLE_PASSWORD"),
 		})
-		if err != nil {
-			fmt.Println(err)
+		if signInErr != nil {
+			fmt.Println(signInErr)
 			return
 		}
 		session = signedIn.Session()
-		if err := session.Persist(ctx, store); err != nil {
-			fmt.Println(err)
+		if persistErr := session.Persist(ctx, store); persistErr != nil {
+			fmt.Println(persistErr)
 			return
 		}
 	default:

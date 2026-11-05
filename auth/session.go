@@ -372,9 +372,9 @@ func (c *Client) SessionFromTokens(ctx context.Context, accessToken, refreshToke
 
 	var state session.State
 	if expiresAt := claims.ExpiresAt(); expiresAt.After(c.now()) {
-		user, err := send(ctx, c.httpClient, http.MethodGet, c.baseURL.JoinPath("user"), nil, accessToken)
-		if err != nil {
-			return nil, err
+		user, userErr := send(ctx, c.httpClient, http.MethodGet, c.baseURL.JoinPath("user"), nil, accessToken)
+		if userErr != nil {
+			return nil, userErr
 		}
 		state, err = session.NewState(accessToken, refreshToken, expiresAt, user)
 		if err != nil {

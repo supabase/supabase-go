@@ -82,7 +82,7 @@ func TestAdminUserLifecycle(t *testing.T) {
 		t.Errorf("Identities = %d entries, want one email identity carrying %q", len(identities), email)
 	}
 
-	if _, err := admin.DeleteUser(t.Context(), created.ID()); err != nil {
+	if _, err = admin.DeleteUser(t.Context(), created.ID()); err != nil {
 		t.Fatalf("DeleteUser: %v", err)
 	}
 
@@ -118,7 +118,7 @@ func TestAdminSoftDeleteUser(t *testing.T) {
 		t.Fatalf("DeletedAt = %v on the created user, want the zero time", created.DeletedAt())
 	}
 
-	if _, err := admin.DeleteUser(t.Context(), created.ID(), userdelete.WithSoftDelete()); err != nil {
+	if _, err = admin.DeleteUser(t.Context(), created.ID(), userdelete.WithSoftDelete()); err != nil {
 		t.Fatalf("DeleteUser(WithSoftDelete): %v", err)
 	}
 
@@ -134,7 +134,7 @@ func TestAdminSoftDeleteUser(t *testing.T) {
 		t.Errorf("Email = %q, want it obfuscated away from the created address", deactivated.Email())
 	}
 
-	if _, err := admin.DeleteUser(t.Context(), created.ID(), userdelete.WithSoftDelete()); err != nil {
+	if _, err = admin.DeleteUser(t.Context(), created.ID(), userdelete.WithSoftDelete()); err != nil {
 		t.Errorf("repeat soft delete = %v, want success", err)
 	}
 	unchangedResult, err := admin.GetUser(t.Context(), created.ID())
@@ -149,7 +149,7 @@ func TestAdminSoftDeleteUser(t *testing.T) {
 		t.Errorf("Email = %q after the repeat, want %q unchanged", unchanged.Email(), deactivated.Email())
 	}
 
-	if _, err := admin.DeleteUser(t.Context(), created.ID()); err != nil {
+	if _, err = admin.DeleteUser(t.Context(), created.ID()); err != nil {
 		t.Fatalf("DeleteUser after soft delete: %v", err)
 	}
 	_, err = admin.GetUser(t.Context(), created.ID())

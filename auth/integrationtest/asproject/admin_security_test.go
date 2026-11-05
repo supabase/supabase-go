@@ -191,7 +191,7 @@ func TestAdminMFAFactors(t *testing.T) {
 		t.Errorf("FriendlyName = %q, want the rename to have held", untouched.FriendlyName())
 	}
 
-	if _, err := admin.DeleteMFAFactor(t.Context(), user.ID, factorID); err != nil {
+	if _, err = admin.DeleteMFAFactor(t.Context(), user.ID, factorID); err != nil {
 		t.Fatalf("DeleteMFAFactor: %v", err)
 	}
 	afterDelete, err := admin.ListMFAFactors(t.Context(), user.ID)

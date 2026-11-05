@@ -138,15 +138,17 @@ func TestSessionFromTokens(t *testing.T) {
 	if session.RefreshToken() != user.RefreshToken {
 		t.Errorf("RefreshToken() = %q, want the adopted %q", session.RefreshToken(), user.RefreshToken)
 	}
-	if accessToken, err := session.AccessToken(t.Context()); err != nil || accessToken != user.AccessToken {
-		t.Errorf("AccessToken() = (%q, %v), want the adopted token, unexpired and so not refreshed", accessToken, err)
+	adoptedAccessToken, err := session.AccessToken(t.Context())
+	if err != nil || adoptedAccessToken != user.AccessToken {
+		t.Errorf("AccessToken() = (%q, %v), want the adopted token, unexpired and so not refreshed", adoptedAccessToken, err)
 	}
 	adoptedClaims, err := client.GetClaims(t.Context(), user.AccessToken)
 	if err != nil {
 		t.Fatalf("GetClaims of the adopted token: %v", err)
 	}
 
-	if refreshed, err := session.Refresh(t.Context()); err != nil || refreshed == nil {
+	refreshed, err := session.Refresh(t.Context())
+	if err != nil || refreshed == nil {
 		t.Fatalf("Refresh = (%v, %v), want the empty result", refreshed, err)
 	}
 	rotatedAccessToken, err := session.AccessToken(t.Context())
@@ -220,13 +222,15 @@ func TestSignOutRevokes(t *testing.T) {
 		}
 		firstRefreshToken, secondRefreshToken := first.RefreshToken(), second.RefreshToken()
 
-		if result, err := second.SignOut(t.Context(), signout.WithOthersScope()); err != nil || result == nil {
-			t.Fatalf("SignOut with WithOthersScope = (%v, %v), want the empty result", result, err)
+		othersSignOut, err := second.SignOut(t.Context(), signout.WithOthersScope())
+		if err != nil || othersSignOut == nil {
+			t.Fatalf("SignOut with WithOthersScope = (%v, %v), want the empty result", othersSignOut, err)
 		}
 		assertRevoked(t, client, firstAccessToken)
 		assertHonored(t, client, secondAccessToken, user.ID)
-		if accessToken, err := second.AccessToken(t.Context()); err != nil || accessToken != secondAccessToken {
-			t.Errorf("the second session's AccessToken() = (%q, %v), want its own token unchanged", accessToken, err)
+		keptAccessToken, err := second.AccessToken(t.Context())
+		if err != nil || keptAccessToken != secondAccessToken {
+			t.Errorf("the second session's AccessToken() = (%q, %v), want its own token unchanged", keptAccessToken, err)
 		}
 
 		// The first Session learns of the revocation from its next refresh,
@@ -262,10 +266,11 @@ func TestSessionFromStoreRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AccessToken: %v", err)
 	}
-	if err := session.Persist(t.Context(), store); err != nil {
+	if err = session.Persist(t.Context(), store); err != nil {
 		t.Fatalf("Persist: %v", err)
 	}
-	if document, err := store.Load(t.Context()); err != nil || len(document) == 0 {
+	document, err := store.Load(t.Context())
+	if err != nil || len(document) == 0 {
 		t.Fatalf("the store after Persist holds %d bytes (%v), want the session", len(document), err)
 	}
 
@@ -277,12 +282,14 @@ func TestSessionFromStoreRoundTrip(t *testing.T) {
 	if restored.User().ID() != user.ID || restored.RefreshToken() != session.RefreshToken() {
 		t.Errorf("the restored session holds (%q, %q), want the persisted user and refresh token", restored.User().ID(), restored.RefreshToken())
 	}
-	if restoredAccessToken, err := restored.AccessToken(t.Context()); err != nil || restoredAccessToken != accessToken {
+	restoredAccessToken, err := restored.AccessToken(t.Context())
+	if err != nil || restoredAccessToken != accessToken {
 		t.Errorf("the restored AccessToken() = (%q, %v), want the persisted token", restoredAccessToken, err)
 	}
 
-	if result, err := restored.Refresh(t.Context()); err != nil || result == nil {
-		t.Fatalf("Refresh of the restored session = (%v, %v), want the empty result", result, err)
+	refreshed, err := restored.Refresh(t.Context())
+	if err != nil || refreshed == nil {
+		t.Fatalf("Refresh of the restored session = (%v, %v), want the empty result", refreshed, err)
 	}
 	reloaded, err := newAuthClient(t).SessionFromStore(t.Context(), store)
 	if err != nil {

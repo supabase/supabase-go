@@ -7,6 +7,7 @@ tool (
 	github.com/kisielk/errcheck
 	github.com/mgechev/revive
 	golang.org/x/exp/cmd/apidiff
+	golang.org/x/tools/go/analysis/passes/shadow/cmd/shadow
 	golang.org/x/vuln/cmd/govulncheck
 	honnef.co/go/tools/cmd/staticcheck
 	mvdan.cc/gofumpt
