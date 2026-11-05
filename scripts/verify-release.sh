@@ -10,9 +10,12 @@
 #
 # Usage: scripts/verify-release.sh [<landing-commit>]
 #
-# Keep the hash lines: a later scripts/seed-module-proxy.sh run for the same
-# release must print them byte for byte, proving the public module proxy
-# serves what GitHub serves.
+# The hash lines are printed and recorded in .verify-release-hashes.txt at
+# the repository root (git-ignored): a later scripts/seed-module-proxy.sh
+# run for the same release must reproduce them byte for byte, proving the
+# public module proxy serves what GitHub serves, and scripts/seed-release.sh
+# compares the two scripts' records. An earlier run's record is removed
+# first, so a record that exists afterwards is this run's.
 #
 # The downloads go direct (GOPROXY=direct) with GOPRIVATE covering the
 # modules, so neither proxy.golang.org nor sum.golang.org is contacted:
@@ -27,6 +30,9 @@ set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
 echo "Verify Release..."
+
+hashes_record="$(hash_record_path verify-release)"
+rm -f "${hashes_record}"
 
 commit_sha="$(resolve_release_commit "${1:-}")"
 released="$(released_versions_at "${commit_sha}")"
@@ -62,6 +68,6 @@ done <<< "${released}"
 echo ""
 echo "Content hashes as served by GitHub, which scripts/seed-module-proxy.sh must reproduce:"
 echo ""
-module_hash_lines "${scratch}"/*.json
+module_hash_lines "${scratch}"/*.json | tee "${hashes_record}"
 echo ""
-echo "✅ Verified ${count} module release(s) at ${commit_sha}. Nothing was seeded."
+echo "✅ Verified ${count} module release(s) at ${commit_sha}. Nothing was seeded. Hash lines recorded in ${hashes_record##*/}."

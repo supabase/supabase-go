@@ -11,7 +11,11 @@
 # sum.golang.org checksum database and leads pkg.go.dev to build the
 # documentation pages minutes later. Run scripts/verify-release.sh first: its
 # hash lines and this script's must match byte for byte, or the proxy is
-# serving different content than GitHub does.
+# serving different content than GitHub does. The hash lines are printed and
+# recorded in .seed-module-proxy-hashes.txt at the repository root
+# (git-ignored), beside verify-release's record, for scripts/seed-release.sh
+# or a diff by hand to compare. An earlier run's record is removed first, so
+# a record that exists afterwards is this run's.
 #
 # GOPROXY is pinned to proxy.golang.org with no direct fallback, so success
 # proves the proxy itself serves every version, and the checksum database
@@ -21,12 +25,17 @@
 # sidestep the proxy. Requires the repository to be public - a release cut
 # while it was private is seeded the day it goes public, by passing that
 # release's landing commit. Safe to re-run: the proxy answers from its
-# immutable cache.
+# immutable cache. It answers 404 for a freshly tagged version until its view
+# of the repository catches up, a wait scripts/seed-release.sh sits through
+# by running this script again a minute apart.
 set -euo pipefail
 
 source "$(dirname "$0")/common.sh"
 
 echo "Seed Module Proxy..."
+
+hashes_record="$(hash_record_path seed-module-proxy)"
+rm -f "${hashes_record}"
 
 commit_sha="$(resolve_release_commit "${1:-}")"
 released="$(released_versions_at "${commit_sha}")"
@@ -58,6 +67,6 @@ done <<< "${released}"
 echo ""
 echo "Content hashes as served by the proxy, which must match scripts/verify-release.sh's:"
 echo ""
-module_hash_lines "${scratch}"/*.json
+module_hash_lines "${scratch}"/*.json | tee "${hashes_record}"
 echo ""
-echo "✅ Seeded ${count} module release(s) at ${commit_sha} into the public module ecosystem."
+echo "✅ Seeded ${count} module release(s) at ${commit_sha} into the public module ecosystem. Hash lines recorded in ${hashes_record##*/}."
