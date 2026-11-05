@@ -1,0 +1,58 @@
+name: Seed Release
+
+# Dispatched by hand, and only by hand, once the release-tags workflow - which
+# runs on its own on every merge to main - has pushed a release's tags. The
+# job runs scripts/seed-release.sh exactly as an operator would locally: it
+# verifies the tagged content straight from GitHub, pulls it through
+# proxy.golang.org - trying again a minute apart for up to two hours while
+# the proxy's view of the repository catches up with the tags - and fails
+# unless the proxy serves exactly what GitHub serves. A runner rather than a
+# laptop sits through the wait, and the run's summary page reports the
+# outcome, the proxy's timing and the hash lines. Safe to dispatch again at
+# any time: an already seeded release is served from the proxy's immutable
+# cache. See RELEASING.md.
+on:
+  workflow_dispatch:
+    inputs:
+      landing-commit:
+        description: The release PR's landing commit, needed only when main has moved on since the merge. Empty seeds the tip of the chosen branch as it is now.
+
+# One seeding at a time: a second dispatch waits for the first to end. The
+# group name is this workflow's alone, since groups are repository-wide and
+# sharing one with release-tags would let any push to main cancel a pending
+# seeding.
+concurrency:
+  group: seed-release
+
+permissions:
+  contents: read
+
+jobs:
+  seed-release:
+
+    # Versioned runner label rather than the ubuntu-latest alias, as in
+    # ci.yml: bumped deliberately, like every other pin (see decisions.md).
+    runs-on: ubuntu-26.04
+    steps:
+      # The checkout is the dispatched commit, the tip of the chosen branch
+      # as it was at dispatch, so the scripts that run are the current ones.
+      # The full history lets the script resolve any landing commit named in
+      # the input, including one that predates the scripts.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # The scripts read go.work and download through the go tool (jq is
+      # part of the runner image). Seeding is our own environment, so it
+      # tracks stable.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: false
+
+      # The input reaches the shell through an environment variable rather
+      # than an expression in the command, as GitHub's script-injection
+      # guidance asks. Empty means HEAD to the script.
+      - run: ./scripts/seed-release.sh "${LANDING_COMMIT}"
+        env:
+          LANDING_COMMIT: ${{ inputs.landing-commit }}
