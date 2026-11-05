@@ -42,4 +42,6 @@ Therefore we aim to write our changelog entries so that they can be parsed by hu
 
 Entries sit under the type headings Keep a Changelog defines (`### Added`, `### Changed`, `### Fixed` and family) inside their release or unreleased section. Each entry will usually take the form of a lead line naming the consumer-visible surface, followed by terse bullets naming the exported identifiers that were added, changed or removed.
 
+Choose the heading from the consumer's side, not the author's. Behavior that departed from a spec or a documented contract was a bug, even when it was built that way on purpose, so bringing it into line is `### Fixed`, and the lead line says so plainly: it aligns our implementation with the spec. Link the spec at the exact commit it was aligned to, never a branch, because specs move.
+
 Anything a reader can discover from the identifiers themselves - signatures, field lists, wire behavior, the content of doc comments - should stay out of the entry. The reader is a consumer deciding whether and how to upgrade, not a reviewer of the work.

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/supabase/supabase-go/auth/internal/backoff"
 	"github.com/supabase/supabase-go/auth/internal/scopes"
 	"github.com/supabase/supabase-go/auth/internal/session"
 	"github.com/supabase/supabase-go/auth/internal/token"
@@ -15,8 +17,9 @@ import (
 	"github.com/supabase/supabase-go/core/configuration"
 )
 
-// expiryMargin is the time left on an access token below which
-// [Session.AccessToken] refreshes it before answering.
+// expiryMargin is the time left on an access token at or below which
+// [Session.AccessToken] refreshes it before answering, and a session whose
+// refresh the server has rejected ends.
 const expiryMargin = 30 * time.Second
 
 // Session is one signed-in user's live session with the Auth server: the
@@ -33,10 +36,18 @@ const expiryMargin = 30 * time.Second
 // [Session.Refresh], with at most one refresh in flight at a time whose
 // result concurrent callers share. A caller's context bounds its own wait
 // alone, so a caller that gives up fails no other. A refresh the server
-// answers with a 4xx status other than 429 rejects the refresh token for
-// good, and the session ends once its access token expires. Any other
-// failure, in transport or a 5xx or 429 answer, leaves the session as it
-// was.
+// answers with a 400 whose code is refresh_token_not_found,
+// refresh_token_already_used, session_not_found, session_expired,
+// user_banned or validation_failed rejects the refresh token for good: no
+// later refresh of the session sends it again, and the session ends once
+// thirty seconds or less of its access token remain. A refresh that gets no
+// answer, or a 5xx, 408, 409 or 429 answer, is retried with the same token:
+// the first retry waits 200 milliseconds and each later one twice as long,
+// to at most thirty seconds, every wait varied by up to a quarter either way
+// and lengthened to a Retry-After header's wait when that is longer, and the
+// retry after the first wait of thirty seconds is the last. The caller's
+// context ending ends the retries with its error. Any other failure leaves
+// the session as it was, with no retry.
 //
 // A session also ends when [Session.SignOut] ends it. An ended session holds
 // no credentials: every operation returns [ErrSignedOut], or
@@ -80,11 +91,12 @@ type SessionStore interface {
 }
 
 // AccessToken returns the current access token, refreshing the session first
-// when fewer than thirty seconds of the token remain and returning the token
-// while it is unexpired even when that refresh fails. Once the token has
-// expired, a failed refresh is returned as a transport error, an [*Error] or,
-// when the rejection ended the session, [ErrSessionExpired] wrapping the
-// [*Error]. The method value session.AccessToken is a
+// when thirty seconds or less of the token remain, as [Session] describes. A
+// refresh the server rejects ends the session, and [ErrSessionExpired] is
+// returned wrapping the [*Error]. Any other failed refresh returns the token
+// while it is unexpired, and the failure once it has expired: a transport
+// error or an [*Error]. A context that ends during the refresh returns its
+// error. The method value session.AccessToken is a
 // [configuration.AccessTokenProvider]. A refresh this call starts is written
 // to the session's store before it returns.
 func (s *Session) AccessToken(ctx context.Context) (string, error) {
@@ -132,12 +144,16 @@ func (s *Session) User() *User {
 }
 
 // Refresh renews the session now, however long its access token has left,
-// rotating both tokens and writing the renewed state to the session's store.
-// A failed refresh is returned as a transport error, an [*Error] or, when the
-// rejection ended the session because its access token had already expired,
-// [ErrSessionExpired] wrapping the [*Error]. A store that cannot be written
-// is reported as the wrapped error, after the session already holds the new
-// tokens.
+// rotating both tokens and writing the renewed state to the session's store,
+// and retrying as [Session] describes. A refresh the server rejects is
+// returned as the [*Error] while more than thirty seconds of the access
+// token remain, the session keeping its tokens, and as [ErrSessionExpired]
+// wrapping the [*Error] once they do not, the session having ended. A later
+// Refresh after a rejection sends nothing and answers the same way. Any
+// other failed refresh is returned as a transport error, an [*Error] or the
+// context's error when the retries were cut short. A store that cannot be
+// written is reported as the wrapped error, after the session already holds
+// the new tokens.
 func (s *Session) Refresh(ctx context.Context) (*RefreshResult, error) {
 	if s.inner == nil {
 		return nil, ErrSignedOut
@@ -165,18 +181,18 @@ type RefreshResult struct{}
 // counts as success under every scope, and session_not_found under
 // [signout.WithLocalScope] alone.
 //
-// An access token inside its expiry margin is refreshed first, and when that
-// refresh fails the token is sent as it is while unexpired. Under
-// [signout.WithLocalScope] the refresh is for the revocation alone, its
-// result kept nowhere, and an answer of refresh_token_not_found,
+// An access token with thirty seconds or less left is refreshed first. Under
+// [signout.WithLocalScope] the refresh is for the revocation alone, one
+// attempt whose result is kept nowhere: an answer of refresh_token_not_found,
 // session_not_found or session_expired counts as success, the session being
-// gone already. Under the other scopes the refresh is the session's own, as
-// before any request, and one the server rejects once the token has expired
-// ends the session without a request to revoke anything: as signed out for a
-// bare call, which returns the server's rejection, and as expired under
+// gone already, and any other failure sends the token as it is while
+// unexpired. Under the other scopes the refresh is the session's own, as
+// [Session] describes, retries included, and one the server rejects ends the
+// session without a request to revoke anything: as signed out for a bare
+// call, which returns the server's rejection, and as expired under
 // [signout.WithOthersScope], which returns [ErrSessionExpired] wrapping it.
-// Any other failed refresh of an expired token is returned with nothing
-// sent.
+// Any other failed refresh sends the token as it is while unexpired, and is
+// otherwise returned with nothing sent.
 //
 // A store that cannot be cleared is reported as the wrapped error, alongside
 // a failed revocation under [signout.WithLocalScope] or the rejection that
@@ -203,9 +219,8 @@ func (s *Session) SignOut(ctx context.Context, options ...signout.Option) (*Sign
 
 // signOutGlobally asks the server to revoke every session the user holds and
 // ends this one once it has. A session that had already ended counts as
-// signed out, and a refresh the server rejects once the access token has
-// expired ends it as signed out and reports the rejection, with a clear that
-// failed joined.
+// signed out, and a refresh the server rejects ends it as signed out and
+// reports the rejection, with a clear that failed joined.
 func (s *Session) signOutGlobally(ctx context.Context) (*SignOutResult, error) {
 	bearer, clearErr, err := s.inner.SignOutToken(ctx)
 	if err != nil {
@@ -234,8 +249,8 @@ func (s *Session) signOutGlobally(ctx context.Context) (*SignOutResult, error) {
 
 // revokeOthers asks the server to revoke every session the user holds but
 // this one, which the request leaves as it is. The access token is obtained
-// as for any request, so a refresh the server rejects once the token has
-// expired ends the session as expired before anything is sent.
+// as for any request, so a refresh the server rejects ends the session as
+// expired before anything is sent.
 func (s *Session) revokeOthers(ctx context.Context) (*SignOutResult, error) {
 	bearer, err := s.AccessToken(ctx)
 	if err != nil {
@@ -321,10 +336,11 @@ func (s *Session) Persist(ctx context.Context, store SessionStore) error {
 // SessionFromTokens adopts a session from an access token and refresh token
 // obtained elsewhere, such as a session another process signed in. An
 // unexpired access token is verified by the server, which also supplies the
-// user's profile. An expired one is refreshed, rotating both tokens. An
-// empty accessToken returns [ErrMissingJWT], one that is not a JWT returns
-// [ErrMalformedJWT], an empty refreshToken returns [ErrMissingRefreshToken]
-// and a rejected token surfaces as [*Error].
+// user's profile. An expired one is refreshed, retrying as [Session]
+// describes, rotating both tokens. An empty accessToken returns
+// [ErrMissingJWT], one that is not a JWT returns [ErrMalformedJWT], an empty
+// refreshToken returns [ErrMissingRefreshToken] and a rejected token surfaces
+// as [*Error].
 func (c *Client) SessionFromTokens(ctx context.Context, accessToken, refreshToken string) (*SessionFromTokensResult, error) {
 	if accessToken == "" {
 		return nil, ErrMissingJWT
@@ -352,7 +368,7 @@ func (c *Client) SessionFromTokens(ctx context.Context, accessToken, refreshToke
 			return nil, fmt.Errorf("auth: decoding user: %w", err)
 		}
 	} else {
-		state, err = c.refreshGrant(ctx, refreshToken)
+		state, err = c.refreshWithRetries(ctx, refreshToken)
 		if err != nil {
 			return nil, err
 		}
@@ -371,12 +387,14 @@ func (r *SessionFromTokensResult) Session() *Session { return r.session }
 // SessionFromStore restores the session a previous run persisted to store
 // with [Session.Persist], and keeps persisting to it. An unexpired access
 // token is adopted without a request, and an expired one is refreshed
-// first. It returns [ErrNoStoredSession] when the store holds nothing and
-// [ErrMissingStore] for a nil store. When the server rejects that refresh,
-// the store is cleared and [ErrSessionExpired] is returned wrapping the
-// rejection, and any other refresh failure, a transport error or an
-// [*Error], is returned with the store left as it was. A document the store
-// holds that Persist did not write is reported as the wrapped decode error.
+// first, retrying as [Session] describes. It returns [ErrNoStoredSession]
+// when the store holds nothing and [ErrMissingStore] for a nil store. When
+// the server rejects that refresh, the store is cleared and
+// [ErrSessionExpired] is returned wrapping the rejection, and any other
+// refresh failure, a transport error, an [*Error] or the context's error
+// when the retries were cut short, is returned with the store left as it
+// was. A document the store holds that Persist did not write is reported as
+// the wrapped decode error.
 func (c *Client) SessionFromStore(ctx context.Context, store SessionStore) (*SessionFromStoreResult, error) {
 	if store == nil {
 		return nil, ErrMissingStore
@@ -414,16 +432,41 @@ func (r *SessionFromStoreResult) Session() *Session { return r.session }
 // client and persists to store, when one is given, from the start.
 func (c *Client) newSession(state session.State, store SessionStore) *Session {
 	return &Session{client: c, inner: session.New(state, session.Options{
-		Refresh:      c.refreshGrant,
-		Definitive:   definitiveRejection,
+		Refresh:      c.refreshWithRetries,
+		Definitive:   rejectedRefresh,
 		ExpiryMargin: expiryMargin,
 		Now:          c.now,
 		Store:        store,
 	})}
 }
 
-// refreshGrant exchanges refreshToken for a renewed session state through the
-// token endpoint's refresh_token grant.
+// refreshWithRetries exchanges refreshToken for a renewed session state,
+// repeating the refresh grant through the schedule [Session] describes while
+// the server fails to judge the token, and ending the sequence with ctx's
+// error when ctx ends during a wait. It is the refresh a [Session] renews
+// through and the one [Client.SessionFromTokens] runs on an expired access
+// token.
+func (c *Client) refreshWithRetries(ctx context.Context, refreshToken string) (session.State, error) {
+	reached := false
+	for attempt := 0; ; attempt++ {
+		state, err := c.refreshGrant(ctx, refreshToken)
+		if err == nil {
+			return state, nil
+		}
+		retryAfter, retryable := retryableRefresh(err)
+		if !retryable || reached {
+			return session.State{}, err
+		}
+		var wait time.Duration
+		wait, reached = backoff.Wait(attempt, retryAfter, rand.Float64())
+		if err := backoff.Sleep(ctx, wait); err != nil {
+			return session.State{}, err
+		}
+	}
+}
+
+// refreshGrant exchanges refreshToken for a renewed session state through one
+// request to the token endpoint's refresh_token grant.
 func (c *Client) refreshGrant(ctx context.Context, refreshToken string) (session.State, error) {
 	endpoint := c.baseURL.JoinPath("token")
 	endpoint.RawQuery = url.Values{"grant_type": {"refresh_token"}}.Encode()
@@ -447,17 +490,39 @@ func parseTokenResponse(body []byte) (session.State, error) {
 	return state, nil
 }
 
-// definitiveRejection reports whether a refresh failure is one the server
-// repeats for the same refresh token, a 4xx answer other than 429, as
-// opposed to a transport failure, a 5xx answer or a 429, which a later
-// attempt may cure.
-func definitiveRejection(err error) bool {
+// rejectedRefresh reports whether a refresh failure is the server's rejection
+// of the refresh token, which it repeats for the same token: a 400 answer
+// whose code is one of the six it refuses a token with.
+func rejectedRefresh(err error) bool {
 	var serverError *Error
-	if !errors.As(err, &serverError) {
+	if !errors.As(err, &serverError) || serverError.HTTPStatus != http.StatusBadRequest {
 		return false
 	}
-	status := serverError.HTTPStatus
-	return status >= 400 && status < 500 && status != http.StatusTooManyRequests
+	switch serverError.Code {
+	case "refresh_token_not_found", "refresh_token_already_used", "session_not_found", "session_expired", "user_banned", "validation_failed":
+		return true
+	}
+	return false
+}
+
+// retryableRefresh reports whether a refresh failure is one the server did
+// not judge the refresh token on, which a repeat may cure: a request that got
+// no answer, or a 5xx, 408, 409 or 429 answer. With it comes the wait the
+// answer's Retry-After header asked for, zero when it stated none.
+func retryableRefresh(err error) (retryAfter time.Duration, ok bool) {
+	var noAnswer *transportError
+	if errors.As(err, &noAnswer) {
+		return 0, true
+	}
+	var serverError *Error
+	if !errors.As(err, &serverError) {
+		return 0, false
+	}
+	switch status := serverError.HTTPStatus; {
+	case status >= 500, status == http.StatusRequestTimeout, status == http.StatusConflict, status == http.StatusTooManyRequests:
+		return serverError.retryAfter, true
+	}
+	return 0, false
 }
 
 // nothingLeftToRevoke reports whether a revocation's failure says the server

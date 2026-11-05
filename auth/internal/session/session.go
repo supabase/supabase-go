@@ -26,13 +26,18 @@ type Store interface {
 	Delete(ctx context.Context) error
 }
 
-// RefreshFunc exchanges refreshToken for a renewed State.
+// RefreshFunc exchanges refreshToken for a renewed State. A [Session] calls
+// it once per refresh in flight, from the goroutine of the caller that
+// started the flight and with that caller's context, and shares its result
+// with every caller waiting on the flight, so a RefreshFunc that retries
+// shares its whole sequence.
 type RefreshFunc func(ctx context.Context, refreshToken string) (State, error)
 
 // Options configures a [Session]. Refresh, Definitive and Now are required,
-// ExpiryMargin is the time left on an access token below which [Session.Token]
-// refreshes first, and Store, when set, is the store the session persists to
-// from the start without a first write.
+// ExpiryMargin is the time left on an access token at or below which
+// [Session.Token] refreshes first and a rejected session ends, and Store,
+// when set, is the store the session persists to from the start without a
+// first write.
 type Options struct {
 	Refresh      RefreshFunc
 	Definitive   func(error) bool
@@ -163,14 +168,14 @@ func (s *Session) State() State {
 
 // Token returns the access token when more than the expiry margin remains
 // before it expires, and otherwise refreshes first, joining a refresh already
-// in flight. A refresh the server rejects definitively marks the session
-// rejected: the access token is returned while it is unexpired and the session
-// ends as [Expired] once it is not. A refresh that fails transiently leaves the
-// session as it was, and the access token is returned if it is unexpired and
-// the failure otherwise. The store write a refresh or an ending causes is
-// performed before Token returns, and its failure is returned to no caller.
-// Token returns an [*EndedError] once the session has ended and ctx's error
-// when ctx ends while waiting on a refresh.
+// in flight. A refresh the server rejects definitively ends the session as
+// [Expired], as does a rejection remembered from an earlier refresh, without
+// a request. A refresh that fails otherwise leaves the session as it was, and
+// the access token is returned if it is unexpired and the failure otherwise.
+// The store write a refresh or an ending causes is performed before Token
+// returns, and its failure is returned to no caller. Token returns an
+// [*EndedError] once the session has ended and ctx's error when ctx ends
+// while waiting on a refresh.
 func (s *Session) Token(ctx context.Context) (string, error) {
 	token, _, err := s.tokenEnding(ctx, Expired)
 	return token, s.endedOr(err)
@@ -178,33 +183,29 @@ func (s *Session) Token(ctx context.Context) (string, error) {
 
 // SignOutToken returns the access token for the request that signs the
 // session out everywhere, as [Session.Token] does, except in what a
-// definitive rejection of an expired access token does: the session ends as
-// [SignedOut] rather than [Expired], and the rejection is returned as it is
-// rather than as the [*EndedError] it caused. clearErr is the failure of the
-// clear that ending caused, when this call performed it. A session that had
-// already ended returns its [*EndedError].
+// definitive rejection does: the session ends as [SignedOut] rather than
+// [Expired], and the rejection is returned as it is rather than as the
+// [*EndedError] it caused. clearErr is the failure of the clear that ending
+// caused, when this call performed it. A session that had already ended
+// returns its [*EndedError].
 func (s *Session) SignOutToken(ctx context.Context) (token string, clearErr, err error) {
 	return s.tokenEnding(ctx, SignedOut)
 }
 
 // tokenEnding is [Session.Token] with ending the status a definitive
-// rejection of an expired access token ends the session with, that
-// rejection returned as it is, and clearErr the failure of the clear this
-// call performed for that ending.
+// rejection ends the session with, that rejection returned as it is, and
+// clearErr the failure of the clear this call performed for that ending.
 func (s *Session) tokenEnding(ctx context.Context, ending Status) (token string, clearErr, err error) {
 	var clearing write
 	var endingNow, refresh bool
 	s.locked(func() {
-		now := s.now()
 		switch {
 		case s.status != Live:
 			err = s.endedErrorLocked()
-		case s.state.expiresAt.Sub(now) > s.expiryMargin:
+		case s.state.expiresAt.Sub(s.now()) > s.expiryMargin:
 			token = s.state.accessToken
 		case !s.rejected:
 			refresh = true
-		case now.Before(s.state.expiresAt):
-			token = s.state.accessToken
 		default:
 			clearing, endingNow = s.endLocked(ending, s.rejection), true
 			err = s.rejection
@@ -262,8 +263,11 @@ func (s *Session) endedOr(err error) error {
 // returns the refresh failure as the [RefreshFunc] reported it, a
 // [*WriteError] when the renewed state was committed but its store write
 // failed and an [*EndedError] once the session has ended, including when this
-// call's definitive rejection ended it. The failure of the clear an ending
-// causes is returned to no caller.
+// call's definitive rejection ended it. A definitive rejection is remembered:
+// the session keeps its tokens while more than the expiry margin remains on
+// the access token and ends as [Expired] once it does not, and a later
+// Refresh returns the remembered rejection without a request. The failure of
+// the clear an ending causes is returned to no caller.
 func (s *Session) Refresh(ctx context.Context) error {
 	writeErr, err := s.renew(ctx, Expired)
 	switch {
@@ -286,19 +290,25 @@ func (s *Session) Refresh(ctx context.Context) error {
 // on up the starter's stack. The caller that starts a refresh commits its
 // result only if the session's generation is unchanged when it returns, and
 // it alone writes the store, after releasing the waiters. A definitive
-// rejection of an access token that has expired ends the session, with
-// status ending or [SignedOut] once any caller waiting on the refresh asked
-// for it and the rejection as cause, and is returned as it is.
+// rejection is remembered and returned as it is, and a remembered rejection
+// is returned without a refresh. Either ends the session once the access
+// token is inside the expiry margin, with status ending or [SignedOut] once
+// any caller waiting on the refresh asked for it and the rejection as cause.
 func (s *Session) renew(ctx context.Context, ending Status) (writeErr, err error) {
 	var started *flight
 	var refreshToken string
 	var generation uint64
+	var pending write
+	var hasPending bool
 	for started == nil {
 		var joined *flight
 		s.locked(func() {
 			switch {
 			case s.status != Live:
 				err = s.endedErrorLocked()
+			case s.rejected:
+				err = s.rejection
+				pending, hasPending = s.rejectLocked(s.rejection, ending)
 			case s.inflight != nil:
 				joined = s.inflight
 				if ending == SignedOut {
@@ -312,7 +322,10 @@ func (s *Session) renew(ctx context.Context, ending Status) (writeErr, err error
 			}
 		})
 		if err != nil {
-			return nil, err
+			if hasPending {
+				writeErr = s.perform(ctx, pending)
+			}
+			return writeErr, err
 		}
 		if joined != nil {
 			select {
@@ -340,8 +353,6 @@ func (s *Session) renew(ctx context.Context, ending Status) (writeErr, err error
 
 	renewed, refreshErr := s.refresh(ctx, refreshToken)
 
-	var pending write
-	var hasPending bool
 	s.locked(func() {
 		s.inflight = nil
 		switch {
@@ -353,12 +364,8 @@ func (s *Session) renew(ctx context.Context, ending Status) (writeErr, err error
 			s.rejection = nil
 			pending, hasPending = s.capture(renewed.encode()), true
 		case s.definitive(refreshErr):
-			s.rejected = true
-			s.rejection = refreshErr
 			started.err = refreshErr
-			if !s.now().Before(s.state.expiresAt) {
-				pending, hasPending = s.endLocked(started.ending, refreshErr), true
-			}
+			pending, hasPending = s.rejectLocked(refreshErr, started.ending)
 		case ctx.Err() != nil:
 			started.abandoned = true
 			started.err = refreshErr
@@ -426,6 +433,19 @@ func (s *Session) End(ctx context.Context) (State, error) {
 		return State{}, endedErr
 	}
 	return held, s.perform(ctx, clearing)
+}
+
+// rejectLocked remembers rejection as the server's verdict on the refresh
+// token and, once the access token is inside the expiry margin, ends the
+// session with status and rejection as cause, returning the captured clear
+// of the store and true. It is called with mutex held.
+func (s *Session) rejectLocked(rejection error, status Status) (write, bool) {
+	s.rejected = true
+	s.rejection = rejection
+	if s.state.expiresAt.Sub(s.now()) > s.expiryMargin {
+		return write{}, false
+	}
+	return s.endLocked(status, rejection), true
 }
 
 // endLocked ends the session with status and cause, bumps the generation,

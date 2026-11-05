@@ -5,6 +5,16 @@ All notable changes to this module will be documented in this file.
 This module is one of a number of modules defined in a multi-module repository.
 Refer to [GitHub `../CHANGELOG.md`](https://github.com/supabase/supabase-go/blob/main/CHANGELOG.md) for further details on structure, format and sibling modules.
 
+## Unreleased
+
+### Fixed
+
+Aligns our implementation of `Session` refresh with the [cross-SDK refresh spec](https://github.com/supabase/sdk/blob/514799681e4303147b7a86fafaba71c67e2ef785/packages/capability-matrix/specs/auth/session/refresh_session.md):
+
+- `Session.Refresh` and `Session.AccessToken` retry a refresh the server did not judge
+- a refresh the server rejects ends the session once thirty seconds or less of its access token remain, with `ErrSessionExpired`
+- a rejected refresh token is not sent again
+
 ## `v0.1.0-alpha.3` (2026-11-05)
 
 ### Added

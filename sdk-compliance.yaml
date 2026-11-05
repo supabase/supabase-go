@@ -459,6 +459,13 @@ features:
       - auth.User.UserMetadata
   auth.session.refresh_session:
     status: implemented
+    note: |
+      A supplied refresh is auth.Client.SessionFromTokens with an expired
+      access token, and yields a session of its own rather than replacing
+      one, the client holding no session. The stored-session check after
+      the answer is an in-process guard, since no two sessions share a
+      store: a sign-out is the only change an answer can meet, and the
+      discarded answer reports ErrSignedOut.
     symbols:
       - auth.RefreshResult
       - auth.Session.Refresh

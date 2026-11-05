@@ -3,6 +3,7 @@ package auth_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -98,19 +99,27 @@ const sessionUserDocument = `{"id":"` + sessionUserID + `","aud":"authenticated"
 // the server's default access token lifetime when set, and a 200 answer to
 // the user endpoint with no body serves sessionUserDocument. When hold is
 // set, the response waits until it is closed, the request having been
-// recorded already.
+// recorded already. retryAfter, when set, is sent as the Retry-After header.
+// When fail is set, the connection is dropped without an answer, the
+// request having been recorded already.
 type answer struct {
-	status   int
-	body     string
-	lifetime time.Duration
-	hold     <-chan struct{}
+	status     int
+	body       string
+	lifetime   time.Duration
+	hold       <-chan struct{}
+	retryAfter string
+	fail       bool
 }
 
 // sessionServer stands in for the Auth server's session endpoints - the
 // token grants, the user resource and logout - minting signed tokens and
 // recording every request. Each endpoint answers from a script of answers
-// consumed in order, the last repeating.
+// consumed in order, the last repeating. It serves over a socket, or in the
+// caller's own goroutine when it has no socket, which is how it serves
+// inside a synctest bubble.
 type sessionServer struct {
+	mux      *http.ServeMux
+	baseURL  string
 	server   *httptest.Server
 	t        *testing.T
 	signer   testkit.Signer
@@ -122,12 +131,35 @@ type sessionServer struct {
 	scripts  map[string][]answer
 }
 
-// newSessionServer starts a server whose tokens live an hour, answering the
-// token and user endpoints with 200 and logout with 204 until a test replaces
-// their scripts.
+// newSessionServer starts a server over a socket whose tokens live an hour,
+// answering the token and user endpoints with 200 and logout with 204 until
+// a test replaces their scripts.
 func newSessionServer(t *testing.T) *sessionServer {
 	t.Helper()
+	server := newSessionHandlers(t)
+	server.server = httptest.NewServer(server.mux)
+	server.baseURL = server.server.URL
+	t.Cleanup(server.server.Close)
+	return server
+}
+
+// newInProcessSessionServer builds a server as newSessionServer does but
+// over no socket: its client serves each request in the goroutine that sends
+// it, so a test inside a synctest bubble runs against it on the bubble's
+// clock.
+func newInProcessSessionServer(t *testing.T) *sessionServer {
+	t.Helper()
+	server := newSessionHandlers(t)
+	server.baseURL = "http://auth.test"
+	return server
+}
+
+// newSessionHandlers builds the server's handlers and scripts without
+// serving them.
+func newSessionHandlers(t *testing.T) *sessionServer {
+	t.Helper()
 	server := &sessionServer{
+		mux:      http.NewServeMux(),
 		t:        t,
 		signer:   testkit.NewES256(t, "session-key"),
 		lifetime: time.Hour,
@@ -137,25 +169,51 @@ func newSessionServer(t *testing.T) *sessionServer {
 			logoutPath: {{status: http.StatusNoContent}},
 		},
 	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/auth/v1/.well-known/jwks.json", func(writer http.ResponseWriter, _ *http.Request) {
+	server.mux.HandleFunc("/auth/v1/.well-known/jwks.json", func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
 		_, _ = writer.Write(testkit.JWKSetDocument(t, server.signer))
 	})
-	mux.HandleFunc("/", server.handle)
-	server.server = httptest.NewServer(mux)
-	t.Cleanup(server.server.Close)
+	server.mux.HandleFunc("/", server.handle)
 	return server
 }
 
+// errConnectionDropped is the failure the in-process transport reports for an
+// answer that drops the connection.
+var errConnectionDropped = errors.New("connection dropped")
+
+// RoundTrip serves request through the server's handlers in the calling
+// goroutine, reporting errConnectionDropped for an answer that drops the
+// connection.
+func (s *sessionServer) RoundTrip(request *http.Request) (response *http.Response, err error) {
+	defer func() {
+		switch recovered := recover(); recovered {
+		case nil:
+		case http.ErrAbortHandler:
+			response, err = nil, errConnectionDropped
+		default:
+			panic(recovered)
+		}
+	}()
+	served := request.Clone(request.Context())
+	if served.Body == nil {
+		served.Body = http.NoBody
+	}
+	defer func() { _ = served.Body.Close() }()
+	recorder := httptest.NewRecorder()
+	s.mux.ServeHTTP(recorder, served)
+	return recorder.Result(), nil
+}
+
 // handle records the request, takes the next scripted answer for its path,
-// waits on the answer's hold and writes it.
+// waits on the answer's hold and writes it, or drops the connection when the
+// answer says to.
 func (s *sessionServer) handle(writer http.ResponseWriter, request *http.Request) {
 	requestBody, err := io.ReadAll(request.Body)
 	if err != nil {
 		s.t.Errorf("reading request body: %v", err)
 	}
 	next := s.record(recordedRequest{
+		at:            time.Now(),
 		method:        request.Method,
 		path:          request.URL.Path,
 		query:         request.URL.RawQuery,
@@ -165,12 +223,18 @@ func (s *sessionServer) handle(writer http.ResponseWriter, request *http.Request
 		authorization: request.Header.Get("Authorization"),
 		body:          requestBody,
 	})
+	if next.hold != nil {
+		<-next.hold
+	}
+	if next.fail {
+		panic(http.ErrAbortHandler)
+	}
 	if next.status == 0 {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
-	if next.hold != nil {
-		<-next.hold
+	if next.retryAfter != "" {
+		writer.Header().Set("Retry-After", next.retryAfter)
 	}
 
 	body := []byte(next.body)
@@ -318,10 +382,14 @@ func (s *sessionServer) awaitRequests(t *testing.T, path string, count int) {
 	}
 }
 
-// client builds an auth client wired to the server.
+// client builds an auth client wired to the server, through its socket or,
+// when it has none, through the server's own transport.
 func (s *sessionServer) client(t *testing.T, options ...configuration.Option) *auth.Client {
 	t.Helper()
-	client, err := auth.New(s.server.URL, "test-publishable-key", options...)
+	if s.server == nil {
+		options = append([]configuration.Option{configuration.WithHTTPClient(&http.Client{Transport: s})}, options...)
+	}
+	client, err := auth.New(s.baseURL, "test-publishable-key", options...)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
