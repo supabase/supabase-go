@@ -574,8 +574,7 @@ func TestCollectWrapsDecodeFailure(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "decoding response") {
 		t.Fatalf("want wrapped decoding failure, got %v", err)
 	}
-	var typedError *postgrest.Error
-	if errors.As(err, &typedError) {
+	if typedError, ok := errors.AsType[*postgrest.Error](err); ok {
 		t.Errorf("decode failure must not be an *Error: %v", typedError)
 	}
 	testkit.AssertNoResults(t, rows, response)

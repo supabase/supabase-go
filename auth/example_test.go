@@ -36,8 +36,7 @@ func ExampleClient_GetClaims() {
 		fmt.Println("token forged or corrupt - reject")
 	case err != nil:
 		// Server-side verification failed, or the key set could not be fetched.
-		var authError *auth.Error
-		if errors.As(err, &authError) {
+		if authError, ok := errors.AsType[*auth.Error](err); ok {
 			fmt.Println("auth server rejected the token:", authError.HTTPStatus)
 			return
 		}

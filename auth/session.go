@@ -237,8 +237,7 @@ func (s *Session) SignOut(ctx context.Context, options ...signout.Option) (*Sign
 func (s *Session) signOutGlobally(ctx context.Context) (*SignOutResult, error) {
 	bearer, clearErr, err := s.inner.SignOutToken(ctx)
 	if err != nil {
-		var ended *session.EndedError
-		if errors.As(err, &ended) {
+		if _, ok := errors.AsType[*session.EndedError](err); ok {
 			return &SignOutResult{}, nil
 		}
 		if clearErr != nil {
@@ -251,8 +250,7 @@ func (s *Session) signOutGlobally(ctx context.Context) (*SignOutResult, error) {
 		return nil, err
 	}
 	if _, err := s.inner.End(ctx); err != nil {
-		var ended *session.EndedError
-		if errors.As(err, &ended) {
+		if _, ok := errors.AsType[*session.EndedError](err); ok {
 			return &SignOutResult{}, nil
 		}
 		return nil, storeClearError(err)
@@ -281,8 +279,7 @@ func (s *Session) revokeOthers(ctx context.Context) (*SignOutResult, error) {
 // together, and a session that had already ended counts as signed out.
 func (s *Session) signOutLocally(ctx context.Context) (*SignOutResult, error) {
 	held, clearErr := s.inner.End(ctx)
-	var ended *session.EndedError
-	if errors.As(clearErr, &ended) {
+	if _, ok := errors.AsType[*session.EndedError](clearErr); ok {
 		return &SignOutResult{}, nil
 	}
 	revokeErr := s.revokeHeld(ctx, held)
@@ -337,8 +334,7 @@ func (s *Session) Persist(ctx context.Context, store SessionStore) error {
 		return ErrSignedOut
 	}
 	if err := s.inner.Persist(ctx, store); err != nil {
-		var ended *session.EndedError
-		if errors.As(err, &ended) {
+		if _, ok := errors.AsType[*session.EndedError](err); ok {
 			return sessionError(err)
 		}
 		return fmt.Errorf("auth: writing session store: %w", err)
@@ -523,8 +519,7 @@ func rejectedRefresh(err error) bool {
 // no answer, or a 5xx, 408, 409 or 429 answer. With it comes the wait the
 // answer's Retry-After header asked for, zero when it stated none.
 func retryableRefresh(err error) (retryAfter time.Duration, ok bool) {
-	var noAnswer *transportError
-	if errors.As(err, &noAnswer) {
+	if _, noAnswer := errors.AsType[*transportError](err); noAnswer {
 		return 0, true
 	}
 	var serverError *Error
@@ -576,15 +571,13 @@ func sessionGone(err error) bool {
 // server's rejection, a store write that failed after its state was
 // committed is wrapped and every other error is returned as it is.
 func sessionError(err error) error {
-	var ended *session.EndedError
-	if errors.As(err, &ended) {
+	if ended, ok := errors.AsType[*session.EndedError](err); ok {
 		if ended.Status == session.Expired {
 			return fmt.Errorf("%w: %w", ErrSessionExpired, ended.Cause)
 		}
 		return ErrSignedOut
 	}
-	var write *session.WriteError
-	if errors.As(err, &write) {
+	if write, ok := errors.AsType[*session.WriteError](err); ok {
 		return fmt.Errorf("auth: writing session store: %w", write.Err)
 	}
 	return err

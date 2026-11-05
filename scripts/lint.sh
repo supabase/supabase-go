@@ -99,10 +99,11 @@ done
 # Like gofumpt above, gopls check reports findings without failing - it always
 # exits zero - so fail on any output. The simplifier and unused-symbol
 # analyzers (infertypeargs among them) report at information severity, below
-# check's default warning-severity cutoff, so -severity=info is required to
-# fail on everything an editor's problems panel shows.
+# check's default warning-severity cutoff, and the modernizers and quick fixes
+# report at hint severity, below that, so -severity=hint is required to fail on
+# everything gopls reports in an editor.
 echo "==> workspace-wide gopls check"
-diagnostics="$(find . \( -path './.*' -o -name node_modules -o -name user.transient \) -prune -o -name '*.go' -print0 | xargs -0 "${toolbin}/gopls" check -severity=info)"
+diagnostics="$(find . \( -path './.*' -o -name node_modules -o -name user.transient \) -prune -o -name '*.go' -print0 | xargs -0 "${toolbin}/gopls" check -severity=hint)"
 if [ -n "${diagnostics}" ]; then
   echo "gopls check found:"
   echo "${diagnostics}"

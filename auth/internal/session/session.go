@@ -301,8 +301,7 @@ func (s *Session) tokenEnding(ctx context.Context, ending Status) (token string,
 	}
 
 	writeErr, err := s.renew(ctx, ending, s.expiryMargin)
-	var ended *EndedError
-	if errors.As(err, &ended) {
+	if _, ok := errors.AsType[*EndedError](err); ok {
 		return "", nil, err
 	}
 	if err != nil && ctx.Err() != nil {

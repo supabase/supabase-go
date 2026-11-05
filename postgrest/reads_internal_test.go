@@ -177,8 +177,7 @@ func TestCollectDoesNotRetryNonRetryableStatus(t *testing.T) {
 	client := newRetryTestClient(t, server.URL)
 
 	_, _, err := Collect(t.Context(), client, From[map[string]any]("instruments"))
-	var postgrestError *Error
-	if !errors.As(err, &postgrestError) {
+	if _, ok := errors.AsType[*Error](err); !ok {
 		t.Fatalf("want *Error in the chain, got %T: %v", err, err)
 	}
 	if got := len(*retryCounts); got != 1 {

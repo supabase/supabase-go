@@ -425,9 +425,7 @@ func TestWithAccessTokenProviderConcurrentDerivedClients(t *testing.T) {
 	var waitGroup sync.WaitGroup
 
 	for index := range workers {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
+		waitGroup.Go(func() {
 			token := fmt.Sprintf("token-%d", index)
 			userClient := base.WithAccessTokenProvider(constantToken(token))
 			rows, _, err := postgrest.Collect(ctx, userClient, postgrest.From[authorizationEcho]("instruments"))
@@ -442,13 +440,11 @@ func TestWithAccessTokenProviderConcurrentDerivedClients(t *testing.T) {
 			if got, want := rows[0].Authorization, "Bearer "+token; got != want {
 				t.Errorf("worker %d Authorization = %q, want %q", index, got, want)
 			}
-		}()
+		})
 	}
 
 	for range workers {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
+		waitGroup.Go(func() {
 			rows, _, err := postgrest.Collect(ctx, base, postgrest.From[authorizationEcho]("instruments"))
 			if err != nil {
 				t.Errorf("base client Collect: %v", err)
@@ -461,7 +457,7 @@ func TestWithAccessTokenProviderConcurrentDerivedClients(t *testing.T) {
 			if rows[0].Authorization != "" {
 				t.Errorf("base client sent Authorization %q, want none", rows[0].Authorization)
 			}
-		}()
+		})
 	}
 
 	waitGroup.Wait()

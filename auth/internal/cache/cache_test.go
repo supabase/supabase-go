@@ -188,13 +188,11 @@ func TestCacheSingleFlight(t *testing.T) {
 
 	var group sync.WaitGroup
 	for range 16 {
-		group.Add(1)
-		go func() {
-			defer group.Done()
+		group.Go(func() {
 			if _, found, err := keyCache.Key(context.Background(), "kid-1", base); err != nil || !found {
 				t.Errorf("concurrent lookup: found=%v err=%v", found, err)
 			}
-		}()
+		})
 	}
 	group.Wait()
 

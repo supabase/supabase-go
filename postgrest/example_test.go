@@ -33,8 +33,7 @@ func ExampleFrom() {
 			Select("id, name"),
 	)
 	if err != nil {
-		var postgrestError *postgrest.Error
-		if errors.As(err, &postgrestError) {
+		if postgrestError, ok := errors.AsType[*postgrest.Error](err); ok {
 			fmt.Println(postgrestError.Code, postgrestError.Hint)
 			return
 		}
