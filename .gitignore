@@ -31,3 +31,8 @@ user.transient/
 # tests and gopls all maintain it). A committed copy would dirty itself after
 # each release once the new sibling tags become fetchable. See decisions.md.
 go.work.sum
+
+# The hash lines scripts/verify-release.sh and scripts/seed-module-proxy.sh
+# record for scripts/seed-release.sh to compare, transient to each release.
+/.verify-release-hashes.txt
+/.seed-module-proxy-hashes.txt

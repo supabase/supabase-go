@@ -11,8 +11,9 @@ A release is therefore prepared by:
 1. Running one or more scripts on a branch.
 2. Landing that work through an ordinary pull request.
 3. Release automation pushes the tags that the merged pull request declared.
+4. A human dispatches the Seed Release workflow, which pulls the tagged versions through the public Go module proxy.
 
-Steps 1 and 2 are manually handled by a human operator (perhaps with AI assistance) positioning that human as the release gate where "sense checks" must be made. While we could automate these steps more, and perhaps we might in future, the release cadence and need for flexibility right now mean that this manual handling is the preferred operations method for now in this SDK.
+Steps 1, 2 and 4 are manually handled by a human operator (perhaps with AI assistance) positioning that human as the release gate where "sense checks" must be made. Only step 3 runs on its own, on every merge to `main`. While we could automate these steps more, and perhaps we might in future, the release cadence and need for flexibility right now mean that this manual handling is the preferred operations method for now in this SDK.
 
 > [!TIP]
 > Most releases touch several modules at once, so the interactive wrapper described in [Cut a coordinated release](#cut-a-coordinated-release) is usually the preferred way to run them.
@@ -37,9 +38,9 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
 
 ## Cut a release
 
-1. Branch off an up-to-date `main`. Any branch name works, with a `release/` prefix preferred.
+1. :technologist: Branch off an up-to-date `main`. Any branch name works, with a `release/` prefix preferred.
 
-2. Run `scripts/prepare-release.sh` once per module being released, in dependency order, pinning every sibling the module requires, and commit as its output instructs. A coordinated all-module release looks like:
+2. :technologist: Run `scripts/prepare-release.sh` once per module being released, in dependency order, pinning every sibling the module requires, and commit as its output instructs. A coordinated all-module release looks like:
 
    ```bash
    ./scripts/prepare-release.sh core v0.1.0-alpha.1
@@ -51,7 +52,7 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
    For each module the script refuses to run unless the tree is clean and the module's changelog has entries under `## Unreleased`, pins the sibling `require` lines to the given `dep=version` arguments (aborting if any sibling is left at the zero pseudo-version, the mark of a forgotten pin), stamps the changelog - the `## Unreleased` heading becomes ``## `<version>` (<date>)`` - and re-tidies the non-published modules (the integration tests, the examples and `telemetrytest`) with `GOWORK=off`, so every module's recorded versions stay consistent with the new graph and CI stays green.
    It never commits, tags or pushes.
 
-3. Run the pre-flight check, which joins the dots across everything the session prepared:
+3. :technologist: Run the pre-flight check, which joins the dots across everything the session prepared:
 
    ```bash
    ./scripts/check-release-consistency.sh
@@ -61,37 +62,21 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
    Between the prepare commits of a multi-module release it fails on the pins not yet made - expected, and [explained in Troubleshooting](#the-consistency-check-failed-part-way-through-preparing-a-release).
    CI runs the same script on every push, and the release-tags workflow runs it once more before pushing tags.
 
-4. Push the branch and open the PR.
+4. :technologist: Push the branch and open the PR.
    CI must be green before merge, and review approvals are welcome but not required: by the time the PR exists, its contents are mechanical bookkeeping over code already reviewed into `main`.
 
-5. Merge.
-   The release-tags workflow runs on the landing commit, finds each released module's newest declared version untagged and pushes the missing `<module>/<version>` tags in dependency order.
+5. :technologist: Merge.
+
+6. :robot: The release-tags workflow runs on the landing commit, finds each released module's newest declared version untagged and pushes the missing `<module>/<version>` tags in dependency order.
    Its run summary lists what it tagged - or states plainly that it detected no release, which is what every ordinary merge to `main` shows.
    If the run fails or its summary surprises you, see [Troubleshooting](#troubleshooting).
 
-6. Verify the tagged content:
+7. :technologist: Seed the public Go module ecosystem: from [the GitHub Actions tab](https://github.com/supabase/supabase-go/actions), run the [Seed Release workflow](.github/workflows/seed-release.yml) on `main`, leaving its `landing-commit` input empty.
+   If `main` has moved on since the merge, name the landing commit in the input.
+   The run is safe to repeat at any time, and [`scripts/seed-release.sh`](scripts/seed-release.sh) runs the same locally.
 
-   ```bash
-   ./scripts/verify-release.sh [<landing-commit>]
-   ```
-
-   It learns what was released from origin's tags pointing at the landing commit - HEAD when the argument is omitted, for the common case of running from a checkout of it - then downloads each version into a throwaway module cache under `/tmp` - straight from GitHub, touching neither the public module proxy nor the checksum database, so nothing is cached anywhere ahead of the next step - confirms a `LICENSE` sits in each module zip and prints the content hashes.
-
-   Keep the hash lines.
-
-7. Seed the public Go module ecosystem:
-
-   ```bash
-   ./scripts/seed-module-proxy.sh [<landing-commit>]
-   ```
-
-   It pulls the same tag-derived versions through [proxy.golang.org](https://proxy.golang.org/), which fetches each one from GitHub and caches it immutably - **the point of no return** - records its hashes in the [sum.golang.org](https://sum.golang.org) checksum database and leads [pkg.go.dev](https://pkg.go.dev/github.com/supabase/supabase-go/supabase) to build the documentation pages minutes later.
-
-   Its hash lines must match step 6's byte for byte, proving the proxy serves exactly what GitHub serves.
-
-   A `404 Not Found` here naming an "unknown revision", minutes after the merge, is the most anticipated failure at this step: see [Troubleshooting](#troubleshooting).
-
-   The tags carry everything both scripts need, so any release stays reachable from the current checkout - including one whose landing commit predates the scripts themselves, which no checkout requirement could ever serve.
+8. :robot: The run verifies the tagged content, pulls it through proxy.golang.org - **the point of no return** - and fails unless the proxy serves exactly what GitHub serves, reporting the outcome and the hash lines on its summary page.
+   Expect twenty minutes or so: the proxy answers 404 for freshly tagged versions for a while, and the run retries for up to two hours before giving up (see [Troubleshooting](#troubleshooting)).
 
 ## Cut a coordinated release
 
@@ -136,12 +121,12 @@ The intermediate commits stay inconsistent in history, visible only to a `git bi
 
 ### The proxy returned 404 for a freshly tagged version
 
-State: `seed-module-proxy.sh` fails reading a version's `.info` from proxy.golang.org with `404 Not Found` and a server response calling the freshly pushed tag an "unknown revision", even though the release-tags run succeeded, `git ls-remote --tags origin` shows every tag and `verify-release.sh` has already verified the same versions straight from GitHub.
+State: `seed-module-proxy.sh` fails reading a version's `.info` from proxy.golang.org with `404 Not Found` and a server response calling the freshly pushed tag an "unknown revision", even though the release-tags run succeeded, `git ls-remote --tags origin` shows every tag and `verify-release.sh` has already verified the same versions straight from GitHub. Under `seed-release.sh`, the log shows the same failure once a minute.
 The release is sound: the mirror answers from a cached view of the repository that predates the tag push, and a version requested before its tag was visible can hold the stale answer in place for a while.
 
-Fix: wait, then re-run `./scripts/seed-module-proxy.sh` until it succeeds - a failed attempt seeds nothing, and the script is safe to repeat.
-The proxy's [FAQ](https://proxy.golang.org/) expects a new version within a minute of an explicit request but allows up to 30 minutes for a cached stale answer to expire, and one release of this repository took about an hour from tag push to a successful seed.
-If the 404 outlives that by hours, [file a Go issue](https://github.com/golang/go/issues) titled with the prefix "proxy.golang.org:", as that FAQ asks.
+Fix: nothing, while the Seed Release run is still retrying - it tries again a minute apart for up to two hours, and a failed attempt seeds nothing. If it gave up, dispatch it again, naming the landing commit if `main` has moved on. By hand, re-run `./scripts/seed-module-proxy.sh` until it succeeds.
+The proxy's [FAQ](https://proxy.golang.org/) expects a new version within a minute of an explicit request but allows up to 30 minutes for a cached stale answer to expire, and this repository's releases have waited about twenty minutes from tag push to a successful seed.
+If the 404 outlives the two hours by hours, [file a Go issue](https://github.com/golang/go/issues) titled with the prefix "proxy.golang.org:", as that FAQ asks.
 
 ### Establish the state
 
@@ -230,11 +215,11 @@ The workflow run for that fix's landing commit pushes the release tags, which th
 
 ### After any recovery
 
-Confirm the end state: every declared version has its tag on the GitHub remote (fact 3 above) and the tagged content verifies, exactly as in step 6 of [Cut a release](#cut-a-release).
-The argument is step 6's optional one, filled with the landing commit (fact 1) because recovery work seldom ends with HEAD checked out at it:
+Confirm the end state: every declared version has its tag on the GitHub remote (fact 3 above) and the tagged content verifies and seeds, exactly as in step 7 of [Cut a release](#cut-a-release).
+The landing commit (fact 1) goes in the workflow's input, or in the script's optional argument, because recovery work seldom ends with HEAD checked out at it:
 
 ```bash
-./scripts/verify-release.sh <landing-commit>
+./scripts/seed-release.sh <landing-commit>
 ```
 
 ## After a release
