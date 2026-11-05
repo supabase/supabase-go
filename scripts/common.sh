@@ -182,6 +182,24 @@ module_hash_lines() {
   jq -r '"\(.Path) \(.Version) \(.Sum)", "\(.Path) \(.Version)/go.mod \(.GoModSum)"' "$@"
 }
 
+# Print the path of the record a release script leaves of its hash lines:
+# at the repository root, git-ignored, named for the script so the two
+# routes' records sit side by side for scripts/seed-release.sh or a diff by
+# hand to compare. $1 is the script's name without its extension.
+hash_record_path() {
+  printf '%s/.%s-hashes.txt\n' "$(git rev-parse --show-toplevel)" "$1"
+}
+
+# Report progress on stdout and, when running in GitHub Actions, on the
+# workflow run's summary page, where a release script's outcome matters as
+# much as its log.
+note() {
+  echo "$*"
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    echo "$*" >> "${GITHUB_STEP_SUMMARY}"
+  fi
+}
+
 # Strip git ls-remote decoration from stdin, printing bare tag names: the
 # object SHA and tab go, the refs/tags/ prefix goes and an annotated tag's
 # peeled ^{} suffix goes, then duplicates collapse.

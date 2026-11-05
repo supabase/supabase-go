@@ -9,6 +9,24 @@ Refer to [GitHub `../CHANGELOG.md`](https://github.com/supabase/supabase-go/blob
 
 ### Added
 
+Background refresh and session events:
+
+- `Session.AutoRefresh`, a blocking loop that renews the access token ahead of expiry until its context is cancelled
+- `Session.AddEventListener`, with `SessionEvent` and its `SessionEventName` constants `SessionEventInitialSession`, `SessionEventTokenRefreshed` and `SessionEventSignedOut`
+- `SignOutReason`, carried by `SessionEventSignedOut`, with `SignOutReasonUserInitiated` and `SignOutReasonSessionExpired`
+
+### Fixed
+
+Aligns our implementation of `Session` refresh with the [cross-SDK refresh spec](https://github.com/supabase/sdk/blob/514799681e4303147b7a86fafaba71c67e2ef785/packages/capability-matrix/specs/auth/session/refresh_session.md):
+
+- `Session.Refresh` and `Session.AccessToken` retry a refresh the server did not judge
+- a refresh the server rejects ends the session once thirty seconds or less of its access token remain, with `ErrSessionExpired`
+- a rejected refresh token is not sent again
+
+## `v0.1.0-alpha.3` (2026-11-05)
+
+### Added
+
 A per-user session, `Session`, with password sign-in:
 
 - `Client.SignInWithPassword`
@@ -17,12 +35,6 @@ A per-user session, `Session`, with password sign-in:
 - `Session` with `AccessToken`, `RefreshToken`, `User`, `Refresh`, `SignOut` and `Persist`
 - `SessionStore`, the interface a program implements to keep a session between runs
 - sentinel errors `ErrSignedOut`, `ErrSessionExpired`, `ErrNoStoredSession`, `ErrMissingRefreshToken` and `ErrMissingStore`
-
-Background refresh and session events:
-
-- `Session.AutoRefresh`, a blocking loop that renews the access token ahead of expiry until its context is cancelled
-- `Session.AddEventListener`, with `SessionEvent` and its `SessionEventName` constants `SessionEventInitialSession`, `SessionEventTokenRefreshed` and `SessionEventSignedOut`
-- `SignOutReason`, carried by `SessionEventSignedOut`, with `SignOutReasonUserInitiated` and `SignOutReasonSessionExpired`
 
 ### Changed
 

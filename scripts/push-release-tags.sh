@@ -22,16 +22,6 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   exit 1
 fi
 
-# Reports progress on stdout and, when running in GitHub Actions, on the
-# workflow run's summary page, where an obvious no-release statement matters
-# as much as a list of what was tagged.
-note() {
-  echo "$*"
-  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-    echo "$*" >> "${GITHUB_STEP_SUMMARY}"
-  fi
-}
-
 sibling_requires() {
   go mod edit -json "$1/go.mod" \
     | jq -r --arg base "${module_base}/" \
@@ -101,5 +91,5 @@ note ""
 if [ -z "${tagged_any}" ]; then
   note "**No release detected**: every declared version is already tagged, so this run pushed nothing."
 else
-  note "**Release tags pushed.** Run scripts/verify-release.sh next, per RELEASING.md."
+  note "**Release tags pushed.** Dispatch the Seed Release workflow next, per RELEASING.md."
 fi

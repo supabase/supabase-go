@@ -7,7 +7,7 @@ module github.com/supabase/supabase-go/examples/auth-session-service
 go 1.26.0
 
 require (
-	github.com/supabase/supabase-go/auth v0.1.0-alpha.2
+	github.com/supabase/supabase-go/auth v0.1.0-alpha.3
 	golang.org/x/sync v0.24.0
 )
 
