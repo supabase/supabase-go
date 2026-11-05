@@ -73,7 +73,7 @@ func newAdminServer(t *testing.T) *adminServer {
 			writer.Header().Set(key, value)
 		}
 		writer.WriteHeader(recorder.status)
-		_, _ = writer.Write([]byte(recorder.body))
+		writeBody(t, writer, []byte(recorder.body))
 	}))
 	t.Cleanup(recorder.server.Close)
 	return recorder

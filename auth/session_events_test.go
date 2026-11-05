@@ -178,7 +178,13 @@ func TestEventsAreDeliveredOnceTheStoreHoldsTheState(t *testing.T) {
 		group.Go(func() { _, refreshErr = session.Refresh(t.Context()) })
 		<-entered
 		synctest.Wait()
-		if accessToken, _ := session.AccessToken(t.Context()); accessToken != server.mintedTokens()[1] {
+		accessToken, err := session.AccessToken(t.Context())
+		if err != nil {
+			// The refresh held in Save must finish for the bubble to end.
+			release()
+			t.Fatalf("AccessToken while the store write is held: %v", err)
+		}
+		if accessToken != server.mintedTokens()[1] {
 			t.Error("the session does not hold the refreshed token while its store write is held")
 		}
 		assertEvents(t, recorder, auth.SessionEventInitialSession)

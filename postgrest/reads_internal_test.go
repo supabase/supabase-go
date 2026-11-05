@@ -13,6 +13,7 @@ import (
 
 	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest/internal/exchange"
+	"github.com/supabase/supabase-go/postgrest/internal/respond"
 )
 
 // The tests in this file substitute internal/exchange's RetrySleep seam, so they
@@ -65,7 +66,7 @@ func scriptedServer(t *testing.T, script ...scriptedResponse) (*httptest.Server,
 			writer.Header().Set("Retry-After", step.retryAfter)
 		}
 		writer.WriteHeader(step.status)
-		_, _ = writer.Write([]byte(step.body))
+		respond.Body(t, writer, []byte(step.body))
 	}))
 	t.Cleanup(server.Close)
 	return server, retryCounts
@@ -446,7 +447,7 @@ func recordingScriptedServer(t *testing.T, script ...scriptedResponse) (*httptes
 			writer.Header().Set("Retry-After", step.retryAfter)
 		}
 		writer.WriteHeader(step.status)
-		_, _ = writer.Write([]byte(step.body))
+		respond.Body(t, writer, []byte(step.body))
 	}))
 	t.Cleanup(server.Close)
 	return server, headers

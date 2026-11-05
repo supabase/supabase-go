@@ -15,6 +15,7 @@ import (
 
 	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest"
+	"github.com/supabase/supabase-go/postgrest/internal/respond"
 )
 
 // testAPIKey is the project key every test client is constructed with. The
@@ -61,7 +62,7 @@ func newRecordingServer(t *testing.T) (*httptest.Server, *headerRecorder) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		recorder.record(request.Header.Clone())
 		writer.WriteHeader(http.StatusOK)
-		_, _ = writer.Write([]byte("[]"))
+		respond.Body(t, writer, []byte("[]"))
 	}))
 	t.Cleanup(server.Close)
 	return server, recorder
@@ -85,7 +86,7 @@ func newEchoAuthorizationServer(t *testing.T) *httptest.Server {
 			return
 		}
 		writer.WriteHeader(http.StatusOK)
-		_, _ = writer.Write(payload)
+		respond.Body(t, writer, payload)
 	}))
 	t.Cleanup(server.Close)
 	return server

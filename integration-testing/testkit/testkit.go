@@ -11,6 +11,7 @@ package testkit
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -87,9 +88,11 @@ func SignUpUser(t *testing.T, projectURL, apiKey string) User {
 	if err != nil {
 		t.Fatalf("signing up %s: %v", email, err)
 	}
-	defer func() { _ = response.Body.Close() }()
+	body, err := io.ReadAll(response.Body)
+	if err = errors.Join(err, response.Body.Close()); err != nil {
+		t.Fatalf("reading the signup response body for %s: %v", email, err)
+	}
 	if response.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(response.Body)
 		t.Fatalf("signup for %s: HTTP %d: %s", email, response.StatusCode, body)
 	}
 	var session struct {
@@ -99,7 +102,7 @@ func SignUpUser(t *testing.T, projectURL, apiKey string) User {
 			ID string `json:"id"`
 		} `json:"user"`
 	}
-	if err := json.NewDecoder(response.Body).Decode(&session); err != nil {
+	if err := json.Unmarshal(body, &session); err != nil {
 		t.Fatalf("decoding signup response: %v", err)
 	}
 	if session.AccessToken == "" || session.RefreshToken == "" || session.User.ID == "" {

@@ -2,11 +2,51 @@ package auth_test
 
 import (
 	"context"
+	"errors"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
+	"github.com/supabase/supabase-go/auth"
 	"github.com/supabase/supabase-go/auth/internal/testkit"
 	"github.com/supabase/supabase-go/core/configuration"
 )
+
+// roundTripFunc is an http.RoundTripper that answers through the function
+// itself.
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
+// closeFailingBody is a response body read from its Reader whose Close fails
+// with err.
+type closeFailingBody struct {
+	io.Reader
+	err error
+}
+
+func (b closeFailingBody) Close() error { return b.err }
+
+// TestRequestFailsOnABodyThatCannotBeClosed proves that a response body that
+// cannot be closed fails the call, as one that cannot be read does.
+func TestRequestFailsOnABodyThatCannotBeClosed(t *testing.T) {
+	broken := errors.New("broken")
+	transport := roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: closeFailingBody{strings.NewReader("{}"), broken}}, nil
+	})
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "test-anon-key", configuration.WithHTTPClient(&http.Client{Transport: transport}))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	result, err := client.GetUser(t.Context(), "any-token")
+	if result != nil || !errors.Is(err, broken) {
+		t.Errorf("GetUser = (%v, %v), want the failure to close the body", result, err)
+	}
+}
 
 // TestEveryRequestStatesAPIVersion proves that each request path the package
 // sends - an admin call, the user fetch and the JWK Set fetch - states Auth

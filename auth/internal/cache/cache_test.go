@@ -49,10 +49,14 @@ func TestCacheRefetchAfterTTL(t *testing.T) {
 	keyCache := cache.NewCache(fetch)
 	base := time.Now()
 
-	_, _, _ = keyCache.Key(context.Background(), "kid-1", base)
+	if _, found, err := keyCache.Key(context.Background(), "kid-1", base); err != nil || !found {
+		t.Fatalf("first lookup: found=%v err=%v", found, err)
+	}
 	// The cache trusts a fetched set for ten minutes, so a lookup eleven
 	// minutes on must fetch again.
-	_, _, _ = keyCache.Key(context.Background(), "kid-1", base.Add(11*time.Minute))
+	if _, found, err := keyCache.Key(context.Background(), "kid-1", base.Add(11*time.Minute)); err != nil || !found {
+		t.Fatalf("lookup after the TTL: found=%v err=%v", found, err)
+	}
 	if fetches.Load() != 2 {
 		t.Errorf("JWK Set fetched %d times across the TTL boundary, want 2", fetches.Load())
 	}
@@ -99,7 +103,10 @@ func TestCacheRefetchOnUnknownKeyID(t *testing.T) {
 	})
 	base := time.Now()
 
-	_, _, _ = keyCache.Key(context.Background(), "kid-1", base)
+	_, found, err := keyCache.Key(context.Background(), "kid-1", base)
+	if err != nil || !found {
+		t.Fatalf("first lookup: found=%v err=%v", found, err)
+	}
 
 	// A freshly rotated key: unknown to the cache but within TTL. The lookup
 	// must refetch and then find it.
@@ -107,7 +114,7 @@ func TestCacheRefetchOnUnknownKeyID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseSet: %v", err)
 	}
-	_, found, err := keyCache.Key(context.Background(), "kid-2", base.Add(time.Minute))
+	_, found, err = keyCache.Key(context.Background(), "kid-2", base.Add(time.Minute))
 	if err != nil {
 		t.Fatalf("lookup after rotation: %v", err)
 	}
@@ -135,7 +142,10 @@ func TestCacheResolvingFetchClearsBackoff(t *testing.T) {
 	base := time.Now()
 
 	// A fruitless forced fetch opens the backoff window.
-	_, _, _ = keyCache.Key(context.Background(), "bogus", base)
+	_, found, err := keyCache.Key(context.Background(), "bogus", base)
+	if err != nil || found {
+		t.Fatalf("fruitless lookup: found=%v err=%v", found, err)
+	}
 
 	// The key rotates and its first token arrives once the window has elapsed:
 	// the forced fetch resolves it and clears the backoff.
@@ -149,7 +159,9 @@ func TestCacheResolvingFetchClearsBackoff(t *testing.T) {
 
 	// With the window cleared, the very next unknown key id may force a fetch
 	// immediately rather than waiting anything out.
-	_, _, _ = keyCache.Key(context.Background(), "bogus-2", base.Add(time.Second))
+	if _, found, err := keyCache.Key(context.Background(), "bogus-2", base.Add(time.Second)); err != nil || found {
+		t.Fatalf("lookup after the window cleared: found=%v err=%v", found, err)
+	}
 	if fetches.Load() != 3 {
 		t.Errorf("fetches = %d, want 3 (fruitless, resolving, immediately allowed)", fetches.Load())
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest"
+	"github.com/supabase/supabase-go/postgrest/internal/respond"
 	"github.com/supabase/supabase-go/postgrest/internal/testkit"
 )
 
@@ -42,7 +43,7 @@ func TestCollectDecodesRows(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		observed = request.Clone(request.Context())
 		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode([]instrument{{ID: 1, Name: "violin"}, {ID: 2, Name: "flute"}})
+		respond.JSON(t, writer, []instrument{{ID: 1, Name: "violin"}, {ID: 2, Name: "flute"}})
 	}))
 	defer server.Close()
 
@@ -84,7 +85,7 @@ func TestCollectBareFrom(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		observed = request.Clone(request.Context())
 		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode([]instrument{{ID: 1, Name: "violin"}, {ID: 2, Name: "flute"}})
+		respond.JSON(t, writer, []instrument{{ID: 1, Name: "violin"}, {ID: 2, Name: "flute"}})
 	}))
 	defer server.Close()
 
@@ -138,7 +139,7 @@ func TestQueryBuilderPromotedModifierSkipsSelect(t *testing.T) {
 			var observed *http.Request
 			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 				observed = request.Clone(request.Context())
-				_, _ = writer.Write([]byte(`[]`))
+				respond.Body(t, writer, []byte(`[]`))
 			}))
 			defer server.Close()
 
@@ -191,7 +192,7 @@ func TestCollectSendsRangeValuesThroughScalarFilters(t *testing.T) {
 			var observed *http.Request
 			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 				observed = request.Clone(request.Context())
-				_, _ = writer.Write([]byte(`[]`))
+				respond.Body(t, writer, []byte(`[]`))
 			}))
 			defer server.Close()
 
@@ -215,7 +216,7 @@ func TestCollectSendsRangeValuesThroughScalarFilters(t *testing.T) {
 // callers range over results without a nil check.
 func TestCollectEmptyResultYieldsEmptySlice(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		_, _ = writer.Write([]byte(`[]`))
+		respond.Body(t, writer, []byte(`[]`))
 	}))
 	defer server.Close()
 
@@ -244,7 +245,7 @@ func TestCollectEmptyResultYieldsEmptySlice(t *testing.T) {
 func TestCollectPreservesRawRowBytes(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`[{"id":1,"name":"violin"},{"id":2,"name":"flute"}]`))
+		respond.Body(t, writer, []byte(`[{"id":1,"name":"violin"},{"id":2,"name":"flute"}]`))
 	}))
 	defer server.Close()
 
@@ -285,7 +286,7 @@ func TestCollectReturnsResponseMetadata(t *testing.T) {
 				if testCase.contentRange != "" {
 					writer.Header().Set("Content-Range", testCase.contentRange)
 				}
-				_, _ = writer.Write([]byte(`[{"id":1,"name":"violin"},{"id":2,"name":"flute"}]`))
+				respond.Body(t, writer, []byte(`[{"id":1,"name":"violin"},{"id":2,"name":"flute"}]`))
 			}))
 			defer server.Close()
 
@@ -317,7 +318,7 @@ func TestCollectEmptySelectMeansAllColumns(t *testing.T) {
 		if got := request.URL.Query().Get("select"); got != "*" {
 			t.Errorf("select = %q, want *", got)
 		}
-		_, _ = writer.Write([]byte(`[]`))
+		respond.Body(t, writer, []byte(`[]`))
 	}))
 	defer server.Close()
 
@@ -349,7 +350,7 @@ func TestCollectPreservesQuotedIdentifiersInSelect(t *testing.T) {
 		if got, want := request.URL.Query().Get("select"), `"full name",id`; got != want {
 			t.Errorf("select = %q, want %q (quoted whitespace must survive)", got, want)
 		}
-		_, _ = writer.Write([]byte(`[]`))
+		respond.Body(t, writer, []byte(`[]`))
 	}))
 	defer server.Close()
 
@@ -473,7 +474,7 @@ func TestCollectAppliesRange(t *testing.T) {
 					t.Fatalf("limitValues got = %q, want single %q", limitValues, testCase.wantLimit)
 				}
 
-				_, _ = writer.Write([]byte(`[]`))
+				respond.Body(t, writer, []byte(`[]`))
 			}))
 			defer server.Close()
 
@@ -501,7 +502,7 @@ func TestCollectReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
 		writer.WriteHeader(http.StatusNotFound)
-		_, _ = writer.Write([]byte(`{"message":"relation \"public.missing\" does not exist","code":"42P01","details":null,"hint":null}`))
+		respond.Body(t, writer, []byte(`{"message":"relation \"public.missing\" does not exist","code":"42P01","details":null,"hint":null}`))
 	}))
 	defer server.Close()
 
@@ -528,7 +529,7 @@ func TestCollectReturnsTypedErrorForPostgRESTFailure(t *testing.T) {
 func TestCollectPreservesUnparsableErrorBody(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = writer.Write([]byte(`<html>upstream unavailable</html>`))
+		respond.Body(t, writer, []byte(`<html>upstream unavailable</html>`))
 	}))
 	defer server.Close()
 
@@ -561,7 +562,7 @@ func TestCollectPreservesUnparsableErrorBody(t *testing.T) {
 func TestCollectWrapsDecodeFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{not json`))
+		respond.Body(t, writer, []byte(`{not json`))
 	}))
 	defer server.Close()
 
@@ -657,7 +658,7 @@ func TestBuildersForkIndependently(t *testing.T) {
 	queries := make(chan string, 3)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		queries <- request.URL.RawQuery
-		_, _ = writer.Write([]byte(`[]`))
+		respond.Body(t, writer, []byte(`[]`))
 	}))
 	defer server.Close()
 
@@ -688,7 +689,7 @@ func TestCollectSingleDecodesRow(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		observed = request.Clone(request.Context())
 		writer.Header().Set("Content-Type", "application/vnd.pgrst.object+json")
-		_ = json.NewEncoder(writer).Encode(instrument{ID: 1, Name: "violin"})
+		respond.JSON(t, writer, instrument{ID: 1, Name: "violin"})
 	}))
 	defer server.Close()
 
@@ -715,7 +716,7 @@ func TestCollectSingleDecodesRow(t *testing.T) {
 func TestCollectSingleReturnsZeroValuesOnError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusNotAcceptable)
-		_, _ = writer.Write([]byte(`{"code":"PGRST116","message":"JSON object requested, multiple (or no) rows returned"}`))
+		respond.Body(t, writer, []byte(`{"code":"PGRST116","message":"JSON object requested, multiple (or no) rows returned"}`))
 	}))
 	defer server.Close()
 
@@ -748,7 +749,7 @@ func TestCollectSingleMaybeDecodesRow(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		observed = request.Clone(request.Context())
 		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode([]instrument{{ID: 1, Name: "violin"}})
+		respond.JSON(t, writer, []instrument{{ID: 1, Name: "violin"}})
 	}))
 	defer server.Close()
 
@@ -778,7 +779,7 @@ func TestCollectSingleMaybeDecodesRow(t *testing.T) {
 func TestCollectSingleMaybeNoRows(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`[]`))
+		respond.Body(t, writer, []byte(`[]`))
 	}))
 	defer server.Close()
 
@@ -805,7 +806,7 @@ func TestCollectSingleMaybeNoRows(t *testing.T) {
 func TestCollectSingleMaybeTooManyRows(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode([]instrument{{ID: 1, Name: "violin"}, {ID: 2, Name: "flute"}})
+		respond.JSON(t, writer, []instrument{{ID: 1, Name: "violin"}, {ID: 2, Name: "flute"}})
 	}))
 	defer server.Close()
 
@@ -835,7 +836,7 @@ func TestCollectSingleMaybeTooManyRows(t *testing.T) {
 func TestCollectSingleMaybeReturnsZeroValuesOnError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusBadRequest)
-		_, _ = writer.Write([]byte(`{"code":"22P02","message":"invalid input syntax"}`))
+		respond.Body(t, writer, []byte(`{"code":"22P02","message":"invalid input syntax"}`))
 	}))
 	defer server.Close()
 

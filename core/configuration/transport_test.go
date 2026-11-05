@@ -1,6 +1,7 @@
 package configuration_test
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -129,6 +130,9 @@ func sendGet(t *testing.T, doer configuration.HTTPClient, url string, mutate fun
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	_, _ = io.Copy(io.Discard, response.Body)
-	_ = response.Body.Close()
+	_, err = io.Copy(io.Discard, response.Body)
+	err = errors.Join(err, response.Body.Close())
+	if err != nil {
+		t.Fatalf("reading the response body: %v", err)
+	}
 }

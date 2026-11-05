@@ -8,7 +8,9 @@
 package exchange
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -113,8 +115,9 @@ type Result struct {
 
 // Do sends the request and returns the completed exchange's [Result].
 // Failures - a request that cannot be built, an unreachable server after any
-// retries, a failed token resolution - return as errors, while any completed
-// exchange is a Result, its status code untouched.
+// retries, a response body that cannot be read in full or closed, a failed
+// token resolution - return as errors, while any completed exchange is a
+// Result, its status code untouched.
 func (c Client) Do(ctx context.Context, r request.Request) (Result, error) {
 	var accessToken string
 	if c.resolveToken != nil {
@@ -176,18 +179,18 @@ func (c Client) Do(ctx context.Context, r request.Request) (Result, error) {
 
 		if retryable && attempt < MaximumRetries && retryableStatusCodes[httpResponse.StatusCode] {
 			delay := retryDelay(attempt, httpResponse.Header.Get("Retry-After"))
-			_, _ = io.Copy(io.Discard, httpResponse.Body)
-			_ = httpResponse.Body.Close()
+			if err = readBody(io.Discard, httpResponse); err != nil {
+				return Result{}, err
+			}
 			if RetrySleep(ctx, delay) == nil {
 				continue
 			}
 			return Result{}, fmt.Errorf("postgrest: executing request: %w", ctx.Err())
 		}
 
-		responseBody, err := io.ReadAll(httpResponse.Body)
-		_ = httpResponse.Body.Close()
-		if err != nil {
-			return Result{}, fmt.Errorf("postgrest: reading response: %w", err)
+		var responseBody bytes.Buffer
+		if err = readBody(&responseBody, httpResponse); err != nil {
+			return Result{}, err
 		}
 
 		// A server rejection of the sent token (HTTP 401) re-asks the resolver
@@ -208,10 +211,22 @@ func (c Client) Do(ctx context.Context, r request.Request) (Result, error) {
 
 		return Result{
 			StatusCode:   httpResponse.StatusCode,
-			Body:         responseBody,
+			Body:         responseBody.Bytes(),
 			ContentRange: httpResponse.Header.Get("Content-Range"),
 		}, nil
 	}
+}
+
+// readBody copies the response's body to destination and closes it, even
+// when a read panics. It fails when the copy or the close fails.
+func readBody(destination io.Writer, response *http.Response) (err error) {
+	defer func() {
+		if err = errors.Join(err, response.Body.Close()); err != nil {
+			err = fmt.Errorf("postgrest: reading response: %w", err)
+		}
+	}()
+	_, err = io.Copy(destination, response.Body)
+	return err
 }
 
 // MaximumRetries is how many times one exchange is re-sent after its first

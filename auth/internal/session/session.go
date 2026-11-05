@@ -255,12 +255,13 @@ func (s *Session) Ended() error {
 // a request. A refresh that fails otherwise leaves the session as it was, and
 // the access token is returned if it is unexpired and the failure otherwise.
 // The store write a refresh or an ending causes is performed before Token
-// returns, and its failure is returned to no caller. Token returns an
-// [*EndedError] once the session has ended and ctx's error when ctx ends
-// while waiting on a refresh.
-func (s *Session) Token(ctx context.Context) (string, error) {
-	token, _, err := s.tokenEnding(ctx, Expired)
-	return token, s.endedOr(err)
+// returns. clearErr is the failure of the clear an ending caused, when this
+// call performed it, and the failure of a refresh's write is returned to no
+// caller. Token returns an [*EndedError] once the session has ended and ctx's
+// error when ctx ends while waiting on a refresh.
+func (s *Session) Token(ctx context.Context) (token string, clearErr, err error) {
+	token, clearErr, err = s.tokenEnding(ctx, Expired)
+	return token, clearErr, s.endedOr(err)
 }
 
 // SignOutToken returns the access token for the request that signs the
@@ -347,9 +348,9 @@ func (s *Session) endedOr(err error) error {
 // call's definitive rejection ended it. A definitive rejection is remembered:
 // the session keeps its tokens while more than the expiry margin remains on
 // the access token and ends as [Expired] once it does not, and a later
-// Refresh returns the remembered rejection without a request. The failure of
-// the clear an ending causes is returned to no caller.
-func (s *Session) Refresh(ctx context.Context) error {
+// Refresh returns the remembered rejection without a request. clearErr is the
+// failure of the clear an ending caused, when this call performed it.
+func (s *Session) Refresh(ctx context.Context) (clearErr, err error) {
 	return s.RefreshWithin(ctx, always)
 }
 
@@ -359,16 +360,17 @@ const always = time.Duration(math.MaxInt64)
 
 // RefreshWithin renews the session as [Session.Refresh] does when within or
 // less remains before the access token expires, or when a definitive
-// rejection is remembered, and otherwise returns nil without a request.
-func (s *Session) RefreshWithin(ctx context.Context, within time.Duration) error {
+// rejection is remembered, and otherwise returns no error without a request.
+func (s *Session) RefreshWithin(ctx context.Context, within time.Duration) (clearErr, err error) {
 	writeErr, err := s.renew(ctx, Expired, within)
 	switch {
 	case err != nil:
-		return s.endedOr(err)
+		// A write beside a failure is the clear of the ending this call caused.
+		return writeErr, s.endedOr(err)
 	case writeErr != nil:
-		return &WriteError{Err: writeErr}
+		return nil, &WriteError{Err: writeErr}
 	}
-	return nil
+	return nil, nil
 }
 
 // renew joins the in-flight refresh or starts one with the current refresh

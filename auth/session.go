@@ -97,9 +97,9 @@ type SessionStore interface {
 	// when the failure reaches no caller.
 	Save(ctx context.Context, state []byte) error
 
-	// Delete clears the state the store holds. A failed Delete is returned by
-	// [Session.SignOut], and reaches no caller when the session ends by
-	// expiring.
+	// Delete clears the state the store holds. A failed Delete is returned
+	// wrapped by the call that ended the session, joined with any other error
+	// that call returns.
 	Delete(ctx context.Context) error
 }
 
@@ -116,9 +116,9 @@ func (s *Session) AccessToken(ctx context.Context) (string, error) {
 	if s.inner == nil {
 		return "", ErrSignedOut
 	}
-	accessToken, err := s.inner.Token(ctx)
+	accessToken, clearErr, err := s.inner.Token(ctx)
 	if err != nil {
-		return "", sessionError(err)
+		return "", joinClearError(sessionError(err), clearErr)
 	}
 	return accessToken, nil
 }
@@ -171,8 +171,8 @@ func (s *Session) Refresh(ctx context.Context) (*RefreshResult, error) {
 	if s.inner == nil {
 		return nil, ErrSignedOut
 	}
-	if err := s.inner.Refresh(ctx); err != nil {
-		return nil, sessionError(err)
+	if clearErr, err := s.inner.Refresh(ctx); err != nil {
+		return nil, joinClearError(sessionError(err), clearErr)
 	}
 	return &RefreshResult{}, nil
 }
@@ -240,10 +240,7 @@ func (s *Session) signOutGlobally(ctx context.Context) (*SignOutResult, error) {
 		if _, ok := errors.AsType[*session.EndedError](err); ok {
 			return &SignOutResult{}, nil
 		}
-		if clearErr != nil {
-			err = errors.Join(err, storeClearError(clearErr))
-		}
-		return nil, err
+		return nil, joinClearError(err, clearErr)
 	}
 	err = logout(ctx, s.client.httpClient, s.client.baseURL, bearer, scopes.Global)
 	if err != nil && !nothingLeftToRevoke(err, scopes.Global) {
@@ -283,10 +280,7 @@ func (s *Session) signOutLocally(ctx context.Context) (*SignOutResult, error) {
 		return &SignOutResult{}, nil
 	}
 	revokeErr := s.revokeHeld(ctx, held)
-	if clearErr != nil {
-		clearErr = storeClearError(clearErr)
-	}
-	if err := errors.Join(revokeErr, clearErr); err != nil {
+	if err := joinClearError(revokeErr, clearErr); err != nil {
 		return nil, err
 	}
 	return &SignOutResult{}, nil
@@ -422,8 +416,8 @@ func (c *Client) SessionFromStore(ctx context.Context, store SessionStore) (*Ses
 	restored := c.newSession(state, store)
 	if !state.ExpiresAt().After(c.now()) {
 		var write *session.WriteError
-		if err := restored.inner.Refresh(ctx); err != nil && !errors.As(err, &write) {
-			return nil, sessionError(err)
+		if clearErr, err := restored.inner.Refresh(ctx); err != nil && !errors.As(err, &write) {
+			return nil, joinClearError(sessionError(err), clearErr)
 		}
 	}
 	return &SessionFromStoreResult{session: restored}, nil
@@ -587,6 +581,16 @@ func sessionError(err error) error {
 // the session ended.
 func storeClearError(err error) error {
 	return fmt.Errorf("auth: clearing session store: %w", err)
+}
+
+// joinClearError returns err joined with clearErr, the failure of the store
+// clear an ending of the session caused, wrapped. When the clear succeeded,
+// err is returned as it is.
+func joinClearError(err, clearErr error) error {
+	if clearErr == nil {
+		return err
+	}
+	return errors.Join(err, storeClearError(clearErr))
 }
 
 // logout sends the revocation request for the session bearer belongs to,

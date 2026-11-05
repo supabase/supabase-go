@@ -144,7 +144,9 @@ func Example_middleware() {
 		// claims.Subject() is the verified user ID. Attach the request's token to
 		// a Database client through its access-token provider to delete only this
 		// user's rows under their Row Level Security policies.
-		_, _ = fmt.Fprintf(writer, "deleting account for %s", claims.Subject())
+		if _, err := fmt.Fprintf(writer, "deleting account for %s", claims.Subject()); err != nil {
+			fmt.Println(err)
+		}
 	})
 
 	http.Handle("/account/delete", authenticate(deleteAccount))
