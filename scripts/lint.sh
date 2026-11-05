@@ -2,6 +2,10 @@
 # Static-analysis suite across every module. Run by CI and locally, identically.
 # Tool versions are checksum-pinned in the tool modules under tools/go; we build
 # those pinned tools once, then run the binaries against each module.
+#
+# The suite does not run the fieldalignment analyzer.
+# Struct fields are ordered for readers, in source and on pkg.go.dev, not for size.
+# A struct is reordered for size only when its size is shown to matter.
 set -euo pipefail
 
 source "$(dirname "$0")/common.sh"
