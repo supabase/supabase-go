@@ -25,7 +25,7 @@ Aligns our implementation of `Session` refresh with the [cross-SDK refresh spec]
 
 A session store that cannot be cleared when the session expires is reported, where before the failure reached no caller:
 
-- `Session.AccessToken`, `Session.Refresh`, `Session.AutoRefresh` and `Client.SessionFromStore` return the failed `SessionStore.Delete` wrapped and joined with `ErrSessionExpired`
+- `Session.AccessToken`, `Session.Refresh` and `Client.SessionFromStore` return the failed `SessionStore.Delete` wrapped and joined with `ErrSessionExpired`
 
 A response body that cannot be closed fails the call as a transport error, as one that cannot be read does, where before the failure was ignored:
 
