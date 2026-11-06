@@ -91,22 +91,28 @@ func TestCollectSingle(t *testing.T) {
 	}
 }
 
+// TestCollectSingleWhenNotAcceptable proves the singular read's refusals
+// against real PostgREST: zero matches and multiple matches each answer 406
+// PGRST116, surfacing as *Error wrapping the sentinel the count stands for.
 func TestCollectSingleWhenNotAcceptable(t *testing.T) {
 	testCases := []struct {
 		name    string
 		perform func(builder postgrest.QueryBuilder[seededInstrument]) postgrest.Query[seededInstrument]
+		want    error
 	}{
 		{
 			"zero matches",
 			func(builder postgrest.QueryBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
 				return builder.Eq("name", "Ford Fiesta")
 			},
+			postgrest.ErrNoRows,
 		},
 		{
 			"multiple matches",
 			func(builder postgrest.QueryBuilder[seededInstrument]) postgrest.Query[seededInstrument] {
 				return builder.In("name", "viola", "cello")
 			},
+			postgrest.ErrTooManyRows,
 		},
 	}
 
@@ -129,6 +135,9 @@ func TestCollectSingleWhenNotAcceptable(t *testing.T) {
 			}
 			if typedError.HTTPStatus != http.StatusNotAcceptable {
 				t.Errorf("HTTPStatus = %d, want 406", typedError.HTTPStatus)
+			}
+			if !errors.Is(err, testCase.want) {
+				t.Errorf("err = %v, want it to wrap %v", err, testCase.want)
 			}
 
 			if row != (seededInstrument{}) {
@@ -185,9 +194,9 @@ func TestCollectSingleMaybeNoRows(t *testing.T) {
 	testkit.AssertOKResponse(t, response)
 }
 
-// TestCollectSingleMaybeTooManyRows proves client-side cardinality
-// enforcement live: two seeded matches fail with ErrTooManyRows even though
-// the server answered 200 with the plural format.
+// TestCollectSingleMaybeTooManyRows proves the count from Content-Range
+// live: two seeded matches, which the server answers 200 in the plural
+// format, fail with ErrTooManyRows.
 func TestCollectSingleMaybeTooManyRows(t *testing.T) {
 	client := newIntegrationClient(t)
 

@@ -3,7 +3,9 @@ package postgrest
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 
 	"github.com/supabase/supabase-go/core/configuration"
@@ -77,42 +79,111 @@ func Collect[Row any](ctx context.Context, client *Client, query Query[Row], opt
 // format (an Accept header of application/vnd.pgrst.object+json), so the
 // server answers with one JSON object rather than an array and refuses the
 // request when the query matches zero rows or more than one, surfacing as an
-// [*Error] carrying HTTP status 406 and code "PGRST116". On failure the
-// returned Row and Response are their zero values. Context, decoding into
-// Row and Options otherwise behave as documented on [Collect].
+// [*Error] carrying HTTP status 406 and code "PGRST116" that wraps
+// [ErrNoRows] or [ErrTooManyRows]. On failure the returned Row and Response
+// are their zero values. Context, decoding into Row and Options otherwise
+// behave as documented on [Collect].
 func CollectSingle[Row any](ctx context.Context, client *Client, query Query[Row], options ...Option) (Row, Response, error) {
-	options = append(
-		slices.Clip(options),
-		withAccept("application/vnd.pgrst.object+json"),
-	)
-
-	return decodeQuery[Row, Row](ctx, client, query, options...)
+	options = append(slices.Clip(options), withAccept(singularMediaType))
+	row, response, err := decodeQuery[Row, Row](ctx, client, query, options...)
+	return row, response, classifySingular(err)
 }
+
+// singularMediaType is the Accept media type that asks PostgREST for one
+// JSON object rather than an array, and to refuse a result of any other
+// cardinality with HTTP 406 and code singularityCode.
+const singularMediaType = "application/vnd.pgrst.object+json"
 
 // CollectSingleMaybe executes the query through client for a result expected
 // to hold at most one row. Exactly one matching row is returned decoded into
 // Row alongside true. An empty result is an ordinary outcome, not a failure:
-// it yields Row's zero value alongside false with a nil error. In both cases
-// the [Response] carries the request's metadata. The query travels the wire
-// in PostgREST's default array format, exactly as [Collect]'s does, and
-// cardinality is enforced client-side: a result of more than one row fails
-// with [ErrTooManyRows]. On failure the returned Row, boolean and Response
-// are their zero values. Context, decoding into Row and Options otherwise
-// behave as documented on [Collect].
+// it yields Row's zero value alongside false with a nil error. A result of
+// more than one row fails with [ErrTooManyRows]. On failure the returned
+// Row, boolean and Response are their zero values. Context, decoding into
+// Row and Options otherwise behave as documented on [Collect].
+//
+// A write - an insert, upsert, update or delete - travels the wire in
+// PostgREST's singular response format, so the server counts the rows it
+// affects inside the transaction and rolls back a write that affects more
+// than one, which then changes nothing and fails with the server's [*Error]
+// wrapping [ErrTooManyRows]. A write that affects no row is answered 406 by
+// the server, which resolves to the empty result with a Response carrying
+// that status and no count.
+//
+// A read, or a function call whatever its method, travels in the default
+// array format exactly as [Collect]'s does, and its rows are counted from
+// the range the Content-Range response header reports, or from the body's
+// elements when the header is absent. A body that is a one-element array
+// yields its element, and any other body counted as one row, such as the
+// single array value a function returns, decodes whole into Row.
 func CollectSingleMaybe[Row any](ctx context.Context, client *Client, query Query[Row], options ...Option) (Row, bool, Response, error) {
+	requestState := query.state().request
+	if isWrite(requestState) {
+		return singleMaybeWrite[Row](ctx, client, requestState, options...)
+	}
+	return singleMaybeRead[Row](ctx, client, requestState, options...)
+}
+
+// isWrite reports whether requestState is an insert, upsert, update or delete
+// on a relation: any method but GET or HEAD, on a path that is not a function
+// call.
+func isWrite(requestState request.Request) bool {
+	if method := requestState.Method(); method == http.MethodGet || method == http.MethodHead {
+		return false
+	}
+	path := requestState.Path()
+	return len(path) == 0 || path[0] != rpcPathSegment
+}
+
+// singleMaybeWrite sends the write in the singular format and resolves the
+// server's count: the object as the row, a 406 for no row as the empty result
+// and a 406 for more than one row as the server's [*Error] wrapping
+// [ErrTooManyRows].
+func singleMaybeWrite[Row any](ctx context.Context, client *Client, requestState request.Request, options ...Option) (Row, bool, Response, error) {
+	options = append(slices.Clip(options), withAccept(singularMediaType))
+	row, response, err := decodeWhole[Row](ctx, client, requestState, options...)
+	err = classifySingular(err)
+	switch {
+	case errors.Is(err, ErrNoRows):
+		return row, false, Response{HTTPStatus: http.StatusNotAcceptable, Count: -1}, nil
+	case err != nil:
+		return row, false, Response{}, err
+	}
+	return row, true, response, nil
+}
+
+// singleMaybeRead sends the read in the array format and counts the rows of
+// its result from the Content-Range header, or from the body without one.
+func singleMaybeRead[Row any](ctx context.Context, client *Client, requestState request.Request, options ...Option) (Row, bool, Response, error) {
 	var zero Row
-	rows, response, err := Collect(ctx, client, query, options...)
+	options = append(slices.Clip(options), withRepresentation())
+	result, response, err := send(ctx, client, requestState, options...)
 	if err != nil {
 		return zero, false, Response{}, err
 	}
-	switch len(rows) {
-	case 0:
-		return zero, false, response, nil
-	case 1:
-		return rows[0], true, response, nil
-	default:
-		return zero, false, Response{}, ErrTooManyRows
+	rows, err := decodeBody[[]Row](result.Body)
+	if err != nil {
+		return zero, false, Response{}, err
 	}
+	count, counted := parseContentRangeRows(result.ContentRange)
+	if !counted {
+		count = len(rows)
+	}
+	switch {
+	case count == 0:
+		return zero, false, response, nil
+	case count > 1:
+		return zero, false, Response{}, fmt.Errorf("%w (%d rows)", ErrTooManyRows, count)
+	case len(rows) == 1:
+		return rows[0], true, response, nil
+	}
+	// One row whose body is not a one-element array is a function's single
+	// array value, and that value is the row.
+	row, err := decodeBody[Row](result.Body)
+	if err != nil {
+		return zero, false, Response{}, err
+	}
+	return row, true, response, nil
 }
 
 // CollectRaw executes the query through client and decodes the entire response
@@ -140,15 +211,27 @@ func decodeQuery[Row any, T any](ctx context.Context, client *Client, query Quer
 // differ only in the sealed accessor that supplied the request.
 func decodeWhole[T any](ctx context.Context, client *Client, requestState request.Request, options ...Option) (T, Response, error) {
 	options = append(slices.Clip(options), withRepresentation())
-	responseBody, response, err := send(ctx, client, requestState, options...)
-	var decoded T
+	result, response, err := send(ctx, client, requestState, options...)
+	if err != nil {
+		var zero T
+		return zero, Response{}, err
+	}
+	decoded, err := decodeBody[T](result.Body)
 	if err != nil {
 		return decoded, Response{}, err
 	}
-	if err := json.Unmarshal(responseBody, &decoded); err != nil {
-		return decoded, Response{}, fmt.Errorf("postgrest: decoding response: %w", err)
-	}
 	return decoded, response, nil
+}
+
+// decodeBody decodes body, a whole response, into T. A failure is returned
+// wrapped as a decoding failure, with T's zero value.
+func decodeBody[T any](body []byte) (T, error) {
+	var decoded T
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		var zero T
+		return zero, fmt.Errorf("postgrest: decoding response: %w", err)
+	}
+	return decoded, nil
 }
 
 // state implements [Query].
@@ -173,21 +256,21 @@ var (
 )
 
 // send runs requestState through a per-call copy of the client's HTTP
-// client, derived by the options, and returns the raw response body
+// client, derived by the options, and returns the completed exchange
 // alongside its [Response] metadata. It is the single boundary the executing
 // functions share: the client and the request's path are validated here
 // before any I/O, and a completed exchange's non-2xx status is shaped into
 // an [*Error] here. The exchange itself - header assembly, automatic retries
 // and access-token renewal - follows the contract documented on [Client].
-func send(ctx context.Context, client *Client, requestState request.Request, options ...Option) ([]byte, Response, error) {
+func send(ctx context.Context, client *Client, requestState request.Request, options ...Option) (exchange.Result, Response, error) {
 	if client == nil {
-		return nil, Response{}, ErrMissingClient
+		return exchange.Result{}, Response{}, ErrMissingClient
 	}
 	if path := requestState.Path(); len(path) == 0 || slices.Contains(path, "") {
 		if len(path) == 2 && path[0] == rpcPathSegment {
-			return nil, Response{}, ErrMissingFunction
+			return exchange.Result{}, Response{}, ErrMissingFunction
 		}
-		return nil, Response{}, ErrMissingTable
+		return exchange.Result{}, Response{}, ErrMissingTable
 	}
 
 	settings := readSettings{exchange: client.exchange}
@@ -197,12 +280,12 @@ func send(ctx context.Context, client *Client, requestState request.Request, opt
 
 	result, err := settings.exchange.Do(ctx, requestState)
 	if err != nil {
-		return nil, Response{}, err
+		return exchange.Result{}, Response{}, err
 	}
 	if result.StatusCode < 200 || result.StatusCode >= 300 {
-		return nil, Response{}, newError(result.StatusCode, result.Body)
+		return exchange.Result{}, Response{}, newError(result.StatusCode, result.Body)
 	}
-	return result.Body, Response{
+	return result, Response{
 		HTTPStatus: result.StatusCode,
 		Count:      parseContentRangeTotal(result.ContentRange),
 	}, nil
