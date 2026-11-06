@@ -2,6 +2,9 @@ package postgrest
 
 import (
 	"encoding/json"
+	"errors"
+	"net/http"
+	"regexp"
 
 	"github.com/supabase/supabase-go/core/responses"
 )
@@ -33,8 +36,13 @@ const ErrMissingFunction = postgrestError("function name is required")
 // on a renewal re-ask after the server rejected the sent token.
 const ErrMissingAccessToken = postgrestError("access token is required")
 
-// ErrTooManyRows is reported by [CollectSingleMaybe] when the query matched
-// more than one row.
+// ErrNoRows is wrapped by the [*Error] that answers [CollectSingle] when the
+// query matched no row.
+const ErrNoRows = postgrestError("query matched no row")
+
+// ErrTooManyRows is reported by [CollectSingleMaybe] when a read matched more
+// than one row, and wrapped by the [*Error] that answers [CollectSingle], or
+// a write through [CollectSingleMaybe], when the query matched more than one.
 const ErrTooManyRows = postgrestError("query matched more than one row")
 
 // Error is the typed failure returned when PostgREST answers a query with a
@@ -69,8 +77,10 @@ func (e *Error) Error() string {
 }
 
 // Unwrap returns the underlying cause when this Error wraps one, and nil
-// otherwise, so [errors.Is] and [errors.As] can traverse the chain. Errors
-// parsed from a PostgREST response body have no underlying cause.
+// otherwise, so [errors.Is] and [errors.As] can traverse the chain. The Error
+// that answers a singular request with HTTP status 406 and code "PGRST116"
+// wraps [ErrNoRows] or [ErrTooManyRows], and every other Error has no
+// underlying cause.
 func (e *Error) Unwrap() error {
 	return e.cause
 }
@@ -103,4 +113,29 @@ func newError(httpStatus int, responseBody []byte) *Error {
 		Details: parsed.Details,
 		Hint:    parsed.Hint,
 	}
+}
+
+// singularityCode is the PostgREST error code for a singular request whose
+// result held no row or more than one.
+const singularityCode = "PGRST116"
+
+// noRows matches the details of the server's singularity error for a result
+// that held no row, "0 rows" as whole words, in either wording PostgREST has
+// used.
+var noRows = regexp.MustCompile(`\b0 rows\b`)
+
+// classifySingular gives a 406 PGRST116 answer to a singular request the
+// sentinel it stands for as its cause: [ErrNoRows] when its details report no
+// row, and [ErrTooManyRows] otherwise. Any other error is returned as it is.
+func classifySingular(err error) error {
+	serverError, ok := errors.AsType[*Error](err)
+	if !ok || serverError.HTTPStatus != http.StatusNotAcceptable || serverError.Code != singularityCode {
+		return err
+	}
+	if noRows.MatchString(serverError.Details) {
+		serverError.cause = ErrNoRows
+	} else {
+		serverError.cause = ErrTooManyRows
+	}
+	return err
 }

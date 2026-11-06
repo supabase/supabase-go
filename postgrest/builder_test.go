@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -31,6 +32,24 @@ func newTestClient(t *testing.T, server *httptest.Server) *postgrest.Client {
 		t.Fatalf("configuration.New: %v", err)
 	}
 	return postgrest.NewFromConfiguration(projectConfiguration)
+}
+
+// newSingularityServer answers every request as PostgREST refuses a singular
+// request whose result held no row or more than one: HTTP 406 with code
+// PGRST116 and the given details. The server closes when the test ends.
+func newSingularityServer(t *testing.T, details string) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNotAcceptable)
+		respond.JSON(t, writer, map[string]any{
+			"code":    "PGRST116",
+			"message": "JSON object requested, multiple (or no) rows returned",
+			"details": details,
+			"hint":    nil,
+		})
+	}))
+	t.Cleanup(server.Close)
+	return server
 }
 
 // TestCollectDecodesRows pins the read happy path end to end: rows decode
@@ -710,45 +729,59 @@ func TestCollectSingleDecodesRow(t *testing.T) {
 	}
 }
 
-// TestCollectSingleReturnsZeroValuesOnError pins the failure contract: a
-// non-2xx answer surfaces as *Error and the returned row and Response are
-// zero values.
+// TestCollectSingleReturnsZeroValuesOnError pins the failure contract: the
+// server's 406 PGRST116 answer surfaces as *Error with its fields untouched,
+// wrapping the sentinel its details stand for in either wording PostgREST
+// has used, and the returned row and Response are zero values.
 func TestCollectSingleReturnsZeroValuesOnError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.WriteHeader(http.StatusNotAcceptable)
-		respond.Body(t, writer, []byte(`{"code":"PGRST116","message":"JSON object requested, multiple (or no) rows returned"}`))
-	}))
-	defer server.Close()
+	testCases := []struct {
+		name    string
+		details string
+		want    error
+	}{
+		{"no row", "The result contains 0 rows", postgrest.ErrNoRows},
+		{"no row, older wording", "Results contain 0 rows, application/vnd.pgrst.object+json requires 1 row", postgrest.ErrNoRows},
+		{"two rows", "The result contains 2 rows", postgrest.ErrTooManyRows},
+		{"ten rows", "The result contains 10 rows", postgrest.ErrTooManyRows},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			row, response, err := postgrest.CollectSingle(
+				t.Context(),
+				newTestClient(t, newSingularityServer(t, testCase.details)),
+				postgrest.From[instrument]("instruments"),
+			)
 
-	row, response, err := postgrest.CollectSingle(
-		t.Context(),
-		newTestClient(t, server),
-		postgrest.From[instrument]("instruments"),
-	)
-
-	var typedError *postgrest.Error
-	if !errors.As(err, &typedError) {
-		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
-	}
-	if typedError.Code != "PGRST116" || typedError.HTTPStatus != http.StatusNotAcceptable {
-		t.Errorf("error = %+v", typedError)
-	}
-	if row != (instrument{}) {
-		t.Errorf("row = %+v, want zero value", row)
-	}
-	if response != (postgrest.Response{}) {
-		t.Errorf("response = %+v, want zero value", response)
+			var typedError *postgrest.Error
+			if !errors.As(err, &typedError) {
+				t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+			}
+			if typedError.Code != "PGRST116" || typedError.HTTPStatus != http.StatusNotAcceptable || typedError.Details != testCase.details {
+				t.Errorf("error = %+v, want the server's fields untouched", typedError)
+			}
+			if !errors.Is(err, testCase.want) {
+				t.Errorf("err = %v, want it to wrap %v", err, testCase.want)
+			}
+			if row != (instrument{}) {
+				t.Errorf("row = %+v, want zero value", row)
+			}
+			if response != (postgrest.Response{}) {
+				t.Errorf("response = %+v, want zero value", response)
+			}
+		})
 	}
 }
 
 // TestCollectSingleMaybeDecodesRow pins the tolerant singular read end to
 // end: the request reaches the wire with the default plural Accept header -
-// never the singular form - and the lone row is unwrapped alongside true.
+// never the singular form - and the lone row the Content-Range header counts
+// is unwrapped alongside true.
 func TestCollectSingleMaybeDecodesRow(t *testing.T) {
 	var observed *http.Request
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		observed = request.Clone(request.Context())
 		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Content-Range", "0-0/*")
 		respond.JSON(t, writer, []instrument{{ID: 1, Name: "violin"}})
 	}))
 	defer server.Close()
@@ -773,12 +806,14 @@ func TestCollectSingleMaybeDecodesRow(t *testing.T) {
 	}
 }
 
-// TestCollectSingleMaybeNoRows pins absence as an ordinary outcome: an empty
-// result yields the zero value alongside false with no error, and the
-// Response still carries the successful request's metadata.
+// TestCollectSingleMaybeNoRows pins absence as an ordinary outcome: a result
+// the Content-Range header counts as no row yields the zero value alongside
+// false with no error, and the Response still carries the successful
+// request's metadata.
 func TestCollectSingleMaybeNoRows(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Content-Range", "*/*")
 		respond.Body(t, writer, []byte(`[]`))
 	}))
 	defer server.Close()
@@ -800,12 +835,14 @@ func TestCollectSingleMaybeNoRows(t *testing.T) {
 	testkit.AssertOKResponse(t, response)
 }
 
-// TestCollectSingleMaybeTooManyRows pins client-side cardinality
-// enforcement: a result of more than one row fails with ErrTooManyRows and
-// zero values throughout.
+// TestCollectSingleMaybeTooManyRows pins cardinality enforcement on a read:
+// a result the Content-Range header counts as more than one row fails with
+// ErrTooManyRows naming the count, built on the client and so no *Error,
+// with zero values throughout.
 func TestCollectSingleMaybeTooManyRows(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Content-Range", "0-1/*")
 		respond.JSON(t, writer, []instrument{{ID: 1, Name: "violin"}, {ID: 2, Name: "flute"}})
 	}))
 	defer server.Close()
@@ -818,6 +855,12 @@ func TestCollectSingleMaybeTooManyRows(t *testing.T) {
 
 	if !errors.Is(err, postgrest.ErrTooManyRows) {
 		t.Fatalf("err = %v, want ErrTooManyRows", err)
+	}
+	if !strings.HasSuffix(err.Error(), "(2 rows)") {
+		t.Errorf("err = %q, want the count named", err)
+	}
+	if _, isServerError := errors.AsType[*postgrest.Error](err); isServerError {
+		t.Errorf("err = %v, want no *postgrest.Error built on the client", err)
 	}
 	if found {
 		t.Error("found = true, want false")
@@ -861,5 +904,231 @@ func TestCollectSingleMaybeReturnsZeroValuesOnError(t *testing.T) {
 	}
 	if response != (postgrest.Response{}) {
 		t.Errorf("response = %+v, want zero value", response)
+	}
+}
+
+// TestCollectSingleMaybeCountsReadsFromContentRange pins where a read's row
+// count comes from: the range of the Content-Range header, and the body's
+// elements only without one, so that a function's single array value, which
+// the header counts as one row, is the row whole rather than its first
+// element.
+func TestCollectSingleMaybeCountsReadsFromContentRange(t *testing.T) {
+	testCases := []struct {
+		name         string
+		contentRange string
+		body         string
+		wantRow      string
+		wantFound    bool
+		wantTooMany  bool
+	}{
+		{"one row by the header", "0-0/*", `[{"id":1}]`, `{"id":1}`, true, false},
+		{"two rows by the header", "0-1/57", `[{"id":1},{"id":2}]`, "", false, true},
+		{"no row by the header", "*/*", `[]`, "", false, false},
+		{"two rows by the body without a header", "", `[{"id":1},{"id":2}]`, "", false, true},
+		{"no row by the body without a header", "", `[]`, "", false, false},
+		{"one row whose body is a function's array value", "0-0/*", `[1,2,3]`, `[1,2,3]`, true, false},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+				writer.Header().Set("Content-Type", "application/json")
+				if testCase.contentRange != "" {
+					writer.Header().Set("Content-Range", testCase.contentRange)
+				}
+				respond.Body(t, writer, []byte(testCase.body))
+			}))
+			defer server.Close()
+
+			row, found, response, err := postgrest.CollectSingleMaybe(
+				t.Context(),
+				newTestClient(t, server),
+				postgrest.RPC[json.RawMessage]("numbers").Rows(),
+			)
+			if testCase.wantTooMany {
+				if !errors.Is(err, postgrest.ErrTooManyRows) {
+					t.Fatalf("err = %v, want ErrTooManyRows", err)
+				}
+				if found || row != nil || response != (postgrest.Response{}) {
+					t.Errorf("CollectSingleMaybe = (%s, %v, %+v), want zero values", row, found, response)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("CollectSingleMaybe: %v", err)
+			}
+			if found != testCase.wantFound {
+				t.Errorf("found = %v, want %v", found, testCase.wantFound)
+			}
+			if string(row) != testCase.wantRow {
+				t.Errorf("row = %s, want %s", row, testCase.wantRow)
+			}
+			if response.HTTPStatus != http.StatusOK {
+				t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
+			}
+		})
+	}
+}
+
+// TestCollectSingleMaybeKeepsAFunctionCallPlural pins that a function call is
+// a read whatever its method: the POST reaches the wire with the default
+// plural Accept header, never the singular form.
+func TestCollectSingleMaybeKeepsAFunctionCallPlural(t *testing.T) {
+	var observed *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		observed = request.Clone(request.Context())
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Content-Range", "0-0/*")
+		respond.JSON(t, writer, []instrument{{ID: 1, Name: "violin"}})
+	}))
+	defer server.Close()
+
+	row, found, _, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.RPC[instrument]("pick_one").Rows(),
+	)
+	if err != nil {
+		t.Fatalf("CollectSingleMaybe: %v", err)
+	}
+	if !found || row != (instrument{ID: 1, Name: "violin"}) {
+		t.Errorf("CollectSingleMaybe = (%+v, %v), want the row found", row, found)
+	}
+	if observed.Method != http.MethodPost {
+		t.Errorf("Method = %s, want POST", observed.Method)
+	}
+	if got, want := observed.Header.Get("Accept"), "application/json"; got != want {
+		t.Errorf("Accept = %q, want %q", got, want)
+	}
+}
+
+// TestCollectSingleMaybeWriteIsCountedByTheServer pins the write end to end:
+// the update reaches the wire with the singular Accept header, asking for its
+// representation, so the server counts the rows it affects, and the one
+// object it answers with decodes as the row alongside true.
+func TestCollectSingleMaybeWriteIsCountedByTheServer(t *testing.T) {
+	var observed *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		observed = request.Clone(request.Context())
+		writer.Header().Set("Content-Type", "application/vnd.pgrst.object+json")
+		respond.JSON(t, writer, instrument{ID: 1, Name: "viola"})
+	}))
+	defer server.Close()
+
+	row, found, response, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.From[instrument]("instruments").Eq("id", 1).Update(map[string]any{"name": "viola"}),
+	)
+	if err != nil {
+		t.Fatalf("CollectSingleMaybe: %v", err)
+	}
+	if !found || row != (instrument{ID: 1, Name: "viola"}) {
+		t.Errorf("CollectSingleMaybe = (%+v, %v), want the updated row found", row, found)
+	}
+	testkit.AssertOKResponse(t, response)
+	if observed.Method != http.MethodPatch {
+		t.Errorf("Method = %s, want PATCH", observed.Method)
+	}
+	if got, want := observed.Header.Get("Accept"), "application/vnd.pgrst.object+json"; got != want {
+		t.Errorf("Accept = %q, want %q", got, want)
+	}
+	if prefer := observed.Header.Values("Prefer"); !slices.Contains(prefer, "return=representation") {
+		t.Errorf("Prefer = %q, want it to carry return=representation", prefer)
+	}
+}
+
+// TestCollectSingleMaybeWriteAffectingNoRow pins the server's 406 for a write
+// that affected no row, whose details carry "0 rows" as whole words in either
+// wording PostgREST has used, as the empty result with no error and a
+// Response carrying that status and no count. A count of ten rows is not no
+// row.
+func TestCollectSingleMaybeWriteAffectingNoRow(t *testing.T) {
+	testCases := []struct {
+		name      string
+		details   string
+		wantEmpty bool
+	}{
+		{"no row", "The result contains 0 rows", true},
+		{"no row, older wording", "Results contain 0 rows, application/vnd.pgrst.object+json requires 1 row", true},
+		{"ten rows", "The result contains 10 rows", false},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			row, found, response, err := postgrest.CollectSingleMaybe(
+				t.Context(),
+				newTestClient(t, newSingularityServer(t, testCase.details)),
+				postgrest.From[instrument]("instruments").Eq("id", 404).Delete(),
+			)
+			if !testCase.wantEmpty {
+				if !errors.Is(err, postgrest.ErrTooManyRows) {
+					t.Fatalf("err = %v, want ErrTooManyRows", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("CollectSingleMaybe: %v", err)
+			}
+			if found || row != (instrument{}) {
+				t.Errorf("CollectSingleMaybe = (%+v, %v), want the empty result", row, found)
+			}
+			if want := (postgrest.Response{HTTPStatus: http.StatusNotAcceptable, Count: -1}); response != want {
+				t.Errorf("response = %+v, want %+v", response, want)
+			}
+		})
+	}
+}
+
+// TestCollectSingleMaybeWriteAffectingMoreThanOneRow pins the server's 406
+// for a write it rolled back as the *Error with its fields untouched,
+// wrapping ErrTooManyRows, with zero values throughout.
+func TestCollectSingleMaybeWriteAffectingMoreThanOneRow(t *testing.T) {
+	row, found, response, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		newTestClient(t, newSingularityServer(t, "The result contains 2 rows")),
+		postgrest.From[instrument]("instruments").Eq("name", "violin").Update(map[string]any{"name": "viola"}),
+	)
+
+	var typedError *postgrest.Error
+	if !errors.As(err, &typedError) {
+		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+	}
+	if typedError.Code != "PGRST116" || typedError.HTTPStatus != http.StatusNotAcceptable || typedError.Details != "The result contains 2 rows" {
+		t.Errorf("error = %+v, want the server's fields untouched", typedError)
+	}
+	if !errors.Is(err, postgrest.ErrTooManyRows) {
+		t.Errorf("err = %v, want it to wrap ErrTooManyRows", err)
+	}
+	if found || row != (instrument{}) || response != (postgrest.Response{}) {
+		t.Errorf("CollectSingleMaybe = (%+v, %v, %+v), want zero values", row, found, response)
+	}
+}
+
+// TestCollectSingleMaybeWriteOtherNotAcceptableUnchanged pins that a 406 of
+// any other code surfaces as the *Error it is, wrapping nothing.
+func TestCollectSingleMaybeWriteOtherNotAcceptableUnchanged(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNotAcceptable)
+		respond.Body(t, writer, []byte(`{"code":"PGRST107","message":"None of these media types are available: text/csv","details":null,"hint":null}`))
+	}))
+	defer server.Close()
+
+	_, found, response, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		newTestClient(t, server),
+		postgrest.From[instrument]("instruments").Eq("id", 1).Delete(),
+	)
+
+	var typedError *postgrest.Error
+	if !errors.As(err, &typedError) {
+		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+	}
+	if typedError.Code != "PGRST107" || typedError.HTTPStatus != http.StatusNotAcceptable {
+		t.Errorf("error = %+v", typedError)
+	}
+	if errors.Is(err, postgrest.ErrTooManyRows) || errors.Is(err, postgrest.ErrNoRows) || typedError.Unwrap() != nil {
+		t.Errorf("err = %v, want it to wrap nothing", err)
+	}
+	if found || response != (postgrest.Response{}) {
+		t.Errorf("CollectSingleMaybe = (%v, %+v), want zero values", found, response)
 	}
 }
