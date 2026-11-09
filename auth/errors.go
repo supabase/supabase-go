@@ -31,6 +31,12 @@ const ErrMissingStore = authError("session store is required")
 // holds nothing.
 const ErrNoStoredSession = authError("no stored session")
 
+// ErrSessionNotSaved is reported, wrapped together with the store's error,
+// when a [SessionStore] could not save a live [Session]'s state. The session
+// keeps that state in memory and goes on working, and a [Session.Persist] to
+// the same store retries the write.
+const ErrSessionNotSaved = authError("session could not be saved")
+
 // ErrSignedOut is reported on a [Session] that [Session.SignOut] has ended,
 // and on the zero Session, by every operation but a sign-out and
 // [Session.AutoRefresh], and by a sign-out with [signout.WithOthersScope].

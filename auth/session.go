@@ -92,9 +92,8 @@ type SessionStore interface {
 
 	// Save replaces the state the store holds with state, a slice the store
 	// may keep. A failed Save is returned by the call that caused the write,
-	// except after a refresh started by [Session.AccessToken],
-	// [Session.AutoRefresh], [Session.SignOut] or [Client.SessionFromStore],
-	// when the failure reaches no caller.
+	// wrapped with [ErrSessionNotSaved], unless that call is a
+	// [Session.SignOut] that goes on to end the session and clear the store.
 	Save(ctx context.Context, state []byte) error
 
 	// Delete clears the state the store holds. A failed Delete is returned
@@ -111,7 +110,8 @@ type SessionStore interface {
 // error or an [*Error]. A context that ends during the refresh returns its
 // error. The method value session.AccessToken is a
 // [configuration.AccessTokenProvider]. A refresh this call starts is written
-// to the session's store before it returns.
+// to the session's store before it returns, and a write that fails returns
+// [ErrSessionNotSaved] with no token.
 func (s *Session) AccessToken(ctx context.Context) (string, error) {
 	if s.inner == nil {
 		return "", ErrSignedOut
@@ -164,9 +164,8 @@ func (s *Session) User() *User {
 // wrapping the [*Error] once they do not, the session having ended. A later
 // Refresh after a rejection sends nothing and answers the same way. Any
 // other failed refresh is returned as a transport error, an [*Error] or the
-// context's error when the retries were cut short. A store that cannot be
-// written is reported as the wrapped error, after the session already holds
-// the new tokens.
+// context's error when the retries were cut short. A store that cannot save
+// the renewed session is reported with [ErrSessionNotSaved].
 func (s *Session) Refresh(ctx context.Context) (*RefreshResult, error) {
 	if s.inner == nil {
 		return nil, ErrSignedOut
@@ -209,7 +208,10 @@ type RefreshResult struct{}
 //
 // A store that cannot be cleared is reported as the wrapped error, alongside
 // a failed revocation under [signout.WithLocalScope] or the rejection that
-// ended the session under a bare call. On a session that has already ended,
+// ended the session under a bare call. A store that cannot save a session the
+// refresh renewed is reported with [ErrSessionNotSaved] whenever the session
+// stays live: under [signout.WithOthersScope] with nothing sent, and under a
+// bare call alongside a failed revocation. On a session that has already ended,
 // a bare call or [signout.WithLocalScope] returns success without a request,
 // and [signout.WithOthersScope] returns [ErrSignedOut] or
 // [ErrSessionExpired].
@@ -235,7 +237,7 @@ func (s *Session) SignOut(ctx context.Context, options ...signout.Option) (*Sign
 // signed out, and a refresh the server rejects ends it as signed out and
 // reports the rejection, with a clear that failed joined.
 func (s *Session) signOutGlobally(ctx context.Context) (*SignOutResult, error) {
-	bearer, clearErr, err := s.inner.SignOutToken(ctx)
+	bearer, clearErr, saveErr, err := s.inner.SignOutToken(ctx)
 	if err != nil {
 		if _, ok := errors.AsType[*session.EndedError](err); ok {
 			return &SignOutResult{}, nil
@@ -244,6 +246,10 @@ func (s *Session) signOutGlobally(ctx context.Context) (*SignOutResult, error) {
 	}
 	err = logout(ctx, s.client.httpClient, s.client.baseURL, bearer, scopes.Global)
 	if err != nil && !nothingLeftToRevoke(err, scopes.Global) {
+		// The session stays live, so the store's stale state is reported too.
+		if saveErr != nil {
+			err = errors.Join(err, storeSaveError(saveErr))
+		}
 		return nil, err
 	}
 	if _, err := s.inner.End(ctx); err != nil {
@@ -316,7 +322,7 @@ func (s *Session) revokeHeld(ctx context.Context, held session.State) error {
 // Persist writes the session to store at once and on every later change of
 // its tokens or user, and clears the store when the session ends, so
 // [Client.SessionFromStore] can restore it in a later run. If that first
-// write fails, the error is returned wrapped and the session persists as
+// write fails, [ErrSessionNotSaved] is returned and the session persists as
 // before. A later Persist moves persistence to its own store and leaves the
 // earlier one as last written, no other write reaching either store while
 // its first write runs. Persist returns [ErrMissingStore] for a nil store.
@@ -331,7 +337,7 @@ func (s *Session) Persist(ctx context.Context, store SessionStore) error {
 		if _, ok := errors.AsType[*session.EndedError](err); ok {
 			return sessionError(err)
 		}
-		return fmt.Errorf("auth: writing session store: %w", err)
+		return storeSaveError(err)
 	}
 	return nil
 }
@@ -396,7 +402,10 @@ func (r *SessionFromTokensResult) Session() *Session { return r.session }
 // [ErrSessionExpired] is returned wrapping the rejection, and any other
 // refresh failure, a transport error, an [*Error] or the context's error
 // when the retries were cut short, is returned with the store left as it
-// was. A document the store holds that Persist did not write is reported as
+// was. When that refresh renews the session but the store cannot save it, the
+// restored session is returned together with [ErrSessionNotSaved], a non-nil
+// result beside an error, since only that session holds the renewed refresh
+// token. A document the store holds that Persist did not write is reported as
 // the wrapped decode error.
 func (c *Client) SessionFromStore(ctx context.Context, store SessionStore) (*SessionFromStoreResult, error) {
 	if store == nil {
@@ -415,8 +424,11 @@ func (c *Client) SessionFromStore(ctx context.Context, store SessionStore) (*Ses
 	}
 	restored := c.newSession(state, store)
 	if !state.ExpiresAt().After(c.now()) {
-		var write *session.WriteError
-		if clearErr, err := restored.inner.Refresh(ctx); err != nil && !errors.As(err, &write) {
+		clearErr, err := restored.inner.Refresh(ctx)
+		if _, ok := errors.AsType[*session.WriteError](err); ok {
+			return &SessionFromStoreResult{session: restored}, sessionError(err)
+		}
+		if err != nil {
 			return nil, joinClearError(sessionError(err), clearErr)
 		}
 	}
@@ -563,7 +575,8 @@ func sessionGone(err error) bool {
 // sessionError translates the session machinery's errors into this package's:
 // an ended session is [ErrSignedOut] or [ErrSessionExpired] wrapping the
 // server's rejection, a store write that failed after its state was
-// committed is wrapped and every other error is returned as it is.
+// committed is [ErrSessionNotSaved] wrapping the store's error and every
+// other error is returned as it is.
 func sessionError(err error) error {
 	if ended, ok := errors.AsType[*session.EndedError](err); ok {
 		if ended.Status == session.Expired {
@@ -572,9 +585,15 @@ func sessionError(err error) error {
 		return ErrSignedOut
 	}
 	if write, ok := errors.AsType[*session.WriteError](err); ok {
-		return fmt.Errorf("auth: writing session store: %w", write.Err)
+		return storeSaveError(write.Err)
 	}
 	return err
+}
+
+// storeSaveError wraps the error of a store that could not save a live
+// session's state with [ErrSessionNotSaved].
+func storeSaveError(err error) error {
+	return fmt.Errorf("%w: %w", ErrSessionNotSaved, err)
 }
 
 // storeClearError wraps the error of a store that could not be cleared when
