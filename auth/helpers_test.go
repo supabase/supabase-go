@@ -347,6 +347,12 @@ func mintedRefreshToken(index int) string {
 	return fmt.Sprintf("refresh-%d", index+1)
 }
 
+// reportsNotCleared reports whether err reports the failed Delete of store as
+// auth.ErrSessionNotCleared wrapping the store's error.
+func reportsNotCleared(err error, store *recordingStore) bool {
+	return errors.Is(err, auth.ErrSessionNotCleared) && errors.Is(err, store.deleteErr)
+}
+
 // assertNotSaved asserts that err reports the failed Save of store as
 // auth.ErrSessionNotSaved wrapping the store's error, that session holds
 // minted token index regardless and that a Persist once the store has

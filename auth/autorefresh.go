@@ -41,8 +41,9 @@ const (
 //   - nil when ctx is done or [Session.SignOut] has ended the session.
 //   - [ErrSessionExpired], wrapping the server's rejection, when the session
 //     ended because the server rejected its refresh token.
-//   - the store's error, wrapped and joined with either of the above, when
-//     its refresh ended the session and the store could not be cleared.
+//   - [ErrSessionNotCleared], wrapping the store's error and joined with
+//     either of the above, when its refresh ended the session and the store
+//     could not be cleared.
 //   - [ErrSessionNotSaved], wrapping the store's error, when the store could
 //     not save a renewed session, even when ctx ended during the write. The
 //     session stays live, so a later call to AutoRefresh resumes.
