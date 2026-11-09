@@ -28,8 +28,8 @@ import (
 // signing-key secrets. It never starts background work and owns no resources
 // that need releasing.
 //
-// A Client sends each request once. [configuration.WithRetry] has no effect
-// on it.
+// A Client sends each request once, the refresh of a [Session] excepted, and
+// [configuration.WithRetry] has no effect on it.
 type Client struct {
 	httpClient configuration.HTTPClient
 	baseURL    *url.URL

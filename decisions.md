@@ -711,11 +711,12 @@ In an example the variable's content is certain, so naming the type it holds let
 ## Auth requests are single-attempt, outside the automatic-retry option
 
 **What**:  
-The Auth client sends each request once and ignores the `configuration.WithRetry` setting.
+The Auth client sends each request once and ignores the `configuration.WithRetry` setting, the refresh grant a `Session` runs excepted, which retries on the schedule the `auth.session.refresh_session` capability sets.
 
 **Why**:  
 Verification sits on the request-handling hot path of the caller's own server - this SDK's anticipated primary use - where invisible backoff multiplies the latency of the inbound request being served.
 Nor is every Auth request safe to repeat: a repeated password grant signs the user in a second time.
+The refresh grant is safe to repeat, since a refresh token the server has just rotated away from still buys the tokens it rotated to, and the caller's context bounds what its retries cost the request being served.
 
 ## The auth admin surface is one in-package type behind an accessor
 
