@@ -474,25 +474,9 @@ func TestCollectAppliesRange(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
+			var observed *http.Request
 			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-				values, err := url.ParseQuery(request.URL.RawQuery)
-				if err != nil {
-					t.Fatalf("request query parse: %v, for raw query %q", err, request.URL.RawQuery)
-				}
-				if len(values) != 2 {
-					t.Fatalf("request query parse want value count got %d, want %d, for raw query %q", len(values), 2, request.URL.RawQuery)
-				}
-
-				offsetValues := values["offset"]
-				if len(offsetValues) != 1 || offsetValues[0] != testCase.wantOffset {
-					t.Fatalf("offsetValues got = %q, want single %q", offsetValues, testCase.wantOffset)
-				}
-
-				limitValues := values["limit"]
-				if len(limitValues) != 1 || limitValues[0] != testCase.wantLimit {
-					t.Fatalf("limitValues got = %q, want single %q", limitValues, testCase.wantLimit)
-				}
-
+				observed = request.Clone(request.Context())
 				respond.Body(t, writer, []byte(`[]`))
 			}))
 			defer server.Close()
@@ -504,6 +488,19 @@ func TestCollectAppliesRange(t *testing.T) {
 			)
 			if err != nil {
 				t.Fatalf("Collect: %v", err)
+			}
+			values, err := url.ParseQuery(observed.URL.RawQuery)
+			if err != nil {
+				t.Fatalf("request query parse: %v, for raw query %q", err, observed.URL.RawQuery)
+			}
+			if len(values) != 2 {
+				t.Fatalf("request query parse want value count got %d, want %d, for raw query %q", len(values), 2, observed.URL.RawQuery)
+			}
+			if offsetValues := values["offset"]; len(offsetValues) != 1 || offsetValues[0] != testCase.wantOffset {
+				t.Errorf("offset = %q, want single %q", offsetValues, testCase.wantOffset)
+			}
+			if limitValues := values["limit"]; len(limitValues) != 1 || limitValues[0] != testCase.wantLimit {
+				t.Errorf("limit = %q, want single %q", limitValues, testCase.wantLimit)
 			}
 			if len(rows) != 0 {
 				t.Errorf("row count = %d, want 0", len(rows))
