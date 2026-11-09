@@ -27,6 +27,10 @@ major_version = 17
 # Required for `status -o env` to emit the API keys (see header comment).
 enabled = true
 site_url = "http://127.0.0.1:3000"
+# Access tokens expire 100 seconds after issue: above the SDK's 90-second
+# background-refresh lead, and close to it, so that a background refresh
+# happens about ten seconds after sign-in.
+jwt_expiry = 100
 
 # The MFA admin capabilities need an enrolled factor to act on, and the test
 # fixtures enroll a TOTP factor for a throwaway user. verify_enabled is

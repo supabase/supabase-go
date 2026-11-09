@@ -98,10 +98,11 @@ const sessionUserDocument = `{"id":"` + sessionUserID + `","aud":"authenticated"
 // token endpoint with no body mints a token response, lifetime overriding
 // the server's default access token lifetime when set, and a 200 answer to
 // the user endpoint with no body serves sessionUserDocument. When hold is
-// set, the response waits until it is closed, the request having been
-// recorded already. retryAfter, when set, is sent as the Retry-After header.
-// When fail is set, the connection is dropped without an answer, the
-// request having been recorded already.
+// set, the response waits until it is closed or the request's context ends,
+// the request having been recorded already, and a request whose context
+// ends first has its connection dropped. retryAfter, when set, is sent as
+// the Retry-After header. When fail is set, the connection is dropped
+// without an answer, the request having been recorded already.
 type answer struct {
 	status     int
 	body       string
@@ -224,7 +225,11 @@ func (s *sessionServer) handle(writer http.ResponseWriter, request *http.Request
 		body:          requestBody,
 	})
 	if next.hold != nil {
-		<-next.hold
+		select {
+		case <-next.hold:
+		case <-request.Context().Done():
+			panic(http.ErrAbortHandler)
+		}
 	}
 	if next.fail {
 		panic(http.ErrAbortHandler)

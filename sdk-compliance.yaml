@@ -366,6 +366,14 @@ features:
     supporting_symbols:
       - auth.UpdateUserResult
       - auth.UpdateUserResult.User
+  auth.session.auto_refresh:
+    status: implemented
+    note: |
+      No start, stop or enable control: the loop is auth.Session.AutoRefresh,
+      which blocks on the caller's goroutine until its context is cancelled,
+      so the SDK owns no goroutine to leak.
+    symbols:
+      - auth.Session.AutoRefresh
   auth.session.get_claims:
     status: implemented
     note: |
@@ -487,6 +495,33 @@ features:
       - auth/signout.Resolve
       - auth/signout.WithLocalScope
       - auth/signout.WithOthersScope
+  auth.session.sign_out_reason:
+    status: implemented
+    note: |
+      The spec's third reason, a stored session that cannot be recovered, is
+      a returned error from auth.Client.SessionFromStore rather than an
+      event, because no session exists to emit on.
+    symbols:
+      - auth.SessionEvent.SignOutReason
+      - auth.SignOutReason
+      - auth.SignOutReasonSessionExpired
+      - auth.SignOutReasonUserInitiated
+  auth.session.subscribe_auth_events:
+    status: implemented
+    note: |
+      Listeners are added per auth.Session rather than per client, and no
+      event carries the session: a listener reads the state an event
+      describes from the Session it holds. There is no SIGNED_IN event,
+      since the sign-in call returns the session it created before a
+      listener can be added to it.
+    symbols:
+      - auth.Session.AddEventListener
+      - auth.SessionEvent
+      - auth.SessionEvent.Name
+      - auth.SessionEventInitialSession
+      - auth.SessionEventName
+      - auth.SessionEventSignedOut
+      - auth.SessionEventTokenRefreshed
   auth.sign_in.sign_in_with_password:
     status: implemented
     symbols:
@@ -506,10 +541,12 @@ features:
     note: |
       One logger for the whole SDK, injected at construction and flowing to
       every domain client through the shared transport, which writes one
-      debug log emission per request round trip. Silent by default via a
-      discard logger, and credentials, bodies, query strings and header
-      values are never logged.
+      debug log emission per request round trip, and to the Auth client,
+      which logs a session listener's recovered panic at error level.
+      Silent by default via a discard logger, and credentials, bodies,
+      query strings and header values are never logged.
     symbols:
+      - core/configuration.Configuration.Logger
       - core/configuration.WithLogger
   client.observability.trace_propagation:
     status: implemented

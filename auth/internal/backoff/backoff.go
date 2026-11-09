@@ -14,9 +14,11 @@ import (
 const (
 	// initial is the wait before the first retry.
 	initial = 200 * time.Millisecond
+
 	// ceiling is the longest wait the doubling reaches, and the wait after
 	// which one retry remains.
 	ceiling = 30 * time.Second
+
 	// spread is the fraction of a wait by which it varies either way.
 	spread = 0.25
 )
@@ -38,11 +40,17 @@ func Wait(attempt int, retryAfter time.Duration, random float64) (wait time.Dura
 	}
 	base = min(base, ceiling)
 
-	wait = time.Duration(float64(base) * (1 - spread + 2*spread*random))
+	wait = vary(base, random)
 	if retryAfter > wait {
 		wait = retryAfter
 	}
 	return wait, base >= ceiling || retryAfter >= ceiling
+}
+
+// vary returns wait multiplied by a factor between 1-spread and 1+spread that
+// random, a number in [0, 1), selects.
+func vary(wait time.Duration, random float64) time.Duration {
+	return time.Duration(float64(wait) * (1 - spread + 2*spread*random))
 }
 
 // Sleep pauses for wait and returns nil, or returns ctx's error when ctx ends
