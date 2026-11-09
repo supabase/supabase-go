@@ -129,7 +129,7 @@ func run() (err error) {
 	if err != nil {
 		return fmt.Errorf("listening: %w", err)
 	}
-	server := &http.Server{Handler: practiceLogsHandler(client)}
+	server := &http.Server{Handler: practiceLogsHandler(client), ReadHeaderTimeout: 10 * time.Second}
 	served := make(chan error, 1)
 	go func() { served <- server.Serve(listener) }()
 	// Deferred, the shutdown runs on every path out of run, a panic included,
@@ -175,13 +175,13 @@ func signUpDemoUser(ctx context.Context, projectURL, publishableKey string) (use
 	if err != nil {
 		return "", "", err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, projectURL+"/auth/v1/signup", bytes.NewReader(payload))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, projectURL+"/auth/v1/signup", bytes.NewReader(payload)) // #nosec G704 -- the project URL is the operator's configuration, not request input
 	if err != nil {
 		return "", "", err
 	}
 	request.Header.Set("apikey", publishableKey)
 	request.Header.Set("Content-Type", "application/json")
-	response, err := http.DefaultClient.Do(request)
+	response, err := http.DefaultClient.Do(request) // #nosec G704 -- the project URL is the operator's configuration, not request input
 	if err != nil {
 		return "", "", err
 	}

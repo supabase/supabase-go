@@ -15,7 +15,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -67,14 +67,14 @@ func run(ctx context.Context, client *auth.Client, email, password string) error
 		return fmt.Errorf("signing in: %w", err)
 	}
 	session := result.Session()
-	log.Printf("signed in as %s", session.User().Email())
+	slog.Info("signed in", "email", session.User().Email())
 
 	remove := session.AddEventListener(func(event auth.SessionEvent) {
 		if event.Name() == auth.SessionEventSignedOut {
-			log.Printf("session event: %s (%s)", event.Name(), event.SignOutReason())
+			slog.Info("session event", "name", event.Name(), "reason", event.SignOutReason())
 			return
 		}
-		log.Printf("session event: %s", event.Name())
+		slog.Info("session event", "name", event.Name())
 	})
 	defer remove()
 
@@ -89,7 +89,7 @@ func run(ctx context.Context, client *auth.Client, email, password string) error
 	signOutContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if _, signOutErr := session.SignOut(signOutContext, signout.WithLocalScope()); signOutErr != nil {
-		log.Printf("signing out: %v", signOutErr)
+		slog.Error("signing out", "error", signOutErr)
 	}
 	return err
 }
@@ -115,7 +115,7 @@ func verifyPeriodically(ctx context.Context, client *auth.Client, session *auth.
 			}
 			return fmt.Errorf("verifying the access token: %w", err)
 		}
-		log.Printf("token verified for %s, expiring %s", claims.Claims().Subject(), claims.Claims().ExpiresAt().Format(time.RFC3339))
+		slog.Info("token verified", "subject", claims.Claims().Subject(), "expires_at", claims.Claims().ExpiresAt())
 
 		select {
 		case <-ctx.Done():

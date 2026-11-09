@@ -31,6 +31,9 @@ A response body that cannot be closed fails the call as a transport error, as on
 
 - every operation of `Client`, `Admin` and `Session` that sends a request
 
+`Admin`'s `GetCustomProvider`, `UpdateCustomProvider` and `DeleteCustomProvider`:
+Passing `.` or `..` as a custom provider identifier now fails with the server's error. Before, path cleaning dropped the identifier from the request, meaning that `Admin.GetCustomProvider(ctx, ".")` fetched the provider list instead and returned an empty provider with no error. Every other case failed with an error about the wrong endpoint. Real identifiers carry the `custom:` prefix and are unaffected.
+
 ## `v0.1.0-alpha.3` (2026-11-05)
 
 ### Added

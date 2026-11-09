@@ -31,12 +31,26 @@ trap 'rm -rf "${toolbin}"' EXIT
     golang.org/x/tools/go/analysis/passes/reflectvaluecompare/cmd/reflectvaluecompare \
     ./sdkchecker
 )
-# gopls builds from its own tool module, which holds golang.org/x/tools at the
-# exact commit its release requires (see decisions.md).
+# gopls and gosec each build from a tool module of their own, whose go.mod
+# says why.
 (
   cd tools/go/gopls
   GOWORK=off GOBIN="${toolbin}" go install golang.org/x/tools/gopls
 )
+(
+  cd tools/go/gosec
+  GOWORK=off GOBIN="${toolbin}" go install github.com/securego/gosec/v2/cmd/gosec
+)
+
+# gosec runs every rule but these, each off for a reason:
+# - G104, errors unchecked: errcheck runs the same check, with -blank.
+# - G117, secrets in marshaled structs: an auth SDK marshals credentials by contract, as sign-in payloads and as the session state a store persists.
+# Test files are scanned, as every other check scans them. A finding that is
+# the design is suppressed where it stands, and a suppression must name its
+# rule and its reason. gosec expands ./... by walking the filesystem, which
+# reaches a published module's nested integrationtest module, so that
+# directory is excluded here and scanned as a module of its own below.
+gosec_flags=(-quiet -tests -exclude=G104,G117 -exclude-dir=integrationtest -nosec-require-rules -nosec-require-justification)
 
 # revive is given the repository's configuration by path. Left to find one
 # itself, it reads a revive.toml from the contributor's home or XDG config
@@ -61,6 +75,7 @@ for module in ${workspace_modules}; do
     "${toolbin}/errcheck" -blank ./...
     "${toolbin}/shadow" ./...
     "${toolbin}/reflectvaluecompare" ./...
+    "${toolbin}/gosec" "${gosec_flags[@]}" ./...
     "${toolbin}/revive" -config "${revive_config}" -set_exit_status ./...
     # sdkchecker's analyzers apply to the published modules' non-test files.
     "${toolbin}/sdkchecker" -test=false ./...
@@ -88,6 +103,7 @@ for module in $(enumerate_adjacent_test_modules) $(enumerate_example_modules); d
     GOWORK=off "${toolbin}/errcheck" -blank ./...
     GOWORK=off "${toolbin}/shadow" ./...
     GOWORK=off "${toolbin}/reflectvaluecompare" ./...
+    GOWORK=off "${toolbin}/gosec" "${gosec_flags[@]}" ./...
     "${toolbin}/revive" -config "${revive_config}" -set_exit_status ./...
   )
 done
