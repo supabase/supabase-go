@@ -60,9 +60,11 @@ enumerate_example_modules() {
 # modules, the example programs and the telemetrytest consumer probe. All but
 # integration-testing/testkit require SDK modules and resolve them from the
 # local tree through replace directives, so scripts/prepare-release.sh
-# re-tidies each one after pinning a published module's sibling requires,
-# keeping their recorded versions consistent with the new module graph
-# (testkit rides along from the adjacent set; its tidy is a no-op).
+# raises each one's require of the module being released and re-tidies it,
+# keeping their recorded versions consistent with the new module graph, and
+# scripts/check-release-consistency.sh fails when one records a released
+# sibling behind its newest release (testkit rides along from the adjacent
+# set; it requires no SDK module, so both are no-ops for it).
 enumerate_consumer_shaped_modules() {
   enumerate_adjacent_test_modules
   enumerate_example_modules

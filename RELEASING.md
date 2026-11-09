@@ -49,7 +49,8 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
    ./scripts/prepare-release.sh supabase v0.1.0-alpha.1 core=v0.1.0-alpha.1 auth=v0.1.0-alpha.1 postgrest=v0.1.0-alpha.1
    ```
 
-   For each module the script refuses to run unless the tree is clean and the module's changelog has entries under `## Unreleased`, pins the sibling `require` lines to the given `dep=version` arguments (aborting if any sibling is left at the zero pseudo-version, the mark of a forgotten pin), stamps the changelog - the `## Unreleased` heading becomes ``## `<version>` (<date>)`` - and re-tidies the non-published modules (the integration tests, the examples and `telemetrytest`) with `GOWORK=off`, so every module's recorded versions stay consistent with the new graph and CI stays green.
+   For each module the script refuses to run unless the tree is clean and the module's changelog has entries under `## Unreleased`, pins the sibling `require` lines to the given `dep=version` arguments (aborting if any sibling is left at the zero pseudo-version, the mark of a forgotten pin), stamps the changelog - the `## Unreleased` heading becomes ``## `<version>` (<date>)`` - then raises every non-published module's require of the module to the version being released and re-tidies them (the integration tests, the examples and `telemetrytest`) with `GOWORK=off`, so every module's recorded versions stay consistent with the new graph and CI stays green.
+   The raise matters because those modules resolve the SDK through `replace` directives, which make a recorded version nominal to the build: tidy moves it only when something else in the graph demands more, and would otherwise leave an example naming a release that lacks what its code uses.
    It never commits, tags or pushes.
 
 3. :technologist: Run the pre-flight check, which joins the dots across everything the session prepared:
@@ -58,7 +59,7 @@ Tag pushes order themselves: the workflow derives dependency order from the sibl
    ./scripts/check-release-consistency.sh
    ```
 
-   It works from committed files alone - no network and no Go module resolution, because pinned versions cannot resolve until their tags exist - and catches the anticipated failure modes: malformed or duplicate version headings, a forgotten pin, a pin naming a version its module never declared and a release prepared out of dependency order.
+   It works from committed files alone - no network and no Go module resolution, because pinned versions cannot resolve until their tags exist - and catches the anticipated failure modes: malformed or duplicate version headings, a forgotten pin, a pin naming a version its module never declared, a release prepared out of dependency order and a non-published module recording a sibling behind its newest release.
    Between the prepare commits of a multi-module release it fails on the pins not yet made - expected, and [explained in Troubleshooting](#the-consistency-check-failed-part-way-through-preparing-a-release).
    CI runs the same script on every push, and the release-tags workflow runs it once more before pushing tags.
 

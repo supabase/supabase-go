@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Prepare one published module for release: pin its sibling requires to the
-# given published versions, stamp its changelog, then re-tidy the non-published
-# modules so their recorded versions match the new module graph. Everything it
+# given published versions, stamp its changelog, then raise every
+# non-published module's require of it to the released version and re-tidy
+# them, so their recorded versions match the new module graph. Everything it
 # does is reviewable working-tree change - it never commits, tags or pushes.
 # The release-tags workflow pushes the tag after the release PR merges, reading
 # the changelog stamp this script writes. See RELEASING.md for the full,
@@ -12,6 +13,7 @@ source "$(dirname "$0")/common.sh"
 workspace_modules="$(enumerate_workspace_modules)"
 
 module_base="$(module_path_base)"
+zero_pseudo_version="v0.0.0-00010101000000-000000000000"
 
 if [ "$#" -lt 2 ]; then
   echo "usage: $0 <module> <version> [dep=version ...]" >&2
@@ -98,9 +100,9 @@ done
 
 # A sibling still at the zero pseudo-version means a missing dep=version
 # argument: the tag would ship a require no consumer can resolve.
-if grep -q 'v0.0.0-00010101000000-000000000000' "${module_dir}/go.mod"; then
+if grep -q "${zero_pseudo_version}" "${module_dir}/go.mod"; then
   echo "${module_dir}/go.mod still requires a sibling at the zero pseudo-version. Pass dep=version for every sibling this module requires:" >&2
-  grep 'v0.0.0-00010101000000-000000000000' "${module_dir}/go.mod" >&2
+  grep "${zero_pseudo_version}" "${module_dir}/go.mod" >&2
   exit 1
 fi
 
@@ -115,7 +117,26 @@ mv "${changelog}.tmp" "${changelog}"
 # sees, and an untidy one fails every build command under -mod=readonly.
 # Their replace directives resolve the SDK from the local tree, so this
 # works before any tag exists.
+#
+# A module's require of the module being released is raised first. The
+# replace makes that recorded version nominal to the build, so tidy raises
+# it only when something else in the graph demands more and otherwise leaves
+# it naming an older release, one that may lack what the module's code uses.
+# Only a recorded release, or the zero pseudo-version of a module that never
+# recorded one, is raised: any other version outranks every release on
+# purpose, as telemetrytest's fabricated requires do.
+module_path="${module_base}/${module_dir}"
 for consumer_module in $(enumerate_consumer_shaped_modules); do
+  recorded="$(go mod edit -json "${consumer_module}/go.mod" \
+    | jq -r --arg path "${module_path}" '.Require[]? | select(.Path == $path) | .Version')"
+  if [ -n "${recorded}" ] && [ "${recorded}" != "${version}" ]; then
+    if [ "${recorded}" = "${zero_pseudo_version}" ] || declared_module_versions "${module_dir}" | grep -qx "${recorded}"; then
+      echo "==> raise ${consumer_module}: ${module_path} ${recorded} -> ${version}"
+      go mod edit -require="${module_path}@${version}" "${consumer_module}/go.mod"
+    else
+      echo "==> leave ${consumer_module}: ${module_path} ${recorded}, which is not a release of ${module_dir}"
+    fi
+  fi
   echo "==> go mod tidy   (GOWORK=off) ${consumer_module}"
   (cd "${consumer_module}" && GOWORK=off go mod tidy)
 done
