@@ -37,6 +37,13 @@ const ErrNoStoredSession = authError("no stored session")
 // the same store retries the write.
 const ErrSessionNotSaved = authError("session could not be saved")
 
+// ErrSessionNotCleared is reported, wrapped together with the store's error,
+// when a [SessionStore] could not clear the state of a [Session] that has
+// ended. The session has ended regardless, but until the store is cleared
+// [Client.SessionFromStore] can restore the ended session from it, so a
+// [SessionStore.Delete] the caller makes retries the clear.
+const ErrSessionNotCleared = authError("session could not be cleared")
+
 // ErrSignedOut is reported on a [Session] that [Session.SignOut] has ended,
 // and on the zero Session, by every operation but a sign-out and
 // [Session.AutoRefresh], and by a sign-out with [signout.WithOthersScope].

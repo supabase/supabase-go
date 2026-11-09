@@ -240,8 +240,8 @@ func TestAutoRefreshReportsAStoreThatCannotBeCleared(t *testing.T) {
 		time.Sleep(autoRefreshLead - 30*time.Second)
 		synctest.Wait()
 		err := stop()
-		if !errors.Is(err, auth.ErrSessionExpired) || !errors.Is(err, store.deleteErr) {
-			t.Errorf("AutoRefresh returned %v, want ErrSessionExpired with the store's error joined", err)
+		if !errors.Is(err, auth.ErrSessionExpired) || !reportsNotCleared(err, store) {
+			t.Errorf("AutoRefresh returned %v, want ErrSessionExpired with ErrSessionNotCleared joined", err)
 		}
 		assertServerError(t, err, refreshRejected)
 	})

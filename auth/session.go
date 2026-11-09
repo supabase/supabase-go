@@ -96,9 +96,9 @@ type SessionStore interface {
 	// [Session.SignOut] that goes on to end the session and clear the store.
 	Save(ctx context.Context, state []byte) error
 
-	// Delete clears the state the store holds. A failed Delete is returned
-	// wrapped by the call that ended the session, joined with any other error
-	// that call returns.
+	// Delete clears the state the store holds. A failed Delete is returned by
+	// the call that ended the session, wrapped with [ErrSessionNotCleared] and
+	// joined with any other error that call returns.
 	Delete(ctx context.Context) error
 }
 
@@ -206,15 +206,15 @@ type RefreshResult struct{}
 // Any other failed refresh sends the token as it is while unexpired, and is
 // otherwise returned with nothing sent.
 //
-// A store that cannot be cleared is reported as the wrapped error, alongside
-// a failed revocation under [signout.WithLocalScope] or the rejection that
-// ended the session under a bare call. A store that cannot save a session the
-// refresh renewed is reported with [ErrSessionNotSaved] whenever the session
-// stays live: under [signout.WithOthersScope] with nothing sent, and under a
-// bare call alongside a failed revocation. On a session that has already ended,
-// a bare call or [signout.WithLocalScope] returns success without a request,
-// and [signout.WithOthersScope] returns [ErrSignedOut] or
-// [ErrSessionExpired].
+// A store that cannot be cleared is reported with [ErrSessionNotCleared],
+// alongside a failed revocation under [signout.WithLocalScope] or the
+// rejection that ended the session under a bare call. A store that cannot
+// save a session the refresh renewed is reported with [ErrSessionNotSaved]
+// whenever the session stays live: under [signout.WithOthersScope] with
+// nothing sent, and under a bare call alongside a failed revocation. On a
+// session that has already ended, a bare call or [signout.WithLocalScope]
+// returns success without a request, and [signout.WithOthersScope] returns
+// [ErrSignedOut] or [ErrSessionExpired].
 func (s *Session) SignOut(ctx context.Context, options ...signout.Option) (*SignOutResult, error) {
 	scope := signout.Resolve(options...).Scope()
 	if s.inner == nil {
@@ -596,10 +596,10 @@ func storeSaveError(err error) error {
 	return fmt.Errorf("%w: %w", ErrSessionNotSaved, err)
 }
 
-// storeClearError wraps the error of a store that could not be cleared when
-// the session ended.
+// storeClearError wraps the error of a store that could not clear an ended
+// session's state with [ErrSessionNotCleared].
 func storeClearError(err error) error {
-	return fmt.Errorf("auth: clearing session store: %w", err)
+	return fmt.Errorf("%w: %w", ErrSessionNotCleared, err)
 }
 
 // joinClearError returns err joined with clearErr, the failure of the store

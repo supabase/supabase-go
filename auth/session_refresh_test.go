@@ -333,8 +333,8 @@ func TestRejectedRefreshEndsSessionAtMargin(t *testing.T) {
 		t.Run("by AccessToken", func(t *testing.T) {
 			session, store := ending(t)
 			accessToken, err := session.AccessToken(t.Context())
-			if accessToken != "" || !errors.Is(err, auth.ErrSessionExpired) || !errors.Is(err, store.deleteErr) {
-				t.Errorf("AccessToken() = (%q, %v), want ErrSessionExpired with the store's error joined", accessToken, err)
+			if accessToken != "" || !errors.Is(err, auth.ErrSessionExpired) || !reportsNotCleared(err, store) {
+				t.Errorf("AccessToken() = (%q, %v), want ErrSessionExpired with ErrSessionNotCleared joined", accessToken, err)
 			}
 			assertServerError(t, err, refreshRejected)
 		})
@@ -342,8 +342,8 @@ func TestRejectedRefreshEndsSessionAtMargin(t *testing.T) {
 		t.Run("by Refresh", func(t *testing.T) {
 			session, store := ending(t)
 			result, err := session.Refresh(t.Context())
-			if result != nil || !errors.Is(err, auth.ErrSessionExpired) || !errors.Is(err, store.deleteErr) {
-				t.Errorf("Refresh() = (%v, %v), want ErrSessionExpired with the store's error joined", result, err)
+			if result != nil || !errors.Is(err, auth.ErrSessionExpired) || !reportsNotCleared(err, store) {
+				t.Errorf("Refresh() = (%v, %v), want ErrSessionExpired with ErrSessionNotCleared joined", result, err)
 			}
 			assertServerError(t, err, refreshRejected)
 		})

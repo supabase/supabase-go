@@ -815,8 +815,8 @@ func TestSignOutGlobalRevokesFirst(t *testing.T) {
 		server.script(tokenPath, refreshRejected.answer())
 
 		result, err := session.SignOut(t.Context())
-		if result != nil || !errors.Is(err, store.deleteErr) {
-			t.Errorf("SignOut = (%v, %v), want the store's error wrapped beside the rejection", result, err)
+		if result != nil || !reportsNotCleared(err, store) {
+			t.Errorf("SignOut = (%v, %v), want ErrSessionNotCleared beside the rejection", result, err)
 		}
 		assertServerError(t, err, refreshRejected)
 		assertSignedOut(t, session)
@@ -911,8 +911,8 @@ func TestSignOutGlobalRevokesFirst(t *testing.T) {
 
 		result, err := session.SignOut(t.Context())
 		var serverError *auth.Error
-		if result != nil || !errors.Is(err, store.deleteErr) || errors.As(err, &serverError) {
-			t.Errorf("SignOut = (%v, %v), want the store's error wrapped alone", result, err)
+		if result != nil || !reportsNotCleared(err, store) || errors.As(err, &serverError) {
+			t.Errorf("SignOut = (%v, %v), want ErrSessionNotCleared alone", result, err)
 		}
 		if hits := server.requestsTo(logoutPath); len(hits) != 1 {
 			t.Errorf("logout requests = %d, want the revocation sent", len(hits))
@@ -984,8 +984,8 @@ func TestSignOutLocalTearsDownFirst(t *testing.T) {
 		server.script(logoutPath, logoutFailed.answer())
 
 		result, err := session.SignOut(t.Context(), signout.WithLocalScope())
-		if result != nil || !errors.Is(err, store.deleteErr) {
-			t.Errorf("SignOut = (%v, %v), want the store's error among those reported", result, err)
+		if result != nil || !reportsNotCleared(err, store) {
+			t.Errorf("SignOut = (%v, %v), want ErrSessionNotCleared among those reported", result, err)
 		}
 		assertServerError(t, err, logoutFailed)
 		assertSignedOut(t, session)
@@ -1358,8 +1358,8 @@ func TestSessionFromStore(t *testing.T) {
 		server.script(tokenPath, refreshRejected.answer())
 
 		result, err := server.client(t).SessionFromStore(t.Context(), store)
-		if result != nil || !errors.Is(err, auth.ErrSessionExpired) || !errors.Is(err, store.deleteErr) {
-			t.Errorf("SessionFromStore = (%v, %v), want ErrSessionExpired with the store's error joined", result, err)
+		if result != nil || !errors.Is(err, auth.ErrSessionExpired) || !reportsNotCleared(err, store) {
+			t.Errorf("SessionFromStore = (%v, %v), want ErrSessionExpired with ErrSessionNotCleared joined", result, err)
 		}
 		assertServerError(t, err, refreshRejected)
 	})
