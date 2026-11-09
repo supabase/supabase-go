@@ -40,10 +40,7 @@ func Wait(attempt int, retryAfter time.Duration, random float64) (wait time.Dura
 	}
 	base = min(base, ceiling)
 
-	wait = vary(base, random)
-	if retryAfter > wait {
-		wait = retryAfter
-	}
+	wait = max(vary(base, random), retryAfter)
 	return wait, base >= ceiling || retryAfter >= ceiling
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -71,9 +72,7 @@ func exchange(ctx context.Context, httpClient configuration.HTTPClient, method s
 	if err != nil {
 		return nil, nil, &transportError{fmt.Errorf("auth: executing request: %w", err)}
 	}
-	defer func() { _ = response.Body.Close() }()
-
-	responseBody, err := io.ReadAll(response.Body)
+	responseBody, err := readAll(response.Body)
 	if err != nil {
 		return nil, nil, &transportError{fmt.Errorf("auth: reading response: %w", err)}
 	}
@@ -81,6 +80,13 @@ func exchange(ctx context.Context, httpClient configuration.HTTPClient, method s
 		return nil, nil, newError(response.StatusCode, responseBody, parseRetryAfter(response.Header))
 	}
 	return responseBody, response.Header, nil
+}
+
+// readAll reads body to its end and closes it, even when a read panics. It
+// fails when the read or the close fails.
+func readAll(body io.ReadCloser) (content []byte, err error) {
+	defer func() { err = errors.Join(err, body.Close()) }()
+	return io.ReadAll(body)
 }
 
 // parseRetryAfter returns the wait a Retry-After header asks for, stated in

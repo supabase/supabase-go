@@ -342,7 +342,8 @@ func TestPanickingRefreshLeavesSessionUsable(t *testing.T) {
 				t.Errorf("recovered %v, want the transport's panic passed on", recovered)
 			}
 		}()
-		_, _ = session.AccessToken(t.Context())
+		accessToken, err := session.AccessToken(t.Context())
+		t.Fatalf("AccessToken() = (%q, %v), want the transport's panic passed on", accessToken, err)
 	}()
 	transport.armed.Store(false)
 	if hits := server.requestsTo(tokenPath); len(hits) != 1 || session.RefreshToken() != "refresh-1" {
@@ -1279,6 +1280,20 @@ func TestSessionFromStore(t *testing.T) {
 		if store.deleteCount() != 1 || store.stored() != nil {
 			t.Errorf("store deletes = %d holding %s, want the store cleared", store.deleteCount(), store.stored())
 		}
+	})
+
+	t.Run("a store that cannot be cleared after a rejected refresh is reported with ErrSessionExpired", func(t *testing.T) {
+		store := &recordingStore{deleteErr: errors.New("disk gone")}
+		if err := server.signIn(t, client, expiredAlready).Persist(t.Context(), store); err != nil {
+			t.Fatalf("Persist: %v", err)
+		}
+		server.script(tokenPath, refreshRejected.answer())
+
+		result, err := server.client(t).SessionFromStore(t.Context(), store)
+		if result != nil || !errors.Is(err, auth.ErrSessionExpired) || !errors.Is(err, store.deleteErr) {
+			t.Errorf("SessionFromStore = (%v, %v), want ErrSessionExpired with the store's error joined", result, err)
+		}
+		assertServerError(t, err, refreshRejected)
 	})
 }
 

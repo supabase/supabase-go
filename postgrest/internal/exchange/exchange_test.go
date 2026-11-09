@@ -3,15 +3,19 @@ package exchange_test
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
+	"testing/iotest"
 
 	"github.com/supabase/supabase-go/postgrest/internal/exchange"
 	"github.com/supabase/supabase-go/postgrest/internal/request"
+	"github.com/supabase/supabase-go/postgrest/internal/respond"
 )
 
 // newClient builds a Client sending to the test server, with automatic
@@ -31,7 +35,7 @@ func newClient(t *testing.T, server *httptest.Server) exchange.Client {
 func TestDoReportsNon2xxAsResultNotError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusNotFound)
-		_, _ = writer.Write([]byte(`{"message":"missing"}`))
+		respond.Body(t, writer, []byte(`{"message":"missing"}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -44,6 +48,55 @@ func TestDoReportsNon2xxAsResultNotError(t *testing.T) {
 	}
 	if got, want := string(result.Body), `{"message":"missing"}`; got != want {
 		t.Errorf("Body = %q, want %q", got, want)
+	}
+}
+
+// clientFunc is a configuration.HTTPClient that answers through the function
+// itself.
+type clientFunc func(*http.Request) (*http.Response, error)
+
+func (f clientFunc) Do(httpRequest *http.Request) (*http.Response, error) { return f(httpRequest) }
+
+// failingBody is a response body read from its Reader whose Close returns
+// closeErr.
+type failingBody struct {
+	io.Reader
+	closeErr error
+}
+
+func (b failingBody) Close() error { return b.closeErr }
+
+// TestDoFailsOnABodyThatCannotBeReadInFull pins that a response body that
+// cannot be read in full or closed fails the exchange, and is not retried
+// even when its status would be.
+func TestDoFailsOnABodyThatCannotBeReadInFull(t *testing.T) {
+	broken := errors.New("broken")
+	cases := []struct {
+		name   string
+		status int
+		body   io.ReadCloser
+	}{
+		{"a body that cannot be closed", http.StatusOK, failingBody{Reader: strings.NewReader("[]"), closeErr: broken}},
+		{"a retryable answer whose body cannot be drained", http.StatusServiceUnavailable, failingBody{Reader: iotest.ErrReader(broken)}},
+		{"a retryable answer whose body cannot be closed", http.StatusServiceUnavailable, failingBody{Reader: strings.NewReader(""), closeErr: broken}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			requests := 0
+			transport := clientFunc(func(*http.Request) (*http.Response, error) {
+				requests++
+				return &http.Response{StatusCode: testCase.status, Body: testCase.body}, nil
+			})
+			client := exchange.New(transport, url.URL{Scheme: "http", Host: "postgrest.test"}, true)
+
+			result, err := client.Do(t.Context(), request.New(http.MethodGet, "things"))
+			if result.StatusCode != 0 || !errors.Is(err, broken) {
+				t.Errorf("Do = (%+v, %v), want the body's failure", result, err)
+			}
+			if requests != 1 {
+				t.Errorf("requests = %d, want 1", requests)
+			}
+		})
 	}
 }
 

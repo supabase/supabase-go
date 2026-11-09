@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/supabase/supabase-go/postgrest/internal/request"
 )
@@ -194,10 +195,7 @@ type UpsertBuilder[T any] struct {
 // constraint, or the server rejects the request with code 42P10. A later
 // OnConflict replaces an earlier one.
 func (u UpsertBuilder[T]) OnConflict(column string, additional ...string) UpsertBuilder[T] {
-	columns := column
-	for _, extra := range additional {
-		columns += "," + extra
-	}
+	columns := strings.Join(append([]string{column}, additional...), ",")
 	return UpsertBuilder[T]{request: u.request.WithParameterReplacing("on_conflict", columns)}
 }
 

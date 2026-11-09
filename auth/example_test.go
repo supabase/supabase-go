@@ -36,8 +36,7 @@ func ExampleClient_GetClaims() {
 		fmt.Println("token forged or corrupt - reject")
 	case err != nil:
 		// Server-side verification failed, or the key set could not be fetched.
-		var authError *auth.Error
-		if errors.As(err, &authError) {
+		if authError, ok := errors.AsType[*auth.Error](err); ok {
 			fmt.Println("auth server rejected the token:", authError.HTTPStatus)
 			return
 		}
@@ -145,7 +144,9 @@ func Example_middleware() {
 		// claims.Subject() is the verified user ID. Attach the request's token to
 		// a Database client through its access-token provider to delete only this
 		// user's rows under their Row Level Security policies.
-		_, _ = fmt.Fprintf(writer, "deleting account for %s", claims.Subject())
+		if _, err := fmt.Fprintf(writer, "deleting account for %s", claims.Subject()); err != nil {
+			fmt.Println(err)
+		}
 	})
 
 	http.Handle("/account/delete", authenticate(deleteAccount))
@@ -325,17 +326,17 @@ func ExampleClient_SessionFromStore() {
 	case err == nil:
 		session = restored.Session()
 	case errors.Is(err, auth.ErrNoStoredSession), errors.Is(err, auth.ErrSessionExpired):
-		signedIn, err := client.SignInWithPassword(ctx, auth.PasswordCredentials{
+		signedIn, signInErr := client.SignInWithPassword(ctx, auth.PasswordCredentials{
 			Email:    os.Getenv("EXAMPLE_EMAIL"),
 			Password: os.Getenv("EXAMPLE_PASSWORD"),
 		})
-		if err != nil {
-			fmt.Println(err)
+		if signInErr != nil {
+			fmt.Println(signInErr)
 			return
 		}
 		session = signedIn.Session()
-		if err := session.Persist(ctx, store); err != nil {
-			fmt.Println(err)
+		if persistErr := session.Persist(ctx, store); persistErr != nil {
+			fmt.Println(persistErr)
 			return
 		}
 	default:

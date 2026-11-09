@@ -13,6 +13,7 @@ import (
 
 	"github.com/supabase/supabase-go/core/configuration"
 	"github.com/supabase/supabase-go/postgrest/internal/exchange"
+	"github.com/supabase/supabase-go/postgrest/internal/respond"
 )
 
 // The tests in this file substitute internal/exchange's RetrySleep seam, so they
@@ -65,7 +66,7 @@ func scriptedServer(t *testing.T, script ...scriptedResponse) (*httptest.Server,
 			writer.Header().Set("Retry-After", step.retryAfter)
 		}
 		writer.WriteHeader(step.status)
-		_, _ = writer.Write([]byte(step.body))
+		respond.Body(t, writer, []byte(step.body))
 	}))
 	t.Cleanup(server.Close)
 	return server, retryCounts
@@ -177,8 +178,7 @@ func TestCollectDoesNotRetryNonRetryableStatus(t *testing.T) {
 	client := newRetryTestClient(t, server.URL)
 
 	_, _, err := Collect(t.Context(), client, From[map[string]any]("instruments"))
-	var postgrestError *Error
-	if !errors.As(err, &postgrestError) {
+	if _, ok := errors.AsType[*Error](err); !ok {
 		t.Fatalf("want *Error in the chain, got %T: %v", err, err)
 	}
 	if got := len(*retryCounts); got != 1 {
@@ -447,7 +447,7 @@ func recordingScriptedServer(t *testing.T, script ...scriptedResponse) (*httptes
 			writer.Header().Set("Retry-After", step.retryAfter)
 		}
 		writer.WriteHeader(step.status)
-		_, _ = writer.Write([]byte(step.body))
+		respond.Body(t, writer, []byte(step.body))
 	}))
 	t.Cleanup(server.Close)
 	return server, headers

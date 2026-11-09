@@ -41,6 +41,8 @@ const (
 //   - nil when ctx is done or [Session.SignOut] has ended the session.
 //   - [ErrSessionExpired], wrapping the server's rejection, when the session
 //     ended because the server rejected its refresh token.
+//   - the store's error, wrapped and joined with either of the above, when
+//     its refresh ended the session and the store could not be cleared.
 //
 // Every caller shares the session's one in-flight refresh, so a second
 // AutoRefresh on the same session joins the first rather than refreshing
@@ -64,14 +66,14 @@ func (s *Session) AutoRefresh(ctx context.Context) error {
 			return nil
 		}
 
-		err := s.inner.RefreshWithin(ctx, autoRefreshLead)
+		clearErr, err := s.inner.RefreshWithin(ctx, autoRefreshLead)
 		var written *session.WriteError
 		var ended *session.EndedError
 		switch {
 		case err == nil, errors.As(err, &written):
 			continue
 		case errors.As(err, &ended):
-			return s.autoRefreshEnded()
+			return joinClearError(s.autoRefreshEnded(), clearErr)
 		case ctx.Err() != nil:
 			return nil
 		}

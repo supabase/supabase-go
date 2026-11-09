@@ -165,8 +165,7 @@ func (p *prober) fetch(fetchURL string, rateLimitTolerated bool) probeOutcome {
 	request.Header.Set("User-Agent", probeUserAgent)
 	response, err := p.client.Do(request)
 	if err != nil {
-		var wrapped *url.Error
-		if errors.As(err, &wrapped) {
+		if wrapped, ok := errors.AsType[*url.Error](err); ok {
 			err = wrapped.Err
 		}
 		return probeOutcome{failure: fmt.Sprintf("GET failed: %v", err)}

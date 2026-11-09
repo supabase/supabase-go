@@ -316,6 +316,38 @@ func TestRejectedRefreshEndsSessionAtMargin(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("a store that cannot be cleared is reported with ErrSessionExpired", func(t *testing.T) {
+		ending := func(t *testing.T) (*auth.Session, *recordingStore) {
+			t.Helper()
+			server := newSessionServer(t)
+			session := server.signIn(t, server.client(t), expiresSoon)
+			store := &recordingStore{deleteErr: errors.New("disk gone")}
+			if err := session.Persist(t.Context(), store); err != nil {
+				t.Fatalf("Persist: %v", err)
+			}
+			server.script(tokenPath, refreshRejected.answer())
+			return session, store
+		}
+
+		t.Run("by AccessToken", func(t *testing.T) {
+			session, store := ending(t)
+			accessToken, err := session.AccessToken(t.Context())
+			if accessToken != "" || !errors.Is(err, auth.ErrSessionExpired) || !errors.Is(err, store.deleteErr) {
+				t.Errorf("AccessToken() = (%q, %v), want ErrSessionExpired with the store's error joined", accessToken, err)
+			}
+			assertServerError(t, err, refreshRejected)
+		})
+
+		t.Run("by Refresh", func(t *testing.T) {
+			session, store := ending(t)
+			result, err := session.Refresh(t.Context())
+			if result != nil || !errors.Is(err, auth.ErrSessionExpired) || !errors.Is(err, store.deleteErr) {
+				t.Errorf("Refresh() = (%v, %v), want ErrSessionExpired with the store's error joined", result, err)
+			}
+			assertServerError(t, err, refreshRejected)
+		})
+	})
 }
 
 func TestReadersJoinTheRetryingRefresh(t *testing.T) {

@@ -48,8 +48,7 @@ func ExampleClient_Database() {
 			Select("id, name"),
 	)
 	if err != nil {
-		var postgrestError *postgrest.Error
-		if errors.As(err, &postgrestError) {
+		if postgrestError, ok := errors.AsType[*postgrest.Error](err); ok {
 			// Branch on the stable code, not the message text. When the
 			// database knows the fix it says so in Hint.
 			fmt.Println(postgrestError.Code, postgrestError.Hint)

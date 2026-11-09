@@ -97,9 +97,9 @@ type SessionStore interface {
 	// when the failure reaches no caller.
 	Save(ctx context.Context, state []byte) error
 
-	// Delete clears the state the store holds. A failed Delete is returned by
-	// [Session.SignOut], and reaches no caller when the session ends by
-	// expiring.
+	// Delete clears the state the store holds. A failed Delete is returned
+	// wrapped by the call that ended the session, joined with any other error
+	// that call returns.
 	Delete(ctx context.Context) error
 }
 
@@ -116,9 +116,9 @@ func (s *Session) AccessToken(ctx context.Context) (string, error) {
 	if s.inner == nil {
 		return "", ErrSignedOut
 	}
-	accessToken, err := s.inner.Token(ctx)
+	accessToken, clearErr, err := s.inner.Token(ctx)
 	if err != nil {
-		return "", sessionError(err)
+		return "", joinClearError(sessionError(err), clearErr)
 	}
 	return accessToken, nil
 }
@@ -171,8 +171,8 @@ func (s *Session) Refresh(ctx context.Context) (*RefreshResult, error) {
 	if s.inner == nil {
 		return nil, ErrSignedOut
 	}
-	if err := s.inner.Refresh(ctx); err != nil {
-		return nil, sessionError(err)
+	if clearErr, err := s.inner.Refresh(ctx); err != nil {
+		return nil, joinClearError(sessionError(err), clearErr)
 	}
 	return &RefreshResult{}, nil
 }
@@ -237,22 +237,17 @@ func (s *Session) SignOut(ctx context.Context, options ...signout.Option) (*Sign
 func (s *Session) signOutGlobally(ctx context.Context) (*SignOutResult, error) {
 	bearer, clearErr, err := s.inner.SignOutToken(ctx)
 	if err != nil {
-		var ended *session.EndedError
-		if errors.As(err, &ended) {
+		if _, ok := errors.AsType[*session.EndedError](err); ok {
 			return &SignOutResult{}, nil
 		}
-		if clearErr != nil {
-			err = errors.Join(err, storeClearError(clearErr))
-		}
-		return nil, err
+		return nil, joinClearError(err, clearErr)
 	}
 	err = logout(ctx, s.client.httpClient, s.client.baseURL, bearer, scopes.Global)
 	if err != nil && !nothingLeftToRevoke(err, scopes.Global) {
 		return nil, err
 	}
 	if _, err := s.inner.End(ctx); err != nil {
-		var ended *session.EndedError
-		if errors.As(err, &ended) {
+		if _, ok := errors.AsType[*session.EndedError](err); ok {
 			return &SignOutResult{}, nil
 		}
 		return nil, storeClearError(err)
@@ -281,15 +276,11 @@ func (s *Session) revokeOthers(ctx context.Context) (*SignOutResult, error) {
 // together, and a session that had already ended counts as signed out.
 func (s *Session) signOutLocally(ctx context.Context) (*SignOutResult, error) {
 	held, clearErr := s.inner.End(ctx)
-	var ended *session.EndedError
-	if errors.As(clearErr, &ended) {
+	if _, ok := errors.AsType[*session.EndedError](clearErr); ok {
 		return &SignOutResult{}, nil
 	}
 	revokeErr := s.revokeHeld(ctx, held)
-	if clearErr != nil {
-		clearErr = storeClearError(clearErr)
-	}
-	if err := errors.Join(revokeErr, clearErr); err != nil {
+	if err := joinClearError(revokeErr, clearErr); err != nil {
 		return nil, err
 	}
 	return &SignOutResult{}, nil
@@ -337,8 +328,7 @@ func (s *Session) Persist(ctx context.Context, store SessionStore) error {
 		return ErrSignedOut
 	}
 	if err := s.inner.Persist(ctx, store); err != nil {
-		var ended *session.EndedError
-		if errors.As(err, &ended) {
+		if _, ok := errors.AsType[*session.EndedError](err); ok {
 			return sessionError(err)
 		}
 		return fmt.Errorf("auth: writing session store: %w", err)
@@ -372,9 +362,9 @@ func (c *Client) SessionFromTokens(ctx context.Context, accessToken, refreshToke
 
 	var state session.State
 	if expiresAt := claims.ExpiresAt(); expiresAt.After(c.now()) {
-		user, err := send(ctx, c.httpClient, http.MethodGet, c.baseURL.JoinPath("user"), nil, accessToken)
-		if err != nil {
-			return nil, err
+		user, userErr := send(ctx, c.httpClient, http.MethodGet, c.baseURL.JoinPath("user"), nil, accessToken)
+		if userErr != nil {
+			return nil, userErr
 		}
 		state, err = session.NewState(accessToken, refreshToken, expiresAt, user)
 		if err != nil {
@@ -426,8 +416,8 @@ func (c *Client) SessionFromStore(ctx context.Context, store SessionStore) (*Ses
 	restored := c.newSession(state, store)
 	if !state.ExpiresAt().After(c.now()) {
 		var write *session.WriteError
-		if err := restored.inner.Refresh(ctx); err != nil && !errors.As(err, &write) {
-			return nil, sessionError(err)
+		if clearErr, err := restored.inner.Refresh(ctx); err != nil && !errors.As(err, &write) {
+			return nil, joinClearError(sessionError(err), clearErr)
 		}
 	}
 	return &SessionFromStoreResult{session: restored}, nil
@@ -523,8 +513,7 @@ func rejectedRefresh(err error) bool {
 // no answer, or a 5xx, 408, 409 or 429 answer. With it comes the wait the
 // answer's Retry-After header asked for, zero when it stated none.
 func retryableRefresh(err error) (retryAfter time.Duration, ok bool) {
-	var noAnswer *transportError
-	if errors.As(err, &noAnswer) {
+	if _, noAnswer := errors.AsType[*transportError](err); noAnswer {
 		return 0, true
 	}
 	var serverError *Error
@@ -576,15 +565,13 @@ func sessionGone(err error) bool {
 // server's rejection, a store write that failed after its state was
 // committed is wrapped and every other error is returned as it is.
 func sessionError(err error) error {
-	var ended *session.EndedError
-	if errors.As(err, &ended) {
+	if ended, ok := errors.AsType[*session.EndedError](err); ok {
 		if ended.Status == session.Expired {
 			return fmt.Errorf("%w: %w", ErrSessionExpired, ended.Cause)
 		}
 		return ErrSignedOut
 	}
-	var write *session.WriteError
-	if errors.As(err, &write) {
+	if write, ok := errors.AsType[*session.WriteError](err); ok {
 		return fmt.Errorf("auth: writing session store: %w", write.Err)
 	}
 	return err
@@ -594,6 +581,16 @@ func sessionError(err error) error {
 // the session ended.
 func storeClearError(err error) error {
 	return fmt.Errorf("auth: clearing session store: %w", err)
+}
+
+// joinClearError returns err joined with clearErr, the failure of the store
+// clear an ending of the session caused, wrapped. When the clear succeeded,
+// err is returned as it is.
+func joinClearError(err, clearErr error) error {
+	if clearErr == nil {
+		return err
+	}
+	return errors.Join(err, storeClearError(clearErr))
 }
 
 // logout sends the revocation request for the session bearer belongs to,
