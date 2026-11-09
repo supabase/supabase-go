@@ -347,6 +347,25 @@ func mintedRefreshToken(index int) string {
 	return fmt.Sprintf("refresh-%d", index+1)
 }
 
+// assertNotSaved asserts that err reports the failed Save of store as
+// auth.ErrSessionNotSaved wrapping the store's error, that session holds
+// minted token index regardless and that a Persist once the store has
+// recovered saves that state there, the recovery the error documents.
+func assertNotSaved(t *testing.T, server *sessionServer, session *auth.Session, store *recordingStore, err error, index int) {
+	t.Helper()
+	if !errors.Is(err, auth.ErrSessionNotSaved) || !errors.Is(err, store.saveErr) {
+		t.Fatalf("error = %v, want ErrSessionNotSaved wrapping the store's error", err)
+	}
+	assertHoldsMinted(t, server, session, index)
+	store.saveErr = nil
+	if err := session.Persist(t.Context(), store); err != nil {
+		t.Fatalf("Persist once the store recovered: %v", err)
+	}
+	if got, want := decodeDocument(t, store.stored()).RefreshToken, mintedRefreshToken(index); got != want {
+		t.Errorf("the store holds refresh token %q after Persist, want %q", got, want)
+	}
+}
+
 // assertHoldsMinted asserts session is live and holds the token response the
 // server minted at index: that access token, the refresh token minted with it
 // and the served user. Reading an access token inside the expiry margin

@@ -256,11 +256,15 @@ func (s *Session) Ended() error {
 // the access token is returned if it is unexpired and the failure otherwise.
 // The store write a refresh or an ending causes is performed before Token
 // returns. clearErr is the failure of the clear an ending caused, when this
-// call performed it, and the failure of a refresh's write is returned to no
-// caller. Token returns an [*EndedError] once the session has ended and ctx's
-// error when ctx ends while waiting on a refresh.
+// call performed it. A refresh that committed renewed tokens the store could
+// not save returns a [*WriteError], the session holding the renewed tokens.
+// Token returns an [*EndedError] once the session has ended and ctx's error
+// when ctx ends while waiting on a refresh.
 func (s *Session) Token(ctx context.Context) (token string, clearErr, err error) {
-	token, clearErr, err = s.tokenEnding(ctx, Expired)
+	token, clearErr, saveErr, err := s.tokenEnding(ctx, Expired)
+	if err == nil && saveErr != nil {
+		err = &WriteError{Err: saveErr}
+	}
 	return token, clearErr, s.endedOr(err)
 }
 
@@ -269,16 +273,19 @@ func (s *Session) Token(ctx context.Context) (token string, clearErr, err error)
 // definitive rejection does: the session ends as [SignedOut] rather than
 // [Expired], and the rejection is returned as it is rather than as the
 // [*EndedError] it caused. clearErr is the failure of the clear that ending
-// caused, when this call performed it. A session that had already ended
-// returns its [*EndedError].
-func (s *Session) SignOutToken(ctx context.Context) (token string, clearErr, err error) {
+// caused, when this call performed it. saveErr, beside a token, is the
+// failure of the store write a committed refresh caused, which the caller
+// reports only if the session outlives the sign-out. A session that had
+// already ended returns its [*EndedError].
+func (s *Session) SignOutToken(ctx context.Context) (token string, clearErr, saveErr, err error) {
 	return s.tokenEnding(ctx, SignedOut)
 }
 
 // tokenEnding is [Session.Token] with ending the status a definitive
 // rejection ends the session with, that rejection returned as it is, and
 // clearErr the failure of the clear this call performed for that ending.
-func (s *Session) tokenEnding(ctx context.Context, ending Status) (token string, clearErr, err error) {
+// saveErr is the failure of the store write a committed refresh caused.
+func (s *Session) tokenEnding(ctx context.Context, ending Status) (token string, clearErr, saveErr, err error) {
 	var clearing write
 	var endingNow, refresh bool
 	s.locked(func() {
@@ -298,15 +305,15 @@ func (s *Session) tokenEnding(ctx context.Context, ending Status) (token string,
 		clearErr = s.perform(ctx, clearing)
 	}
 	if !refresh {
-		return token, clearErr, err
+		return token, clearErr, nil, err
 	}
 
 	writeErr, err := s.renew(ctx, ending, s.expiryMargin)
 	if _, ok := errors.AsType[*EndedError](err); ok {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 	if err != nil && ctx.Err() != nil {
-		return "", writeErr, err
+		return "", writeErr, nil, err
 	}
 
 	s.locked(func() {
@@ -320,11 +327,16 @@ func (s *Session) tokenEnding(ctx context.Context, ending Status) (token string,
 			// with the failure of the clear renew performed when the
 			// rejection ended it.
 			clearErr = writeErr
-		case err == nil || s.now().Before(s.state.expiresAt):
+		case err == nil:
+			// Committed: the renewed token, and the failure of its store
+			// write for the caller that surfaces it.
+			token, saveErr = s.state.accessToken, writeErr
+		case s.now().Before(s.state.expiresAt):
+			// Failed transiently, the access token still usable.
 			token, err = s.state.accessToken, nil
 		}
 	})
-	return token, clearErr, err
+	return token, clearErr, saveErr, err
 }
 
 // endedOr returns the [*EndedError] when the session has ended, and err

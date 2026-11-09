@@ -15,6 +15,10 @@ Background refresh and session events:
 - `Session.AddEventListener`, with `SessionEvent` and its `SessionEventName` constants `SessionEventInitialSession`, `SessionEventTokenRefreshed` and `SessionEventSignedOut`
 - `SignOutReason`, carried by `SessionEventSignedOut`, with `SignOutReasonUserInitiated` and `SignOutReasonSessionExpired`
 
+A sentinel for a session store that could not save, so the failure can be told apart from the others a call returns:
+
+- `ErrSessionNotSaved`
+
 ### Fixed
 
 Aligns our implementation of `Session` refresh with the [cross-SDK refresh spec](https://github.com/supabase/sdk/blob/514799681e4303147b7a86fafaba71c67e2ef785/packages/capability-matrix/specs/auth/session/refresh_session.md):
@@ -26,6 +30,15 @@ Aligns our implementation of `Session` refresh with the [cross-SDK refresh spec]
 A session store that cannot be cleared when the session expires is reported, where before the failure reached no caller:
 
 - `Session.AccessToken`, `Session.Refresh` and `Client.SessionFromStore` return the failed `SessionStore.Delete` wrapped and joined with `ErrSessionExpired`
+
+A `SessionStore` whose `Save` can fail:
+A `Save` that fails after a refresh is now returned, wrapped with `ErrSessionNotSaved`, by every call that refreshes. Before, only `Session.Refresh` returned it. The other calls carried on as if the save had succeeded, leaving the store holding a refresh token the server had already replaced, so the next run's restore could lose the session. The session keeps working either way, and `Session.Persist` retries the write. Code that treats every error from these calls as fatal will now see this one:
+
+- `Session.AccessToken` returns it with no token
+- `Session.AutoRefresh` returns it and stops, and can be called again to resume
+- `Session.SignOut` with `signout.WithOthersScope` returns it with nothing sent, and a bare `Session.SignOut` returns it alongside a failed revocation
+- `Client.SessionFromStore` returns it alongside the restored session, which is not nil
+- `Session.Refresh` and `Session.Persist` return it where they returned the store's error wrapped
 
 A response body that cannot be closed fails the call as a transport error, as one that cannot be read does, where before the failure was ignored:
 

@@ -212,6 +212,73 @@ func TestAccessTokenRefreshesInsideMargin(t *testing.T) {
 	}
 }
 
+func TestAccessTokenReportsAStoreThatCannotBeSaved(t *testing.T) {
+	server := newSessionServer(t)
+	session := server.signIn(t, server.client(t), expiresSoon)
+	store := &recordingStore{}
+	if err := session.Persist(t.Context(), store); err != nil {
+		t.Fatalf("Persist: %v", err)
+	}
+	store.saveErr = errors.New("disk full")
+
+	token, err := session.AccessToken(t.Context())
+	if token != "" {
+		t.Errorf("AccessToken() = %q beside the error, want no token", token)
+	}
+	assertNotSaved(t, server, session, store, err, 1)
+}
+
+func TestSignOutReportsAStoreThatCannotBeSaved(t *testing.T) {
+	// Each case signs in inside the expiry margin, so the sign-out refreshes
+	// first, and the store then fails to save the renewed session.
+	persistedInsideMargin := func(t *testing.T) (*sessionServer, *auth.Session, *recordingStore) {
+		t.Helper()
+		server := newSessionServer(t)
+		session := server.signIn(t, server.client(t), expiresSoon)
+		store := &recordingStore{}
+		if err := session.Persist(t.Context(), store); err != nil {
+			t.Fatalf("Persist: %v", err)
+		}
+		store.saveErr = errors.New("disk full")
+		return server, session, store
+	}
+
+	t.Run("a bare call that revokes clears the store and reports nothing", func(t *testing.T) {
+		server, session, store := persistedInsideMargin(t)
+		server.script(logoutPath, answer{status: http.StatusNoContent})
+		if result, err := session.SignOut(t.Context()); err != nil || result == nil {
+			t.Fatalf("SignOut = (%v, %v), want the empty result", result, err)
+		}
+		if store.deleteCount() != 1 {
+			t.Errorf("store deletes = %d, want the store cleared", store.deleteCount())
+		}
+		assertSignedOut(t, session)
+	})
+
+	t.Run("a bare call whose revocation fails reports both, the session live", func(t *testing.T) {
+		server, session, store := persistedInsideMargin(t)
+		server.script(logoutPath, badJWT.answer())
+		result, err := session.SignOut(t.Context())
+		if result != nil {
+			t.Errorf("SignOut() result = %v beside the error, want nil", result)
+		}
+		assertServerError(t, err, badJWT)
+		assertNotSaved(t, server, session, store, err, 1)
+	})
+
+	t.Run("WithOthersScope sends nothing, the session live", func(t *testing.T) {
+		server, session, store := persistedInsideMargin(t)
+		result, err := session.SignOut(t.Context(), signout.WithOthersScope())
+		if result != nil {
+			t.Errorf("SignOut(WithOthersScope) result = %v beside the error, want nil", result)
+		}
+		if hits := server.requestsTo(logoutPath); len(hits) != 0 {
+			t.Errorf("logout requests = %d, want none", len(hits))
+		}
+		assertNotSaved(t, server, session, store, err, 1)
+	})
+}
+
 func TestRefreshIsSingleFlight(t *testing.T) {
 	server := newSessionServer(t)
 	session := server.signIn(t, server.client(t), expiresSoon)
@@ -389,8 +456,8 @@ func TestPersist(t *testing.T) {
 			t.Fatalf("Persist(first): %v", err)
 		}
 		failing := &recordingStore{saveErr: errors.New("disk full")}
-		if err := session.Persist(t.Context(), failing); !errors.Is(err, failing.saveErr) {
-			t.Errorf("Persist(failing) = %v, want the store's error wrapped", err)
+		if err := session.Persist(t.Context(), failing); !errors.Is(err, auth.ErrSessionNotSaved) || !errors.Is(err, failing.saveErr) {
+			t.Errorf("Persist(failing) = %v, want ErrSessionNotSaved wrapping the store's error", err)
 		}
 		if saved := first.savedRefreshTokens(t); !slices.Equal(saved, []string{"refresh-1"}) {
 			t.Errorf("after the failed Persist the first store saved %v, want its own first write alone", saved)
@@ -509,13 +576,14 @@ func TestRefreshRotatesAndSaves(t *testing.T) {
 		}
 		store.saveErr = errors.New("disk full")
 
-		if result, err := session.Refresh(t.Context()); result != nil || !errors.Is(err, store.saveErr) {
-			t.Errorf("Refresh with a failing store = (%v, %v), want the store's error wrapped", result, err)
+		result, err := session.Refresh(t.Context())
+		if result != nil {
+			t.Errorf("Refresh() result = %v beside the error, want nil", result)
 		}
-		assertHoldsMinted(t, server, session, 1)
 		if saved := store.savedRefreshTokens(t); !slices.Equal(saved, []string{"refresh-1"}) {
 			t.Errorf("the store saved %v, want its first write alone", saved)
 		}
+		assertNotSaved(t, server, session, store, err, 1)
 	})
 }
 
@@ -1229,7 +1297,7 @@ func TestSessionFromStore(t *testing.T) {
 		}
 	})
 
-	t.Run("a refresh whose write fails restores the session regardless", func(t *testing.T) {
+	t.Run("a refresh whose write fails returns the session beside ErrSessionNotSaved", func(t *testing.T) {
 		store := &recordingStore{}
 		if err := server.signIn(t, client, expiredAlready).Persist(t.Context(), store); err != nil {
 			t.Fatalf("Persist: %v", err)
@@ -1238,13 +1306,13 @@ func TestSessionFromStore(t *testing.T) {
 		store.saveErr = errors.New("disk full")
 
 		result, err := server.client(t).SessionFromStore(t.Context(), store)
-		if err != nil {
-			t.Fatalf("SessionFromStore = %v, want the refreshed session despite the failed write", err)
+		if result == nil {
+			t.Fatalf("SessionFromStore = (nil, %v), want the restored session beside the error, the only holder of the renewed refresh token", err)
 		}
-		assertHoldsMinted(t, server, result.Session(), persisted+1)
 		if saved := store.savedRefreshTokens(t); !slices.Equal(saved, []string{mintedRefreshToken(persisted)}) {
 			t.Errorf("the store saved %v, want the expired state it held left in place", saved)
 		}
+		assertNotSaved(t, server, result.Session(), store, err, persisted+1)
 	})
 
 	t.Run("nothing stored, an empty or garbage document and a nil store", func(t *testing.T) {

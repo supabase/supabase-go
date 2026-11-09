@@ -247,6 +247,31 @@ func TestAutoRefreshReportsAStoreThatCannotBeCleared(t *testing.T) {
 	})
 }
 
+func TestAutoRefreshReportsAStoreThatCannotBeSaved(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		server := newInProcessSessionServer(t)
+		session := server.signIn(t, server.client(t), time.Hour)
+		store := &recordingStore{}
+		if err := session.Persist(t.Context(), store); err != nil {
+			t.Fatalf("Persist: %v", err)
+		}
+		store.saveErr = errors.New("disk full")
+		stop := startAutoRefresh(t, session)
+
+		time.Sleep(time.Hour - autoRefreshLead)
+		synctest.Wait()
+		assertNotSaved(t, server, session, store, stop(), 1)
+
+		// A later call resumes, refreshing at the renewed token's lead.
+		stop = startAutoRefresh(t, session)
+		time.Sleep(time.Hour - autoRefreshLead)
+		synctest.Wait()
+		assertTokenRequests(t, server, 3, "the sign-in and a refresh by each call")
+		assertHoldsMinted(t, server, session, 2)
+		assertStopped(t, stop)
+	})
+}
+
 func TestAutoRefreshStopsCleanly(t *testing.T) {
 	t.Run("cancelled while it sleeps", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {

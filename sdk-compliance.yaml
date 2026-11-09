@@ -50,6 +50,7 @@ supporting_symbols:
   - auth.ErrMissingStore
   - auth.ErrNoStoredSession
   - auth.ErrSessionExpired
+  - auth.ErrSessionNotSaved
   - auth.ErrSignedOut
   - auth.Error
   - auth.Error.Error

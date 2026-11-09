@@ -43,11 +43,13 @@ const (
 //     ended because the server rejected its refresh token.
 //   - the store's error, wrapped and joined with either of the above, when
 //     its refresh ended the session and the store could not be cleared.
+//   - [ErrSessionNotSaved], wrapping the store's error, when the store could
+//     not save a renewed session, even when ctx ended during the write. The
+//     session stays live, so a later call to AutoRefresh resumes.
 //
 // Every caller shares the session's one in-flight refresh, so a second
 // AutoRefresh on the same session joins the first rather than refreshing
-// twice. A failure to save a renewed session to its store does not stop
-// AutoRefresh and is not reported.
+// twice.
 func (s *Session) AutoRefresh(ctx context.Context) error {
 	if s.inner == nil {
 		return nil
@@ -70,8 +72,10 @@ func (s *Session) AutoRefresh(ctx context.Context) error {
 		var written *session.WriteError
 		var ended *session.EndedError
 		switch {
-		case err == nil, errors.As(err, &written):
+		case err == nil:
 			continue
+		case errors.As(err, &written):
+			return sessionError(err)
 		case errors.As(err, &ended):
 			return joinClearError(s.autoRefreshEnded(), clearErr)
 		case ctx.Err() != nil:
