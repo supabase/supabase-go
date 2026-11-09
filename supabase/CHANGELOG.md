@@ -5,6 +5,14 @@ All notable changes to this module will be documented in this file.
 This module is one of a number of modules defined in a multi-module repository.
 Refer to [GitHub `../CHANGELOG.md`](https://github.com/supabase/supabase-go/blob/main/CHANGELOG.md) for further details on structure, format and sibling modules.
 
+## `v0.1.0-alpha.4` (2026-11-09)
+
+### Changed
+
+- Upgrades `auth` from `v0.1.0-alpha.3` to `v0.1.0-alpha.4`.
+- Upgrades `core` from `v0.1.0-alpha.2` to `v0.1.0-alpha.3`.
+- Upgrades `postgrest` from `v0.1.0-alpha.1` to `v0.1.0-alpha.2`.
+
 ## `v0.1.0-alpha.3` (2026-11-05)
 
 ### Changed

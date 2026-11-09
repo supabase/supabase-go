@@ -9,7 +9,8 @@
 # changelog version heading, a misplaced or empty Unreleased section, a
 # sibling require left at the zero pseudo-version once the sibling has
 # releases (a forgotten pin), a require naming a version the sibling never
-# declared (a typo'd pin, or a release prepared out of dependency order) and
+# declared (a typo'd pin, or a release prepared out of dependency order), a
+# non-published module recording a sibling behind its newest release and
 # telemetrytest fabricated versions that a real declared version outranks.
 set -euo pipefail
 
@@ -82,6 +83,30 @@ for module in ${workspace_modules}; do
       fi
     elif ! declared_module_versions "${sibling}" | grep -qx "${required_version}"; then
       fail "${module}/go.mod requires ${sibling}@${required_version}, which ${sibling}/CHANGELOG.md never declares - a typo'd pin, or a release prepared out of dependency order."
+    fi
+  done <<< "${sibling_requires}"
+done
+
+# A non-published module records each released sibling it requires at that
+# sibling's newest declared version, which scripts/prepare-release.sh raises
+# it to as part of a release. Its replace directives make the recorded
+# version nominal to the build, so nothing else notices one left behind, yet
+# a reader who copies an example takes it as the version the code needs.
+# Requires of other non-published modules under the same path base, such as
+# integration-testing/testkit, have no release to be behind and are skipped.
+# telemetrytest's fabricated versions are a different invariant, checked
+# next.
+for module in $(enumerate_consumer_shaped_modules); do
+  sibling_requires="$(go mod edit -json "${module}/go.mod" \
+    | jq -r --arg base "${module_base}/" \
+      '.Require[]? | select(.Path | startswith($base)) | select(.Version | endswith("-fabricated") | not) | (.Path | ltrimstr($base)) + " " + .Version')"
+  while read -r sibling required_version; do
+    [ -n "${sibling}" ] || continue
+    is_workspace_module "${sibling}" || continue
+    newest_declared="$(declared_module_versions "${sibling}" | head -n 1)"
+    [ -n "${newest_declared}" ] || continue
+    if [ "${required_version}" != "${newest_declared}" ]; then
+      fail "${module}/go.mod requires ${sibling}@${required_version}, not its newest declared ${newest_declared} - a release prepared without scripts/prepare-release.sh raising it, or a module written since."
     fi
   done <<< "${sibling_requires}"
 done
