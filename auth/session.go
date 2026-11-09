@@ -461,7 +461,7 @@ func (c *Client) refreshWithRetries(ctx context.Context, refreshToken string) (s
 			return session.State{}, err
 		}
 		var wait time.Duration
-		wait, reached = backoff.Wait(attempt, retryAfter, rand.Float64())
+		wait, reached = backoff.Wait(attempt, retryAfter, rand.Float64()) // #nosec G404 -- jitter needs no cryptographic source
 		if err := backoff.Sleep(ctx, wait); err != nil {
 			return session.State{}, err
 		}

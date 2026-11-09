@@ -143,10 +143,9 @@ func Example_middleware() {
 
 		// claims.Subject() is the verified user ID. Attach the request's token to
 		// a Database client through its access-token provider to delete only this
-		// user's rows under their Row Level Security policies.
-		if _, err := fmt.Fprintf(writer, "deleting account for %s", claims.Subject()); err != nil {
-			fmt.Println(err)
-		}
+		// user's rows under their Row Level Security policies. The answer is a
+		// status alone, so nothing from the request is reflected into a body.
+		writer.WriteHeader(http.StatusAccepted)
 	})
 
 	http.Handle("/account/delete", authenticate(deleteAccount))
@@ -386,6 +385,7 @@ func ExampleAdmin_CreateUser() {
 	}
 	admin := client.Admin()
 
+	// #nosec G101 -- the hash is a placeholder for the one the legacy store holds
 	result, err := admin.CreateUser(context.Background(), auth.UserAttributes{
 		Email:        "imported@example.com",
 		EmailConfirm: true,

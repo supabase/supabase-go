@@ -92,7 +92,7 @@ func (m *mockAuthServer) client(t *testing.T, options ...configuration.Option) *
 
 // The paths of the session endpoints a sessionServer serves.
 const (
-	tokenPath  = "/auth/v1/token"
+	tokenPath  = "/auth/v1/token" // #nosec G101 -- a URL path, not a credential
 	userPath   = "/auth/v1/user"
 	logoutPath = "/auth/v1/logout"
 )

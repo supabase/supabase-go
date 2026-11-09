@@ -3,6 +3,14 @@ module github.com/supabase/supabase-go/tools/go/gopls
 // The go line in this directory's go.work must be at least this version.
 go 1.27.0
 
+// gopls has this module of its own rather than a tool line in tools/go because
+// it imports golang.org/x/tools internal packages, which carry no compatibility
+// promise, so each gopls release requires the exact golang.org/x/tools commit
+// it was built against. In a shared module, minimum version selection merges
+// every tool's requirements, and a sibling bump (revive requiring a newer
+// tagged golang.org/x/tools, say) would float gopls past that commit and break
+// its build. Here its requirement is the only golang.org/x/tools constraint,
+// as the Go team ships gopls: installed standalone, its own go.mod governing.
 tool golang.org/x/tools/gopls
 
 require (

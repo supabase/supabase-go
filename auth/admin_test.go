@@ -986,6 +986,7 @@ func TestAdminCreateCustomProviderRequestShape(t *testing.T) {
 				OAuth2("https://id.example/authorize", "https://id.example/token", "https://id.example/userinfo").
 				JWKSURI("https://id.example/jwks").
 				Scopes("profile"),
+			// #nosec G101 -- a fixture client secret
 			want: map[string]any{
 				"provider_type":     "oauth2",
 				"identifier":        "custom:legacy",
@@ -1109,6 +1110,7 @@ func TestAdminUpdateCustomProviderSendsOnlyChosenFields(t *testing.T) {
 				customprovider.WithUserinfoURL("https://id.example/userinfo"),
 				customprovider.WithJWKSURI("https://id.example/jwks"),
 			},
+			// #nosec G101 -- a fixture client secret
 			want: map[string]any{
 				"name":                    "Acme Corp SSO",
 				"client_id":               "client-id-2",
@@ -1383,6 +1385,30 @@ func TestCustomProviderIdentifierEscaping(t *testing.T) {
 			}
 			if got := recorder.requests[i].escapedPath; got != wantPath {
 				t.Errorf("escaped path = %q, want %q", got, wantPath)
+			}
+		})
+	}
+}
+
+func TestCustomProviderDotSegmentIdentifierEscaping(t *testing.T) {
+	// url.PathEscape leaves "." and ".." bare, and JoinPath would clean
+	// either into the collection or its parent, so each travels escaped.
+	testCases := []struct {
+		identifier string
+		wantPath   string
+	}{
+		{".", "/auth/v1/admin/custom-providers/%2E"},
+		{"..", "/auth/v1/admin/custom-providers/%2E%2E"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.identifier, func(t *testing.T) {
+			recorder := newAdminServer(t)
+			admin := recorder.admin(t)
+			if _, err := admin.DeleteCustomProvider(context.Background(), testCase.identifier); err != nil {
+				t.Fatalf("DeleteCustomProvider: %v", err)
+			}
+			if got := recorder.requests[0].escapedPath; got != testCase.wantPath {
+				t.Errorf("escaped path = %q, want %q", got, testCase.wantPath)
 			}
 		})
 	}

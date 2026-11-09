@@ -43,6 +43,7 @@ GOPATH
 gopkg
 gopls
 gorelease
+gosec
 goroutines
 govulncheck
 GOWORK
@@ -63,6 +64,7 @@ modcache
 multichecker
 multimap
 nativeness
+nosec
 nullable
 nullsfirst
 nullslast

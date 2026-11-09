@@ -178,7 +178,7 @@ func (r Request) HTTPRequest(ctx context.Context, base *url.URL) (*http.Request,
 	for index, segment := range r.path {
 		escaped[index] = escapePathSegment(segment)
 	}
-	target := base.JoinPath(escaped...)
+	target := base.JoinPath(escaped...) // #nosec G125 -- every element is escaped by escapePathSegment above
 	target.RawQuery = rawQuery(r.parameters)
 
 	var body io.Reader
