@@ -691,3 +691,128 @@ func TestUpsertRowMissingPrimaryKeyFails(t *testing.T) {
 		t.Errorf("Code = %q, want 23502 (a row omitting the primary key target)", typedError.Code)
 	}
 }
+
+// TestCollectSingleMaybeRollsBackAWriteMatchingTwoRows proves the server's
+// count of a write through CollectSingleMaybe against real PostgREST: an
+// update whose filter matches two seeded rows is refused with 406 PGRST116,
+// surfacing as *Error wrapping ErrTooManyRows, and neither row is changed.
+func TestCollectSingleMaybeRollsBackAWriteMatchingTwoRows(t *testing.T) {
+	client := newIntegrationClient(t)
+	composer := "At most one row rollback"
+
+	_, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.From[repertoirePiece]("repertoire").Insert(
+			repertoirePiece{Title: "At most one row rollback, first", Composer: composer},
+			repertoirePiece{Title: "At most one row rollback, second", Composer: composer},
+		),
+	)
+	if err != nil {
+		t.Fatalf("seed Execute: %v", err)
+	}
+
+	row, found, response, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		client,
+		postgrest.
+			From[repertoirePiece]("repertoire").
+			Eq("composer", composer).
+			Update(map[string]any{"difficulty": 9}),
+	)
+
+	var typedError *postgrest.Error
+	if !errors.As(err, &typedError) {
+		t.Fatalf("want *postgrest.Error, got %T: %v", err, err)
+	}
+	if typedError.Code != "PGRST116" || typedError.HTTPStatus != http.StatusNotAcceptable {
+		t.Errorf("error = %+v, want PGRST116 at 406", typedError)
+	}
+	if !errors.Is(err, postgrest.ErrTooManyRows) {
+		t.Errorf("err = %v, want it to wrap ErrTooManyRows", err)
+	}
+	if found || row != (repertoirePiece{}) || response != (postgrest.Response{}) {
+		t.Errorf("CollectSingleMaybe = (%+v, %v, %+v), want zero values", row, found, response)
+	}
+
+	rows, _, err := postgrest.Collect(
+		t.Context(),
+		client,
+		postgrest.From[repertoirePiece]("repertoire").Eq("composer", composer),
+	)
+	if err != nil {
+		t.Fatalf("Collect after the refused update: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("Collect found %d rows, want the 2 seeded", len(rows))
+	}
+	for _, piece := range rows {
+		if piece.Difficulty != 3 {
+			t.Errorf("%q has difficulty %d after the refused update, want the default 3 (the write was not rolled back)", piece.Title, piece.Difficulty)
+		}
+	}
+}
+
+// TestCollectSingleMaybeUpdateMatchingOneRow proves a write through
+// CollectSingleMaybe against real PostgREST: an update whose filter matches
+// one seeded row returns that row carrying the change, at 200.
+func TestCollectSingleMaybeUpdateMatchingOneRow(t *testing.T) {
+	client := newIntegrationClient(t)
+	title := "At most one row update matching one row"
+
+	_, err := postgrest.Execute(
+		t.Context(),
+		client,
+		postgrest.From[repertoirePiece]("repertoire").Insert(repertoirePiece{Title: title, Composer: "Glass"}),
+	)
+	if err != nil {
+		t.Fatalf("seed Execute: %v", err)
+	}
+
+	row, found, response, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		client,
+		postgrest.
+			From[repertoirePiece]("repertoire").
+			Eq("title", title).
+			Update(map[string]any{"composer": "Bridge"}),
+	)
+	if err != nil {
+		t.Fatalf("CollectSingleMaybe: %v", err)
+	}
+	if !found {
+		t.Fatal("found = false, want true")
+	}
+	if row.Title != title || row.Composer != "Bridge" {
+		t.Errorf("row = %+v, want title %q composer Bridge", row, title)
+	}
+	if response.HTTPStatus != http.StatusOK {
+		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
+	}
+}
+
+// TestCollectSingleMaybeUpdateMatchingNoRows proves a write through
+// CollectSingleMaybe that matches nothing against real PostgREST: the server
+// refuses it with 406, which resolves to the empty result with no error and a
+// Response carrying that status and no count.
+func TestCollectSingleMaybeUpdateMatchingNoRows(t *testing.T) {
+	client := newIntegrationClient(t)
+
+	row, found, response, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		client,
+		postgrest.
+			From[repertoirePiece]("repertoire").
+			Eq("title", "No such title ever inserted by any test").
+			Update(map[string]any{"composer": "Nobody"}),
+	)
+	if err != nil {
+		t.Fatalf("CollectSingleMaybe: %v", err)
+	}
+	if found || row != (repertoirePiece{}) {
+		t.Errorf("CollectSingleMaybe = (%+v, %v), want the empty result", row, found)
+	}
+	if want := (postgrest.Response{HTTPStatus: http.StatusNotAcceptable, Count: -1}); response != want {
+		t.Errorf("response = %+v, want %+v", response, want)
+	}
+}

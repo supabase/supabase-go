@@ -887,3 +887,6 @@ features:
     status: implemented
     symbols:
       - postgrest.CollectSingle
+    supporting_symbols:
+      - postgrest.ErrNoRows
+      - postgrest.ErrTooManyRows
