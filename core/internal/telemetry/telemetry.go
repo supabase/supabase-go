@@ -15,12 +15,19 @@ import (
 
 const rootClientName = "supabase-go"
 
+// unknownVersion is the version a client module reports when build
+// information records none for it: a binary built within the SDK's own
+// module tree or a workspace that includes it, or one carrying no module
+// information at all. A version always begins with a digit.
+const unknownVersion = "0.0.0"
+
 // ClientInformationHeaderValue returns a value suitable for use for the
 // X-Client-Info header sent with HTTP requests submitted to Supabase services.
 //
 // The returned value is delimited with "; " (semi-colon followed by a space),
 // always in the following order:
-//   - entry module (e.g. "supabase-go" or "postgrest-go")
+//   - entry module and its version (e.g. "supabase-go/0.1.0" or
+//     "postgrest-go/0.0.0" when build information records no version)
 //   - runtime (always "go")
 //   - runtime-version (e.g. "1.26.5" for go1.26.5)
 //   - platform (e.g. "Linux" or "macOS")
@@ -53,7 +60,7 @@ func buildClientInformationHeaderValues() map[core.ModulePath]string {
 	if ok && buildInformation.Main.Path != "" {
 		if builtWithinSDK(buildInformation) {
 			for modulePath, clientName := range clientNames {
-				clientBases[modulePath] = clientName + "/(devel)"
+				clientBases[modulePath] = clientName + "/" + unknownVersion
 			}
 		} else {
 			// The binary was built outside the SDK's module tree, so client module
@@ -62,7 +69,7 @@ func buildClientInformationHeaderValues() map[core.ModulePath]string {
 			for _, module := range buildInformation.Deps {
 				modulePath := core.ModulePath(module.Path)
 				if clientName, found := clientNames[modulePath]; found {
-					clientBases[modulePath] = clientName + "/" + strings.TrimPrefix(module.Version, "v")
+					clientBases[modulePath] = clientName + "/" + headerVersion(module.Version)
 				}
 			}
 		}
@@ -72,7 +79,7 @@ func buildClientInformationHeaderValues() map[core.ModulePath]string {
 		// without module support. No client module's version is knowable, so
 		// synthesize a value for every possible client module.
 		for modulePath, clientName := range clientNames {
-			clientBases[modulePath] = clientName + "/0.0.0"
+			clientBases[modulePath] = clientName + "/" + unknownVersion
 		}
 	}
 
@@ -82,45 +89,7 @@ func buildClientInformationHeaderValues() map[core.ModulePath]string {
 		common += "; runtime-version=" + goRuntimeVersion
 	}
 
-	// Our platform values align with what other Supabase SDKs emit, where defined.
-	// For OS values not emitted by other Supabase SDKs we're following the same pattern
-	// of using the human-formatted form (e.g. capitalized "BSD" and 'F' in "FreeBSD").
-	common += "; platform="
-	switch runtime.GOOS {
-	case "aix":
-		common += "AIX"
-	case "android":
-		common += "Android"
-	case "darwin":
-		common += "macOS"
-	case "dragonfly":
-		common += "DragonFly"
-	case "freebsd":
-		common += "FreeBSD"
-	case "ios":
-		common += "iOS"
-	case "illumos":
-		common += "Illumos"
-	case "js":
-		common += "JavaScript"
-	case "linux":
-		common += "Linux"
-	case "netbsd":
-		common += "NetBSD"
-	case "openbsd":
-		common += "OpenBSD"
-	case "solaris":
-		common += "Solaris"
-	case "windows":
-		common += "Windows"
-	case "wasip1":
-		common += "WASIp1"
-
-	// For OS for which we don't have a mapping we emit the runtime.GOOS value verbatim,
-	// including for "plan9" (final release was made in January 2015!).
-	default:
-		common += runtime.GOOS
-	}
+	common += "; platform=" + platformName(runtime.GOOS)
 
 	// Our platform-architecture values are emitted in their original form.
 	// This is because, at the time of implementation, we appear to be the first Supabase SDK
@@ -133,6 +102,60 @@ func buildClientInformationHeaderValues() map[core.ModulePath]string {
 	}
 
 	return headerValues
+}
+
+// headerVersion returns the version a build-information dependency record
+// gives a client module, without its "v" prefix. A record that carries no
+// version, which Go writes as "(devel)" for a module built from a workspace,
+// gives unknownVersion.
+func headerVersion(recorded string) string {
+	if recorded == "" || recorded == "(devel)" {
+		return unknownVersion
+	}
+	return strings.TrimPrefix(recorded, "v")
+}
+
+// platformName returns the platform value for a GOOS.
+//
+// Our platform values align with what other Supabase SDKs emit, where defined.
+// For OS values not emitted by other Supabase SDKs we're following the same pattern
+// of using the human-formatted form (e.g. capitalized "BSD" and 'F' in "FreeBSD").
+func platformName(goos string) string {
+	switch goos {
+	case "aix":
+		return "AIX"
+	case "android":
+		return "Android"
+	case "darwin":
+		return "macOS"
+	case "dragonfly":
+		return "DragonFly"
+	case "freebsd":
+		return "FreeBSD"
+	case "ios":
+		return "iOS"
+	case "illumos":
+		return "Illumos"
+	case "js":
+		return "JavaScript"
+	case "linux":
+		return "Linux"
+	case "netbsd":
+		return "NetBSD"
+	case "openbsd":
+		return "OpenBSD"
+	case "solaris":
+		return "Solaris"
+	case "windows":
+		return "Windows"
+	case "wasip1":
+		return "WASIp1"
+
+	// For OS for which we don't have a mapping we emit the runtime.GOOS value verbatim,
+	// including for "plan9" (final release was made in January 2015!).
+	default:
+		return goos
+	}
 }
 
 // builtWithinSDK reports whether the running binary is built or tested from

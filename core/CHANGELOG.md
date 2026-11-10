@@ -5,6 +5,17 @@ All notable changes to this module will be documented in this file.
 This module is one of a number of modules defined in a multi-module repository.
 Refer to [GitHub `../CHANGELOG.md`](https://github.com/supabase/supabase-go/blob/main/CHANGELOG.md) for further details on structure, format and sibling modules.
 
+<!-- cSpell:ignore freebsd -->
+
+## Unreleased
+
+### Fixed
+
+Aligns the `X-Client-Info` header every client sends with the [cross-SDK client info spec](https://github.com/supabase/sdk/blob/e893cb3d8401149a0338529ddc80de1c232dfd66/packages/capability-matrix/specs/client/observability/client_info.md):
+
+- an `X-Client-Info` header set through `WithHeader` now replaces the SDK's value, where before the SDK's value replaced it
+- a build in which the SDK's version is not recorded, such as one from a workspace, sends version `0.0.0`, where before it sent `(devel)`, which Supabase's usage reporting cannot attribute to the SDK
+
 ## `v0.1.0-alpha.3` (2026-11-09)
 
 ### Added

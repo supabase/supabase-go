@@ -26,12 +26,11 @@ func TestTransportInjectsHeaders(t *testing.T) {
 		t.Errorf("apikey = %q, want %q", received.Get("apikey"), "test-key")
 	}
 
-	// The build is in-tree, so client info resolves through the (devel) branch
-	// once module information is present, with the 0.0.0 fallback accepted too
-	// for a toolchain whose test binaries carry none.
+	// The build is in-tree, so build information records no version for the
+	// SDK's modules and the header carries the unknown-version value.
 	clientInfo := received.Get("X-Client-Info")
-	if !strings.HasPrefix(clientInfo, "supabase-go/(devel)") && !strings.HasPrefix(clientInfo, "supabase-go/0.0.0") {
-		t.Errorf("X-Client-Info = %q, want prefix %q or %q", clientInfo, "supabase-go/(devel)", "supabase-go/0.0.0")
+	if !strings.HasPrefix(clientInfo, "supabase-go/0.0.0; ") {
+		t.Errorf("X-Client-Info = %q, want prefix %q", clientInfo, "supabase-go/0.0.0; ")
 	}
 
 	if received.Get("Authorization") != "" {
@@ -100,9 +99,30 @@ func TestTransportHeaderPrecedence(t *testing.T) {
 	if received.Get("apikey") != "project-key" {
 		t.Errorf("apikey = %q, want the project key forced", received.Get("apikey"))
 	}
-	// X-Client-Info is for Supabase SDK telemetry needs, so should remain as set by this SDK, not the user
-	if received.Get("X-Client-Info") == "pretender" {
-		t.Errorf("X-Client-Info = %q, but wanted SDK default", received.Get("X-Client-Info"))
+	// An X-Client-Info the application supplies replaces the SDK's value.
+	if received.Get("X-Client-Info") != "pretender" {
+		t.Errorf("X-Client-Info = %q, want the per-request value to win", received.Get("X-Client-Info"))
+	}
+}
+
+// TestWithHeaderClientInfoReplacesTheSDKValue covers the cross-SDK client info
+// spec's rule for an X-Client-Info header set through the client's global
+// headers: it replaces the SDK's value on every request, matched without
+// regard to the case of the header name.
+func TestWithHeaderClientInfoReplacesTheSDKValue(t *testing.T) {
+	server, received := recordingServer(t)
+	projectConfiguration, err := configuration.New(core.ModulePathRoot, server.URL, "project-key",
+		configuration.WithHeader("x-client-info", "wrapper-of-supabase-go/1.0.0"))
+	if err != nil {
+		t.Fatalf("configuration.New: %v", err)
+	}
+	sendGet(t, projectConfiguration.HTTPClient(), server.URL, nil)
+
+	if got, want := received.Get("X-Client-Info"), "wrapper-of-supabase-go/1.0.0"; got != want {
+		t.Errorf("X-Client-Info = %q, want the WithHeader value %q", got, want)
+	}
+	if got := received.Values("X-Client-Info"); len(got) != 1 {
+		t.Errorf("X-Client-Info sent %d times, want once: %q", len(got), got)
 	}
 }
 
