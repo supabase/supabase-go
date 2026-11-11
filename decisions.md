@@ -508,7 +508,7 @@ The `telemetrytest/` module is a stand-in consumer, outside `go.work`: it requir
 The probe is a plain program, not a `go test` suite, and the check runs in the fast tier and on CI's floor + stable matrix.
 
 **Why**:  
-Every binary the in-repo suites produce has one of this repository's modules as its main module, so header resolution takes the in-tree branch and reports `(devel)`: the branch every published-module consumer exercises - reading client versions from build-information dependency records - is reachable only from a main module outside the SDK's module tree.
+Every binary the in-repo suites produce has one of this repository's modules as its main module, so header resolution takes the in-tree branch and reports the unknown-version `0.0.0`: the branch every published-module consumer exercises - reading client versions from build-information dependency records - is reachable only from a main module outside the SDK's module tree.
 It must be a plain program because `go test` binaries record the main module and no dependencies (observed on go1.26), which rules out expressing the probe as a test suite.
 The fabricated versions are distinct from every sentinel the header can otherwise carry, outrank every real `v1` version under minimal version selection so they stay the selected, recorded versions, and their `-fabricated` prerelease label keeps the header values in check output from reading as release claims.
 The GOPATH leg exists because module-record-free binaries are otherwise not exercised at all (every matrix toolchain now stamps records even into test binaries), and the expected versions come from the environment rather than the binary's own build information, which would assert whatever branch actually ran and pass even when a leg lands in the wrong branch.
@@ -518,13 +518,14 @@ The floor leg exists because the header is consumer-facing behavior, so it must 
 
 **What**:  
 `buildClientInformationHeaderValues` treats the running binary as carrying module information only when `debug.ReadBuildInfo()` succeeds and `Main.Path` is non-empty.
-Otherwise every registered client synthesizes `<name>/0.0.0`, the same version-unknowable sentinel used when build information is absent entirely.
+Otherwise every registered client synthesizes `<name>/0.0.0`, the same version-unknowable value an in-tree build reports and a dependency record without a version, Go's `(devel)`, is mapped to.
 The construction panic remains for a module-aware binary built outside the SDK's tree whose dependency records omit the named entry module, and for a module that is not a registered telemetry client.
 
 **Why**:  
 Since Go 1.18 every binary the go command produces embeds build information, so ok answers "is there a blob" and not "is module identity known": binaries built with `GO111MODULE=off` (and test binaries from toolchains before Go 1.24, [golang/go#33976](https://github.com/golang/go/issues/33976), now all below the consumer floor) report ok with a zero-valued `Main` and nil `Deps`.
 Trusting ok alone would therefore panic every client construction in a GOPATH-mode build, including this repository's GOPATH telemetry leg.
-A binary in that state carries no module identity at all, so nothing distinguishes an in-tree build from a consumer's, no `(devel)` claim is honest and the version-unknowable sentinel is the only truthful value.
+A binary in that state carries no module identity at all, so nothing distinguishes an in-tree build from a consumer's, and the version-unknowable value is the only truthful one.
+That value is `0.0.0` everywhere, including the in-tree build that until the alignment with the cross-SDK client info spec reported Go's own `(devel)` marker: Supabase's usage reporting derives the library name from the product token by stripping a version that begins with a digit, so a non-numeric version filed that traffic under a library of its own instead of under `supabase-go` at version 0.0.0.
 The panic survives only where module identity is present and contradicts the caller's declared entry module, which is a programmer error rather than an environment degradation.
 
 ## The consumer floor is a policy: the oldest Go major the Go project still supports

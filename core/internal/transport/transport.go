@@ -23,10 +23,10 @@ type transport struct {
 }
 
 // WrapClient returns a copy of client whose transport injects the project API
-// key header, the supplied global headers and the X-Client-Info header that
-// identifies entryModulePath, and writes one debug log emission per round
-// trip through logger. The input client is never mutated, so sharing
-// [http.DefaultClient] remains safe.
+// key header, the supplied global headers and, unless the application set
+// one, the X-Client-Info header that identifies entryModulePath, and writes
+// one debug log emission per round trip through logger. The input client is
+// never mutated, so sharing [http.DefaultClient] remains safe.
 //
 // entryModulePath must be one of the following, with its module linked into
 // the build, otherwise this function panics:
@@ -56,10 +56,13 @@ func WrapClient(entryModulePath core.ModulePath, client *http.Client, apiKey str
 // RoundTrip implements [http.RoundTripper].
 // It injects the project API key header and any global headers, then
 // delegates to the wrapped transport. Precedence: existing request headers win
-// over global defaults, and the apikey header is always the project key. The
-// transport never sets Authorization: that header carries an end-user's JWT,
-// supplied by the application when acting for a signed-in user. Each round
-// trip writes one debug log emission through the configured logger.
+// over global defaults, the apikey header is always the project key and
+// X-Client-Info is the SDK's own value only when neither the request nor the
+// global headers carry one, matched as [http.Header] matches, without regard
+// to case. The transport never sets Authorization: that header carries an
+// end-user's JWT, supplied by the application when acting for a signed-in
+// user. Each round trip writes one debug log emission through the configured
+// logger.
 func (tr *transport) RoundTrip(request *http.Request) (*http.Response, error) {
 	clone := request.Clone(request.Context())
 
@@ -73,7 +76,9 @@ func (tr *transport) RoundTrip(request *http.Request) (*http.Response, error) {
 	}
 
 	clone.Header.Set("apikey", tr.apiKey)
-	clone.Header.Set("X-Client-Info", tr.clientInformationHeaderValue)
+	if clone.Header.Get("X-Client-Info") == "" {
+		clone.Header.Set("X-Client-Info", tr.clientInformationHeaderValue)
+	}
 
 	start := time.Now()
 	response, err := tr.base.RoundTrip(clone)
