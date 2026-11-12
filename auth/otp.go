@@ -23,6 +23,8 @@ import (
 //   - over_email_send_rate_limit, for a send to an address within the
 //     project's minimum interval since the last send to it, or beyond the
 //     project's limit on emails sent
+//   - over_request_rate_limit, when sends from the caller's IP address
+//     exceed the project's limit
 func (c *Client) SignInWithOTPByEmail(ctx context.Context, email string, options ...otp.EmailOption) (*SignInWithOTPResult, error) {
 	parameters := call_options.Resolve(options, call_options.Parameters{})
 	body := otpPayload{Email: email, CreateUser: !parameters.WithoutUserCreation, Data: parameters.UserMetadata}
@@ -41,6 +43,8 @@ func (c *Client) SignInWithOTPByEmail(ctx context.Context, email string, options
 //   - over_sms_send_rate_limit, for a send to a number within the project's
 //     minimum interval since the last send to it, or beyond the project's
 //     limit on messages sent to phone numbers
+//   - over_request_rate_limit, when sends from the caller's IP address
+//     exceed the project's limit
 func (c *Client) SignInWithOTPByPhone(ctx context.Context, phone string, options ...otp.PhoneOption) (*SignInWithOTPResult, error) {
 	parameters := call_options.Resolve(options, call_options.Parameters{Channel: messaging.ChannelSMS})
 	body := otpPayload{Phone: phone, Channel: parameters.Channel, CreateUser: !parameters.WithoutUserCreation, Data: parameters.UserMetadata}
@@ -73,15 +77,23 @@ type otpPayload struct {
 type SignInWithOTPResult struct{}
 
 // VerifyOTPByEmail redeems token, a code of the given kind that was sent to
-// email, signing its user in. A wrong or expired code is rejected as
-// [*Error], with Code otp_expired.
+// email, signing its user in.
+//
+// The server's rejections are returned as [*Error], with a Code such as:
+//   - otp_expired, for a wrong or expired code
+//   - over_request_rate_limit, when verifications from the caller's IP
+//     address exceed the project's limit
 func (c *Client) VerifyOTPByEmail(ctx context.Context, email, token string, kind otp.EmailType) (*VerifyOTPResult, error) {
 	return c.verifyOTP(ctx, verifyPayload{Email: email, Token: token, Type: string(kind)})
 }
 
 // VerifyOTPByPhone redeems token, a code of the given kind that was sent to
-// phone, signing its user in. A wrong or expired code is rejected as
-// [*Error], with Code otp_expired.
+// phone, signing its user in.
+//
+// The server's rejections are returned as [*Error], with a Code such as:
+//   - otp_expired, for a wrong or expired code
+//   - over_request_rate_limit, when verifications from the caller's IP
+//     address exceed the project's limit
 func (c *Client) VerifyOTPByPhone(ctx context.Context, phone, token string, kind otp.PhoneType) (*VerifyOTPResult, error) {
 	return c.verifyOTP(ctx, verifyPayload{Phone: phone, Token: token, Type: string(kind)})
 }
@@ -89,8 +101,12 @@ func (c *Client) VerifyOTPByPhone(ctx context.Context, phone, token string, kind
 // VerifyOTPByTokenHash redeems the code of the given kind that tokenHash
 // names, signing its user in. The token hash is the one an email's link
 // carries, or [GenerateLinkResult.HashedToken], and names the code and its
-// address on its own. A wrong or expired hash is rejected as [*Error], with
-// Code otp_expired.
+// address on its own.
+//
+// The server's rejections are returned as [*Error], with a Code such as:
+//   - otp_expired, for a wrong or expired hash
+//   - over_request_rate_limit, when verifications from the caller's IP
+//     address exceed the project's limit
 func (c *Client) VerifyOTPByTokenHash(ctx context.Context, tokenHash string, kind otp.EmailType) (*VerifyOTPResult, error) {
 	return c.verifyOTP(ctx, verifyPayload{TokenHash: tokenHash, Type: string(kind)})
 }

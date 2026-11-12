@@ -21,7 +21,8 @@ import (
 //   - email_address_invalid, for an address that fails the project's email
 //     validation
 //   - signup_disabled, when the project accepts no sign-ups
-//   - over_request_rate_limit, when the project's rate limit is reached
+//   - over_request_rate_limit, when sign-ups from the caller's IP address
+//     exceed the project's limit
 func (c *Client) SignUpByEmail(ctx context.Context, email, password string, options ...signup.EmailOption) (*SignUpResult, error) {
 	parameters := call_options.Resolve(options, call_options.Parameters{})
 	body := registrationPayload{Email: email, Password: password, Data: parameters.UserMetadata}
@@ -40,7 +41,8 @@ func (c *Client) SignUpByEmail(ctx context.Context, email, password string, opti
 //   - weak_password, for a password the project's policy refuses
 //   - phone_provider_disabled, when the project accepts no phone sign-ups
 //   - signup_disabled, when the project accepts no sign-ups
-//   - over_request_rate_limit, when the project's rate limit is reached
+//   - over_request_rate_limit, when sign-ups from the caller's IP address
+//     exceed the project's limit
 func (c *Client) SignUpByPhone(ctx context.Context, phone, password string, options ...signup.PhoneOption) (*SignUpResult, error) {
 	parameters := call_options.Resolve(options, call_options.Parameters{Channel: messaging.ChannelSMS})
 	body := registrationPayload{Phone: phone, Password: password, Channel: parameters.Channel, Data: parameters.UserMetadata}
