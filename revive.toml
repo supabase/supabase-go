@@ -74,11 +74,10 @@ arguments = ["check-public-interface"]
 
 [rule.package-directory-mismatch]
 
-# An underscore may join the words of a package name, which reads more easily
-# than the run-together compound the default demands (call_options, not
-# calloptions). MixedCaps stays refused.
+# An internal package's name may join lowercase words with underscores (call_options, not calloptions).
+# Every other package name keeps the default.
 [rule.package-naming]
-arguments = [{ conventionNameCheckRegex = "^[a-z][a-z0-9_]*$" }]
+exclude = ["~(^|/)internal/(.*/)?[a-z0-9]+(_[a-z0-9]+)+/[^/]+$"]
 
 [rule.redundant-build-tag]
 
