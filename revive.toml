@@ -74,7 +74,11 @@ arguments = ["check-public-interface"]
 
 [rule.package-directory-mismatch]
 
+# An underscore may join the words of a package name, which reads more easily
+# than the run-together compound the default demands (call_options, not
+# calloptions). MixedCaps stays refused.
 [rule.package-naming]
+arguments = [{ conventionNameCheckRegex = "^[a-z][a-z0-9_]*$" }]
 
 [rule.redundant-build-tag]
 
