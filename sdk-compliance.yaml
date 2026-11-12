@@ -524,8 +524,29 @@ features:
       - auth.SessionEventName
       - auth.SessionEventSignedOut
       - auth.SessionEventTokenRefreshed
+  auth.sign_in.sign_in_with_otp:
+    status: partially_implemented
+    note: |
+      No PKCE code challenge on the email send, which belongs to the
+      redirect flows, and no captcha token.
+    symbols:
+      - auth.Client.SignInWithOTPByEmail
+      - auth.Client.SignInWithOTPByPhone
+      - auth.SignInWithOTPResult
+      - auth/messaging.Channel
+      - auth/messaging.ChannelSMS
+      - auth/messaging.ChannelWhatsApp
+      - auth/otp.EmailOption
+      - auth/otp.Option
+      - auth/otp.PhoneOption
+      - auth/otp.WithChannel
+      - auth/otp.WithRedirectTo
+      - auth/otp.WithUserMetadata
+      - auth/otp.WithoutUserCreation
   auth.sign_in.sign_in_with_password:
-    status: implemented
+    status: partially_implemented
+    note: |
+      No captcha token.
     symbols:
       - auth.Client.SignInWithPassword
       - auth.PasswordCredentials
@@ -538,6 +559,43 @@ features:
       - auth.WeakPassword
       - auth.WeakPassword.Message
       - auth.WeakPassword.Reasons
+  auth.sign_in.sign_up:
+    status: partially_implemented
+    note: |
+      No PKCE code challenge, which belongs to the redirect flows, and no
+      captcha token.
+    symbols:
+      - auth.Client.SignUpByEmail
+      - auth.Client.SignUpByPhone
+      - auth.ErrMissingEmailOrPhone
+      - auth.SignUpResult
+      - auth.SignUpResult.Session
+      - auth.SignUpResult.User
+      - auth/messaging.Channel
+      - auth/messaging.ChannelSMS
+      - auth/messaging.ChannelWhatsApp
+      - auth/signup.EmailOption
+      - auth/signup.Option
+      - auth/signup.PhoneOption
+      - auth/signup.WithChannel
+      - auth/signup.WithRedirectTo
+      - auth/signup.WithUserMetadata
+  auth.sign_in.verify_otp:
+    status: implemented
+    symbols:
+      - auth.Client.VerifyOTPByEmail
+      - auth.Client.VerifyOTPByPhone
+      - auth.Client.VerifyOTPByTokenHash
+      - auth.VerifyOTPResult
+      - auth.VerifyOTPResult.Session
+      - auth/otp.EmailType
+      - auth/otp.PhoneType
+      - auth/otp.TypeEmail
+      - auth/otp.TypeEmailChange
+      - auth/otp.TypeInvite
+      - auth/otp.TypePhoneChange
+      - auth/otp.TypeRecovery
+      - auth/otp.TypeSMS
   client.observability.diagnostic_logging:
     status: implemented
     note: |

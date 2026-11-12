@@ -739,6 +739,21 @@ The tag-free alternatives - an internal mirror struct with a field-by-field copy
 Hiding the tags would not stop `json.Marshal` accepting the exported struct - Go offers no way to revoke that - it would only swap the wire names for raw Go field names with no omission rule, a silent trap for anyone round-tripping attributes through their own JSON.
 The opposite shape, a public catalog of every wire struct in a per-module protocol package, serves raw REST callers no better: Go's JSON is structural, so anyone can declare the narrow struct they need, and such a catalog is either empty exactly where an escape hatch matters or a completeness promise tracking a server this SDK does not own.
 
+## Calls addressed by email or by phone are one method per identifier
+
+**What**:  
+Where the Auth server addresses a call to an email address or a phone number, each kind of identifier gets a method of its own, named `<Operation>By<Identifier>` as `SignUpByEmail` and `SignUpByPhone` are.
+The suffix names the identifier, not the operation, so both sign-up methods answer one `SignUpResult`.
+Each method's options are typed to its identifier: `signup.WithRedirectTo` is an `EmailOption`, `signup.WithChannel` a `PhoneOption` and `signup.WithUserMetadata` an `Option` that both methods take.
+
+**Why**:  
+The server reads an email and a phone as alternatives: it rejects some mixes, silently ignores others (a channel beside an email, a redirect beside a phone) and takes a sign-up with neither as an anonymous sign-in.
+A request struct with both fields compiles every one of those mixes, where a method per identifier makes them impossible to write, as supabase-js does with a union type and supabase-swift with overloads.
+
+One method taking a value built per identifier, `SignUp(ctx, signup.ByEmail(email, password))`, lost because the value has no noun of its own.
+Its constructor can only repeat the method's verb, and the caller has to pair a constructor from one package with the matching method from another.
+`NewLinkRequest` is a builder because its value does have a noun, the link request, which the caller composes before the call.
+
 ## Admin deletes return an empty result, and the delete mode is a per-call option
 
 **What**:  

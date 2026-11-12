@@ -1,5 +1,6 @@
 // Package testkit provides the fixtures the SDK modules' integration tests
-// share: the local Supabase stack's credentials and end-user signup.
+// share: the local Supabase stack's credentials, unique addresses and
+// end-user signup.
 //
 // scripts/integration-test.sh hands a test package the stack's keys by the
 // posture its directory declares: a package under asuser acts as a signed-in
@@ -64,16 +65,20 @@ type User struct {
 // Password is the password every user SignUpUser registers signs in with.
 const Password = "integration-password"
 
+// UniqueEmail returns an email address unique to this test run, in lower
+// case, as the Auth server normalizes addresses and stores them.
+func UniqueEmail(t *testing.T) string {
+	t.Helper()
+	safeName := strings.ToLower(strings.ReplaceAll(t.Name(), "/", "-"))
+	return fmt.Sprintf("user-%d-%s@example.com", time.Now().UnixNano(), safeName)
+}
+
 // SignUpUser registers a fresh user with the local stack's auth service and
 // returns its id, email and tokens. The local stack auto-confirms new email
 // accounts, so the response carries a usable session immediately.
 func SignUpUser(t *testing.T, projectURL, apiKey string) User {
 	t.Helper()
-	safeName := strings.ReplaceAll(t.Name(), "/", "-")
-	// The Auth server normalizes email addresses to lower case, so generate a
-	// lower-case address (the test name supplying safeName carries capitals) to
-	// keep the recorded fixture equal to what the server stores and returns.
-	email := strings.ToLower(fmt.Sprintf("user-%d-%s@example.com", time.Now().UnixNano(), safeName))
+	email := UniqueEmail(t)
 	payload, err := json.Marshal(map[string]string{"email": email, "password": Password})
 	if err != nil {
 		t.Fatalf("marshaling signup payload: %v", err)

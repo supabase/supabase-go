@@ -93,6 +93,7 @@ scrypt
 sdkchecker
 signout
 signup
+signups
 SLSA
 SQLSTATE
 staticcheck
@@ -123,3 +124,4 @@ vulncheck
 webauthn
 websearch
 weltschmerz
+whatsapp

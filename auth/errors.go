@@ -87,9 +87,16 @@ const ErrInvalidFactorID = authError("factor ID is not a canonical UUID")
 // path and reach a different route entirely.
 const ErrMissingIdentifier = authError("provider identifier is required")
 
+// ErrMissingEmailOrPhone is reported by [Client.SignUpByEmail] and
+// [Client.SignUpByPhone] when the email address or phone number is empty,
+// before any request is sent: a registration with neither would reach the
+// server's anonymous sign-in instead.
+const ErrMissingEmailOrPhone = authError("email or phone is required")
+
 // Error is the typed failure returned when the Auth server answers a request
 // with a non-2xx status, carrying the server's reported [error code] and message
-// alongside the HTTP status. [Client.GetUser] returns it directly, and
+// alongside the HTTP status. Code holds the error code and is the field to
+// branch on. [Client.GetUser] returns it directly, and
 // [Client.GetClaims] returns it when a token routes to server verification and
 // the server rejects it.
 //

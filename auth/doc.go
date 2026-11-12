@@ -2,8 +2,8 @@
 // and for the sessions of users a Go program signs in. A [Client] verifies the
 // end-user access tokens a backend receives - on the [Authorization header] of
 // an inbound request, say - and fetches the profile of the user a token
-// authenticates. It also signs users in, returning each one's session as a
-// [Session].
+// authenticates. It also registers users and signs them in, by password or
+// by one-time code, returning each one's session as a [Session].
 //
 // [Client.GetClaims] is the primary entry point. It returns a token's verified
 // [Claims] - who the user is and how they authenticated - together with the
@@ -44,13 +44,20 @@
 // updated metadata) or on the session still being live, and for GetClaims
 // otherwise.
 //
-// A program that signs users in itself holds a [Session] per signed-in user:
-// [Client.SignInWithPassword] creates one, [Client.SessionFromTokens] adopts
-// one from tokens obtained elsewhere and [Client.SessionFromStore] restores
-// one a previous run persisted through [Session.Persist]. A Session renews
-// its access token on demand through [Session.AccessToken], which a Database
-// client takes as its access-token provider, or ahead of expiry through
-// [Session.AutoRefresh], reports each change to the listeners
+// A program that signs users in itself holds a [Session] per signed-in user,
+// which comes from one of:
+//   - a sign-in, by password with [Client.SignInWithPassword] or by
+//     redeeming a one-time code with a VerifyOTP method, such as
+//     [Client.VerifyOTPByEmail]
+//   - a sign-up with [Client.SignUpByEmail] or [Client.SignUpByPhone], when
+//     the project confirms accounts at once
+//   - tokens obtained elsewhere, adopted by [Client.SessionFromTokens]
+//   - the session a previous run persisted through [Session.Persist],
+//     restored by [Client.SessionFromStore]
+//
+// A Session renews its access token on demand through [Session.AccessToken],
+// which a Database client takes as its access-token provider, or ahead of
+// expiry through [Session.AutoRefresh], reports each change to the listeners
 // [Session.AddEventListener] adds and ends with [Session.SignOut].
 //
 // [Client.Admin] is the project's administration surface - creating,

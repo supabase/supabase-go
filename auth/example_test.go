@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -9,11 +10,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/supabase/supabase-go/auth"
 	"github.com/supabase/supabase-go/auth/customprovider"
 	"github.com/supabase/supabase-go/auth/mfafactor"
+	"github.com/supabase/supabase-go/auth/otp"
 	"github.com/supabase/supabase-go/auth/signout"
+	"github.com/supabase/supabase-go/auth/signup"
 	"github.com/supabase/supabase-go/auth/userdelete"
 	"github.com/supabase/supabase-go/auth/userinvite"
 	"github.com/supabase/supabase-go/core/pagination"
@@ -270,6 +274,144 @@ func ExampleSession_AddEventListener() {
 		}
 	})
 	defer remove()
+}
+
+// ExampleClient_SignUpByEmail registers users through an HTTP endpoint. With
+// email confirmation on, a sign-up answers the user without a session, and
+// the link in the confirmation email completes it, as the
+// VerifyOTPByTokenHash example shows. An address that already has an
+// account gets the same answer, so the endpoint reveals nothing about which
+// addresses are registered.
+func ExampleClient_SignUpByEmail() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	http.HandleFunc("POST /sign-up", func(writer http.ResponseWriter, request *http.Request) {
+		result, err := client.SignUpByEmail(request.Context(),
+			request.FormValue("email"), request.FormValue("password"),
+			signup.WithUserMetadata(map[string]any{"display_name": request.FormValue("name")}))
+		switch {
+		case errors.Is(err, auth.ErrMissingEmailOrPhone):
+			http.Error(writer, "enter an email address", http.StatusUnprocessableEntity)
+			return
+		case rejectedWith(err, "weak_password"):
+			http.Error(writer, "choose a stronger password", http.StatusUnprocessableEntity)
+			return
+		case err != nil:
+			http.Error(writer, "sign-up failed", http.StatusBadGateway)
+			return
+		}
+		if result.Session() == nil {
+			writer.WriteHeader(http.StatusAccepted)
+			return
+		}
+		// The project confirms accounts at once, so the new user is signed in.
+		keepSession(writer, result.Session())
+		writer.WriteHeader(http.StatusCreated)
+	})
+}
+
+// ExampleClient_VerifyOTPByTokenHash serves the route the project's emails
+// link to, so that one route completes a sign-up, a magic link, an
+// invitation, a recovery or an email change. Each email template points its
+// link at the route with the token hash and the kind of code, the
+// confirmation template as:
+//
+//	https://HOST/auth/confirm?token_hash={{ .TokenHash }}&type=email
+//
+// Where the route is served at the project's Site URL, {{ .SiteURL }} can
+// stand in for https://HOST.
+//
+// A redemption that answers no session has confirmed the first address of a
+// secure email change, which waits on the other.
+func ExampleClient_VerifyOTPByTokenHash() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	http.HandleFunc("GET /auth/confirm", func(writer http.ResponseWriter, request *http.Request) {
+		query := request.URL.Query()
+		result, err := client.VerifyOTPByTokenHash(request.Context(), query.Get("token_hash"), otp.EmailType(query.Get("type")))
+		switch {
+		case rejectedWith(err, "otp_expired"):
+			http.Error(writer, "this link has expired or was already used", http.StatusForbidden)
+			return
+		case err != nil:
+			http.Error(writer, "confirmation failed", http.StatusBadGateway)
+			return
+		case result.Session() == nil:
+			http.Redirect(writer, request, "/confirm-your-other-address", http.StatusSeeOther)
+			return
+		}
+		keepSession(writer, result.Session())
+		http.Redirect(writer, request, "/", http.StatusSeeOther)
+	})
+}
+
+// ExampleClient_SignInWithOTPByEmail signs users in with a code emailed to
+// them, over two requests from a page that keeps the address between them:
+// the first sends the code and the second redeems it. The
+// project's magic link email template carries the code, as {{ .Token }},
+// rather than a link. WithoutUserCreation keeps sign-in to the accounts that
+// exist. The endpoint answers the server's refusal of an address with no
+// account as it answers a send, so it reveals nothing about which addresses
+// are registered.
+func ExampleClient_SignInWithOTPByEmail() {
+	client, err := auth.New("https://PROJECT_ID.supabase.co", "sb_publishable_...")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	http.HandleFunc("POST /sign-in/code", func(writer http.ResponseWriter, request *http.Request) {
+		_, err := client.SignInWithOTPByEmail(request.Context(), request.FormValue("email"), otp.WithoutUserCreation())
+		switch {
+		case rejectedWith(err, "over_email_send_rate_limit"):
+			http.Error(writer, "wait before asking for another code", http.StatusTooManyRequests)
+			return
+		case err != nil && !rejectedWith(err, "otp_disabled"):
+			http.Error(writer, "sending the code failed", http.StatusBadGateway)
+			return
+		}
+		writer.WriteHeader(http.StatusAccepted)
+	})
+
+	http.HandleFunc("POST /sign-in/verify", func(writer http.ResponseWriter, request *http.Request) {
+		result, err := client.VerifyOTPByEmail(request.Context(), request.FormValue("email"), request.FormValue("code"), otp.TypeEmail)
+		switch {
+		case rejectedWith(err, "otp_expired"):
+			http.Error(writer, "the code is wrong or has expired", http.StatusUnauthorized)
+			return
+		case err != nil:
+			http.Error(writer, "sign-in failed", http.StatusBadGateway)
+			return
+		}
+		keepSession(writer, result.Session())
+		writer.WriteHeader(http.StatusNoContent)
+	})
+}
+
+// rejectedWith reports whether err is the Auth server's rejection with code.
+func rejectedWith(err error, code string) bool {
+	rejection, ok := errors.AsType[*auth.Error](err)
+	return ok && rejection.Code == code
+}
+
+// browserSessions holds each signed-in browser's session in memory, keyed by
+// the random ID its session cookie carries.
+var browserSessions sync.Map
+
+// keepSession keeps session for the browser the response goes to, behind
+// the cookie that names it on the browser's later requests.
+func keepSession(writer http.ResponseWriter, session *auth.Session) {
+	id := rand.Text()
+	browserSessions.Store(id, session)
+	http.SetCookie(writer, &http.Cookie{Name: "session", Value: id, Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 }
 
 // fileStore keeps one session's state in a file only its owner can read, an

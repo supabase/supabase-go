@@ -63,10 +63,7 @@ func assertHonored(t *testing.T, client *auth.Client, accessToken, userID string
 func assertRevoked(t *testing.T, client *auth.Client, accessToken string) {
 	t.Helper()
 	result, err := client.GetUser(t.Context(), accessToken)
-	var serverError *auth.Error
-	if result != nil || !errors.As(err, &serverError) || serverError.HTTPStatus != http.StatusForbidden || serverError.Code != "session_not_found" {
-		t.Errorf("GetUser with the revoked session's token = (%v, %v), want *auth.Error with HTTP 403 and code session_not_found", result, err)
-	}
+	assertServerError(t, result, err, http.StatusForbidden, "session_not_found")
 }
 
 // TestSignInWithPassword signs a real user in and proves the session carries
@@ -112,10 +109,7 @@ func TestSignInWithPassword(t *testing.T) {
 	t.Run("a wrong password is answered with invalid_credentials", func(t *testing.T) {
 		user := testkit.SignUpUser(t, projectURL, apiKey)
 		result, err := client.SignInWithPassword(t.Context(), auth.PasswordCredentials{Email: user.Email, Password: "not-the-password"})
-		var serverError *auth.Error
-		if result != nil || !errors.As(err, &serverError) || serverError.HTTPStatus != http.StatusBadRequest || serverError.Code != "invalid_credentials" {
-			t.Errorf("a wrong password = (%v, %v), want *auth.Error with HTTP 400 and code invalid_credentials", result, err)
-		}
+		assertServerError(t, result, err, http.StatusBadRequest, "invalid_credentials")
 	})
 }
 

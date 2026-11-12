@@ -6,13 +6,12 @@
 // It runs against the local Supabase stack started by
 // scripts/integration-test.sh, reading SUPABASE_URL and
 // SUPABASE_PUBLISHABLE_KEY from the environment. Standing in for an
-// application's own sign-in flow, it registers a throwaway user over the Auth
-// REST API, inserts a practice-log row as that user, then calls its own
-// handler with the user's token and prints the rows the handler returns.
+// application's own sign-up flow, it registers a throwaway user with the Auth
+// client, inserts a practice-log row as that user, then calls its own handler
+// with the user's token and prints the rows the handler returns.
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -105,24 +104,33 @@ func run() (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	userID, token, err := signUpDemoUser(ctx, projectURL, publishableKey)
+	// The local stack confirms accounts at once, so the sign-up signs the
+	// demo user in.
+	email := fmt.Sprintf("rls-backend-%d@example.com", time.Now().UnixNano())
+	signedUp, err := client.Auth().SignUpByEmail(ctx, email, "example-password")
 	if err != nil {
 		return fmt.Errorf("signing up demo user: %w", err)
+	}
+	session := signedUp.Session()
+	if session == nil {
+		return errors.New("signing up demo user: the project requires the address to be confirmed first")
 	}
 
 	// Seed one row as the demo user - the insert policy requires the row's
 	// user_id to match the token's subject.
-	userDatabase := client.Database().WithAccessTokenProvider(
-		func(context.Context) (string, error) { return token, nil },
-	)
+	userDatabase := client.Database().WithAccessTokenProvider(session.AccessToken)
 	_, err = postgrest.Execute(
 		ctx, userDatabase,
 		postgrest.From[practiceLog]("practice_logs").Insert(
-			practiceLog{UserID: userID, Piece: "Prelude in C", Minutes: 30},
+			practiceLog{UserID: session.User().ID(), Piece: "Prelude in C", Minutes: 30},
 		),
 	)
 	if err != nil {
 		return fmt.Errorf("inserting practice log: %w", err)
+	}
+	token, err := session.AccessToken(ctx)
+	if err != nil {
+		return fmt.Errorf("reading the demo user's access token: %w", err)
 	}
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -162,46 +170,6 @@ func run() (err error) {
 	}
 	fmt.Printf("backend served the verified user's rows: %s", body)
 	return nil
-}
-
-// signUpDemoUser registers a throwaway user over the Auth REST API and returns
-// its id and access token. The local stack auto-confirms email sign-ups, so
-// the response carries a usable session immediately. An application would run
-// its own sign-in flow instead; the SDK's session capabilities are the part of
-// the Auth surface this backend does not need.
-func signUpDemoUser(ctx context.Context, projectURL, publishableKey string) (userID, accessToken string, err error) {
-	email := fmt.Sprintf("rls-backend-%d@example.com", time.Now().UnixNano())
-	payload, err := json.Marshal(map[string]string{"email": email, "password": "example-password"})
-	if err != nil {
-		return "", "", err
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, projectURL+"/auth/v1/signup", bytes.NewReader(payload)) // #nosec G704 -- the project URL is the operator's configuration, not request input
-	if err != nil {
-		return "", "", err
-	}
-	request.Header.Set("apikey", publishableKey)
-	request.Header.Set("Content-Type", "application/json")
-	response, err := http.DefaultClient.Do(request) // #nosec G704 -- the project URL is the operator's configuration, not request input
-	if err != nil {
-		return "", "", err
-	}
-	body, err := readAll(response.Body)
-	if err != nil {
-		return "", "", err
-	}
-	if response.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("signup answered %d: %s", response.StatusCode, body)
-	}
-	var session struct {
-		AccessToken string `json:"access_token"`
-		User        struct {
-			ID string `json:"id"`
-		} `json:"user"`
-	}
-	if err := json.Unmarshal(body, &session); err != nil {
-		return "", "", err
-	}
-	return session.User.ID, session.AccessToken, nil
 }
 
 // readAll reads body to its end and closes it, even when a read panics. It
