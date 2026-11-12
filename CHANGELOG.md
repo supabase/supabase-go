@@ -40,8 +40,8 @@ Therefore we aim to write our changelog entries so that they can be parsed by hu
 
 ## Entry Shape
 
-Entries sit under the type headings Keep a Changelog defines (`### Added`, `### Changed`, `### Fixed` and family) inside their release or unreleased section. Each entry will usually take the form of a lead line naming the consumer-visible surface, followed by terse bullets naming the exported identifiers that were added, changed or removed.
+Entries sit under the type headings Keep a Changelog defines (`### Added`, `### Changed`, `### Fixed` and family) inside their release or unreleased section. Each entry will usually take the form of a lead line naming the consumer-visible surface, followed by terse bullets naming the key entry points that were added, changed or removed.
 
 Choose the heading from the consumer's side, not the author's. Behavior that departed from a spec or a documented contract was a bug, even when it was built that way on purpose, so bringing it into line is `### Fixed`, and the lead line says so plainly: it aligns our implementation with the spec. Link the spec at the exact commit it was aligned to, never a branch, because specs move.
 
-Anything a reader can discover from the identifiers themselves - signatures, field lists, wire behavior, the content of doc comments - should stay out of the entry. The reader is a consumer deciding whether and how to upgrade, not a reviewer of the work.
+Anything a reader can discover from the entry points themselves - signatures, field lists, wire behavior, the content of doc comments - should stay out of the entry, and so should the parameter and result types, options, constants and sentinel errors that arrive with them. Such an identifier earns its own bullet only when it is itself the change, as with a sentinel error that already-released calls start to return. The reader is a consumer deciding whether and how to upgrade, not a reviewer of the work.
