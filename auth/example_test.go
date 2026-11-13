@@ -402,16 +402,92 @@ func rejectedWith(err error, code string) bool {
 	return ok && rejection.Code == code
 }
 
-// browserSessions holds each signed-in browser's session in memory, keyed by
-// the random ID its session cookie carries.
+// sessionCookieName names the cookie that carries a browser's session ID.
+const sessionCookieName = "session"
+
+// browserSessions is the server-side session store these examples share. It
+// keeps a browser signed in across requests while the user's tokens stay on
+// the server. A handler that signs a user in stores their [*auth.Session]
+// here under a new random session ID, and sends the browser that ID alone,
+// in a cookie. The browser returns the cookie with each later request, and a
+// handler finds the session again by the ID the cookie carries.
+//
+// The store is this process's memory. A restart empties it, other instances
+// of the server cannot read it and nothing here expires or removes an entry.
+// A production server keeps sessions in storage all its instances share,
+// expires them and deletes a session's entry when its user signs out, as the
+// [OWASP Session Management Cheat Sheet] describes.
+//
+// [OWASP Session Management Cheat Sheet]: https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html
 var browserSessions sync.Map
 
-// keepSession keeps session for the browser the response goes to, behind
-// the cookie that names it on the browser's later requests.
+// keepSession stores session in browserSessions under a new session ID, and
+// sets a cookie that carries the ID to the browser the response goes to. The
+// ID comes from [rand.Text], whose 128 or more random bits are too many to
+// guess. MDN's [Set-Cookie] reference details the cookie's attributes:
+//   - Path=/, so the browser sends it with requests to every path on the site
+//   - Secure, so the browser sends it over HTTPS alone, localhost aside
+//   - HttpOnly, so no script on the page can read it
+//   - SameSite=Lax, so no other site can POST a form as the signed-in user:
+//     the browser leaves the cookie off any request another site starts,
+//     unless it is a GET that changes the address bar's URL, as following a
+//     link does
+//
+// [rand.Text]: https://pkg.go.dev/crypto/rand#Text
+// [Set-Cookie]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie
 func keepSession(writer http.ResponseWriter, session *auth.Session) {
 	id := rand.Text()
 	browserSessions.Store(id, session)
-	http.SetCookie(writer, &http.Cookie{Name: "session", Value: id, Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	http.SetCookie(writer, &http.Cookie{Name: sessionCookieName, Value: id, Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+}
+
+// findSession returns the session browserSessions holds for the browser that
+// sent request, by the session ID the request's cookie carries. It reports
+// false when the request has no session cookie, as before the browser signs
+// in, or when the store holds nothing under the cookie's ID, as after the
+// server restarts.
+func findSession(request *http.Request) (*auth.Session, bool) {
+	cookie, err := request.Cookie(sessionCookieName)
+	if err != nil {
+		return nil, false
+	}
+	stored, ok := browserSessions.Load(cookie.Value)
+	if !ok {
+		return nil, false
+	}
+	session, ok := stored.(*auth.Session)
+	return session, ok
+}
+
+// ExampleSession_UpdateUser changes a signed-in user's email address through
+// an HTTP endpoint. The change waits on the user's confirmation, so the
+// profile the server answers with still reads the old address, and NewEmail
+// carries the new one until the link in the confirmation email reaches the
+// route the VerifyOTPByTokenHash example serves. NewEmail is empty when no
+// change waits on confirmation, as when the address submitted is the current
+// one.
+func ExampleSession_UpdateUser() {
+	http.HandleFunc("POST /account/email", func(writer http.ResponseWriter, request *http.Request) {
+		session, ok := findSession(request)
+		if !ok {
+			http.Error(writer, "sign in first", http.StatusUnauthorized)
+			return
+		}
+		result, err := session.UpdateUser(request.Context(), auth.UserUpdate{Email: request.FormValue("email")})
+		switch {
+		case errors.Is(err, auth.ErrSignedOut), errors.Is(err, auth.ErrSessionExpired):
+			http.Error(writer, "sign in again", http.StatusUnauthorized)
+			return
+		case err != nil:
+			http.Error(writer, "changing the address failed", http.StatusBadGateway)
+			return
+		}
+		if result.User().NewEmail() == "" {
+			http.Redirect(writer, request, "/account", http.StatusSeeOther)
+			return
+		}
+		http.Redirect(writer, request, "/account/confirm-your-new-address", http.StatusSeeOther)
+	})
 }
 
 // fileStore keeps one session's state in a file only its owner can read, an

@@ -35,9 +35,9 @@ const expiryMargin = 30 * time.Second
 //     goroutine, so one that is no longer wanted is simply dropped.
 //
 // The access token is renewed on demand by [Session.AccessToken] and
-// [Session.Refresh], and ahead of expiry by [Session.AutoRefresh]. A
-// listener added with [Session.AddEventListener] receives each change as a
-// [SessionEvent].
+// [Session.Refresh], and ahead of expiry by [Session.AutoRefresh]. The
+// user's profile changes through [Session.UpdateUser]. A listener added with
+// [Session.AddEventListener] receives each change as a [SessionEvent].
 //
 // At most one refresh is in flight at a time, and concurrent callers share
 // its result. A caller's context bounds only its own wait, so a caller that
@@ -135,10 +135,11 @@ func (s *Session) RefreshToken() string {
 }
 
 // User returns the user's profile as the server last served it: at sign-in,
-// adoption or the latest refresh. Each call returns a value of its own,
-// nested metadata included, which the caller may retain and modify freely.
-// It is never nil while the session is live. For a profile the server has
-// just verified, pass [Session.AccessToken]'s result to [Client.GetUser].
+// adoption, the latest refresh or the latest [Session.UpdateUser]. Each call
+// returns a value of its own, nested metadata included, which the caller may
+// retain and modify freely. It is never nil while the session is live. For a
+// profile the server has just verified, pass [Session.AccessToken]'s result
+// to [Client.GetUser].
 func (s *Session) User() *User {
 	if s.inner == nil {
 		return nil

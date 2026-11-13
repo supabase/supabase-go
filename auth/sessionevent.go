@@ -37,6 +37,10 @@ const (
 	// SessionEventTokenRefreshed reports a refresh that rotated both tokens.
 	SessionEventTokenRefreshed SessionEventName = "TokenRefreshed"
 
+	// SessionEventUserUpdated reports that [Session.User] changed through
+	// [Session.UpdateUser].
+	SessionEventUserUpdated SessionEventName = "UserUpdated"
+
 	// SessionEventSignedOut reports that the session ended, with
 	// [SessionEvent.SignOutReason] saying why. It is the last event a
 	// listener receives.
@@ -114,6 +118,8 @@ func toSessionEvent(change session.Change) SessionEvent {
 	switch change.Kind {
 	case session.Refreshed:
 		return SessionEvent{name: SessionEventTokenRefreshed}
+	case session.UserUpdated:
+		return SessionEvent{name: SessionEventUserUpdated}
 	case session.Ended:
 		return SessionEvent{name: SessionEventSignedOut, signOutReason: signOutReason(change.Status)}
 	}
