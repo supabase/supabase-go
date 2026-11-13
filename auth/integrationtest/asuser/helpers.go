@@ -7,6 +7,7 @@ package asuser
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -23,6 +24,16 @@ func newAuthClient(t *testing.T) *auth.Client {
 		t.Fatalf("auth.New: %v", err)
 	}
 	return client
+}
+
+// assertServerError asserts that err is an *auth.Error carrying status and
+// code, and that result, the value returned beside it, is nil.
+func assertServerError[T any](t *testing.T, result *T, err error, status int, code string) {
+	t.Helper()
+	var serverError *auth.Error
+	if result != nil || !errors.As(err, &serverError) || serverError.HTTPStatus != status || serverError.Code != code {
+		t.Errorf("result and error = (%v, %v), want nil and *auth.Error with HTTP %d and code %s", result, err, status, code)
+	}
 }
 
 // tokenAlgorithm returns the alg from a JWT's header, so a test can assert the

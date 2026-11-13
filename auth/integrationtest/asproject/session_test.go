@@ -54,12 +54,10 @@ func TestRefreshAfterRevocation(t *testing.T) {
 	if err != nil || adminSignOut == nil {
 		t.Fatalf("Admin.SignOut = (%v, %v), want the empty result", adminSignOut, err)
 	}
-	var serverError *auth.Error
 	revokedUser, err := client.GetUser(t.Context(), user.AccessToken)
-	if revokedUser != nil || !errors.As(err, &serverError) || serverError.HTTPStatus != http.StatusForbidden || serverError.Code != "session_not_found" {
-		t.Errorf("GetUser after the revocation = (%v, %v), want *auth.Error with HTTP 403 and code session_not_found", revokedUser, err)
-	}
+	assertServerError(t, revokedUser, err, http.StatusForbidden, "session_not_found")
 
+	var serverError *auth.Error
 	refreshed, err := session.Refresh(t.Context())
 	if refreshed != nil || !errors.As(err, &serverError) || serverError.HTTPStatus != http.StatusBadRequest || !slices.Contains(definitiveRefreshCodes, serverError.Code) {
 		t.Errorf("Refresh after revocation = (%v, %v), want *auth.Error with HTTP 400 and one of %v", refreshed, err, definitiveRefreshCodes)
@@ -76,9 +74,7 @@ func TestRefreshAfterRevocation(t *testing.T) {
 	}
 
 	bareSignOut, err := first.SignOut(t.Context())
-	if bareSignOut != nil || !errors.As(err, &serverError) || serverError.HTTPStatus != http.StatusForbidden || serverError.Code != "session_not_found" {
-		t.Errorf("a bare SignOut of a revoked session = (%v, %v), want *auth.Error with HTTP 403 and code session_not_found", bareSignOut, err)
-	}
+	assertServerError(t, bareSignOut, err, http.StatusForbidden, "session_not_found")
 	liveAccessToken, err := first.AccessToken(t.Context())
 	if err != nil || liveAccessToken != firstAccessToken {
 		t.Errorf("AccessToken() after that SignOut = (%q, %v), want the session kept live", liveAccessToken, err)
@@ -96,9 +92,7 @@ func TestRefreshAfterRevocation(t *testing.T) {
 	}
 
 	result, err := second.SignOut(t.Context(), signout.WithOthersScope())
-	if result != nil || !errors.As(err, &serverError) || serverError.HTTPStatus != http.StatusForbidden || serverError.Code != "session_not_found" {
-		t.Errorf("SignOut with WithOthersScope of a revoked session = (%v, %v), want *auth.Error with HTTP 403 and code session_not_found", result, err)
-	}
+	assertServerError(t, result, err, http.StatusForbidden, "session_not_found")
 	if accessToken, err := second.AccessToken(t.Context()); err != nil || accessToken != secondAccessToken {
 		t.Errorf("AccessToken() after that SignOut = (%q, %v), want the session kept live", accessToken, err)
 	}

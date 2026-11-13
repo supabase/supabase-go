@@ -11,4 +11,6 @@ The following document will be helpful:
 
 Each published module owns a `CHANGELOG.md` beside its code, and a user-facing change adds its entry alongside the change it describes.
 
-The entry speaks to a consumer deciding whether and how to upgrade. One lead line names the surface, terse bullets name the exported identifiers, and everything discoverable from the identifiers themselves - signatures, field lists, wire behavior, doc-comment content - stays out. When more depth genuinely helps, link the canonical source rather than restating it.
+The entry speaks to a consumer deciding whether and how to upgrade. One lead line names the surface, terse bullets name its key entry points, and everything discoverable from the entry points themselves - signatures, field lists, wire behavior, doc-comment content - stays out. When more depth genuinely helps, link the canonical source rather than restating it.
+
+Completeness is the failure to guard against: a draft naming every identifier a change introduced buries the few calls a consumer starts from beneath everything that arrived with them. Before finishing, strike each identifier that arrived only as part of another new one the entry already names.

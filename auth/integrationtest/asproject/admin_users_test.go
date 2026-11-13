@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -26,21 +25,12 @@ func newAdmin(t *testing.T) *auth.Admin {
 	return client.Admin()
 }
 
-// uniqueEmail returns a lower-case address unique to this test run, the shape
-// testkit.SignUpUser uses, so admin-created users never collide across runs
-// against the shared stack.
-func uniqueEmail(t *testing.T) string {
-	t.Helper()
-	safeName := strings.ToLower(strings.ReplaceAll(t.Name(), "/", "-"))
-	return fmt.Sprintf("admin-%d-%s@example.com", time.Now().UnixNano(), safeName)
-}
-
 // TestAdminUserLifecycle proves the whole spine on one user: create returns
 // the user as stored, get round-trips it by id, delete removes it and get
 // then answers 404.
 func TestAdminUserLifecycle(t *testing.T) {
 	admin := newAdmin(t)
-	email := uniqueEmail(t)
+	email := testkit.UniqueEmail(t)
 
 	createResult, err := admin.CreateUser(t.Context(), auth.UserAttributes{
 		Email:        email,
@@ -103,7 +93,7 @@ func TestAdminUserLifecycle(t *testing.T) {
 // then removes the record.
 func TestAdminSoftDeleteUser(t *testing.T) {
 	admin := newAdmin(t)
-	email := uniqueEmail(t)
+	email := testkit.UniqueEmail(t)
 
 	createResult, err := admin.CreateUser(t.Context(), auth.UserAttributes{
 		Email:        email,
@@ -168,7 +158,7 @@ func TestAdminSoftDeleteUser(t *testing.T) {
 // raised and lifted.
 func TestAdminUpdateUser(t *testing.T) {
 	admin := newAdmin(t)
-	email := uniqueEmail(t)
+	email := testkit.UniqueEmail(t)
 
 	createResult, err := admin.CreateUser(t.Context(), auth.UserAttributes{
 		Email:        email,

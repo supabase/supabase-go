@@ -5,6 +5,16 @@ All notable changes to this module will be documented in this file.
 This module is one of a number of modules defined in a multi-module repository.
 Refer to [GitHub `../CHANGELOG.md`](https://github.com/supabase/supabase-go/blob/main/CHANGELOG.md) for further details on structure, format and sibling modules.
 
+## Unreleased
+
+### Added
+
+Sign-up and one-time code sign-in, by email address or phone number:
+
+- `Client.SignUpByEmail` and `Client.SignUpByPhone`
+- `Client.SignInWithOTPByEmail` and `Client.SignInWithOTPByPhone`
+- `Client.VerifyOTPByEmail`, `Client.VerifyOTPByPhone` and `Client.VerifyOTPByTokenHash`
+
 ## `v0.1.0-alpha.4` (2026-11-09)
 
 ### Added

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -95,6 +96,9 @@ const (
 	tokenPath  = "/auth/v1/token" // #nosec G101 -- a URL path, not a credential
 	userPath   = "/auth/v1/user"
 	logoutPath = "/auth/v1/logout"
+	signupPath = "/auth/v1/signup"
+	otpPath    = "/auth/v1/otp"
+	verifyPath = "/auth/v1/verify"
 )
 
 // sessionUserID is the id of the one user a sessionServer signs in, the sub
@@ -106,14 +110,15 @@ const sessionUserID = "33333333-3333-3333-3333-333333333333"
 const sessionUserDocument = `{"id":"` + sessionUserID + `","aud":"authenticated","role":"authenticated","email":"ada@example.com","user_metadata":{"display_name":"Ada","tags":{"team":"platform"}},"app_metadata":{"provider":"email"}}`
 
 // answer is one scripted response from a sessionServer. A 200 answer to the
-// token endpoint with no body mints a token response, lifetime overriding
-// the server's default access token lifetime when set, and a 200 answer to
-// the user endpoint with no body serves sessionUserDocument. When hold is
-// set, the response waits until it is closed or the request's context ends,
-// the request having been recorded already, and a request whose context
-// ends first has its connection dropped. retryAfter, when set, is sent as
-// the Retry-After header. When fail is set, the connection is dropped
-// without an answer, the request having been recorded already.
+// token, signup or verify endpoint with no body mints a token response,
+// lifetime overriding the server's default access token lifetime when set,
+// and a 200 answer to the user endpoint with no body serves
+// sessionUserDocument. When hold is set, the response waits until it is
+// closed or the request's context ends, the request having been recorded
+// already, and a request whose context ends first has its connection
+// dropped. retryAfter, when set, is sent as the Retry-After header. When
+// fail is set, the connection is dropped without an answer, the request
+// having been recorded already.
 type answer struct {
 	status     int
 	body       string
@@ -124,11 +129,12 @@ type answer struct {
 }
 
 // sessionServer stands in for the Auth server's session endpoints - the
-// token grants, the user resource and logout - minting signed tokens and
-// recording every request. Each endpoint answers from a script of answers
-// consumed in order, the last repeating. It serves over a socket, or in the
-// caller's own goroutine when it has no socket, which is how it serves
-// inside a synctest bubble.
+// token grants, the user resource, logout, sign-up and the one-time code
+// send and verification - minting signed tokens and recording every
+// request. Each endpoint answers from a script of answers consumed in
+// order, the last repeating. It serves over a socket, or in the caller's
+// own goroutine when it has no socket, which is how it serves inside a
+// synctest bubble.
 type sessionServer struct {
 	mux      *http.ServeMux
 	baseURL  string
@@ -144,8 +150,8 @@ type sessionServer struct {
 }
 
 // newSessionServer starts a server over a socket whose tokens live an hour,
-// answering the token and user endpoints with 200 and logout with 204 until
-// a test replaces their scripts.
+// answering the token, user, signup, otp and verify endpoints with 200 and
+// logout with 204 until a test replaces their scripts.
 func newSessionServer(t *testing.T) *sessionServer {
 	t.Helper()
 	server := newSessionHandlers(t)
@@ -179,6 +185,9 @@ func newSessionHandlers(t *testing.T) *sessionServer {
 			tokenPath:  {{status: http.StatusOK}},
 			userPath:   {{status: http.StatusOK}},
 			logoutPath: {{status: http.StatusNoContent}},
+			signupPath: {{status: http.StatusOK}},
+			otpPath:    {{status: http.StatusOK, body: "{}"}},
+			verifyPath: {{status: http.StatusOK}},
 		},
 	}
 	server.mux.HandleFunc("/auth/v1/.well-known/jwks.json", func(writer http.ResponseWriter, _ *http.Request) {
@@ -188,6 +197,10 @@ func newSessionHandlers(t *testing.T) *sessionServer {
 	server.mux.HandleFunc("/", server.handle)
 	return server
 }
+
+// mintsSessions holds the paths whose 200 answer with no scripted body is a
+// minted token response.
+var mintsSessions = map[string]bool{tokenPath: true, signupPath: true, verifyPath: true}
 
 // errConnectionDropped is the failure the in-process transport reports for an
 // answer that drops the connection.
@@ -259,7 +272,7 @@ func (s *sessionServer) handle(writer http.ResponseWriter, request *http.Request
 
 	body := []byte(next.body)
 	switch {
-	case request.URL.Path == tokenPath && next.status == http.StatusOK && next.body == "":
+	case mintsSessions[request.URL.Path] && next.status == http.StatusOK && next.body == "":
 		lifetime := next.lifetime
 		if lifetime == 0 {
 			lifetime = s.lifetime
@@ -454,6 +467,35 @@ func (s *sessionServer) signIn(t *testing.T, client *auth.Client, lifetime time.
 		t.Fatalf("SignInWithPassword: %v", err)
 	}
 	return result.Session()
+}
+
+// assertRequestShape asserts that server recorded exactly one request to
+// path, sent with method and query, carrying bearer on its Authorization
+// header ("" for none) and a JSON body equal to want.
+func assertRequestShape(t *testing.T, server *sessionServer, method, path, query, bearer string, want map[string]any) {
+	t.Helper()
+	requests := server.requestsTo(path)
+	if len(requests) != 1 {
+		t.Fatalf("requests to %s = %d, want 1", path, len(requests))
+	}
+	request := requests[0]
+	if request.method != method || request.query != query {
+		t.Errorf("request = %s %s?%s, want %s %s?%s", request.method, request.path, request.query, method, path, query)
+	}
+	wantAuthorization := ""
+	if bearer != "" {
+		wantAuthorization = "Bearer " + bearer
+	}
+	if request.contentType != "application/json" || request.authorization != wantAuthorization {
+		t.Errorf("request carries Content-Type %q and Authorization %q, want application/json and %q", request.contentType, request.authorization, wantAuthorization)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(request.body, &body); err != nil {
+		t.Fatalf("request body is not JSON: %v", err)
+	}
+	if !reflect.DeepEqual(body, want) {
+		t.Errorf("request body = %v, want %v", body, want)
+	}
 }
 
 // recordingStore is an auth.SessionStore in memory that records every write

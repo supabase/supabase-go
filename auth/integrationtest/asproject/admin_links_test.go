@@ -8,6 +8,7 @@ import (
 
 	"github.com/supabase/supabase-go/auth"
 	"github.com/supabase/supabase-go/auth/userinvite"
+	"github.com/supabase/supabase-go/integration-testing/testkit"
 )
 
 // TestAdminInviteUser proves invite creates the user and marks the
@@ -16,7 +17,7 @@ import (
 // invitation email for delivery.
 func TestAdminInviteUser(t *testing.T) {
 	admin := newAdmin(t)
-	email := uniqueEmail(t)
+	email := testkit.UniqueEmail(t)
 
 	result, err := admin.InviteUser(t.Context(), email,
 		userinvite.WithUserMetadata(map[string]any{"workspace": "integration"}))
@@ -50,7 +51,7 @@ func TestAdminInviteUser(t *testing.T) {
 func TestAdminGenerateLinks(t *testing.T) {
 	admin := newAdmin(t)
 	ctx := t.Context()
-	email := uniqueEmail(t)
+	email := testkit.UniqueEmail(t)
 
 	signup, err := admin.GenerateLink(ctx, auth.NewLinkRequest(email).
 		Signup("integration-password").
@@ -100,7 +101,7 @@ func TestAdminGenerateLinks(t *testing.T) {
 
 	// The email-change pair needs secure email change, which the local
 	// stack's config.toml enables via double_confirm_changes.
-	newEmail := uniqueEmail(t)
+	newEmail := testkit.UniqueEmail(t)
 	toCurrent, err := admin.GenerateLink(ctx, auth.NewLinkRequest(email).EmailChangeToCurrent(newEmail))
 	if err != nil {
 		t.Fatalf("GenerateLink(EmailChangeToCurrent): %v", err)
@@ -134,7 +135,7 @@ func TestAdminGenerateLinks(t *testing.T) {
 func TestGenerateLinkUnknownUser(t *testing.T) {
 	admin := newAdmin(t)
 
-	_, err := admin.GenerateLink(t.Context(), auth.NewLinkRequest(uniqueEmail(t)).Recovery())
+	_, err := admin.GenerateLink(t.Context(), auth.NewLinkRequest(testkit.UniqueEmail(t)).Recovery())
 	var serverError *auth.Error
 	if !errors.As(err, &serverError) {
 		t.Fatalf("GenerateLink = %v, want *auth.Error", err)

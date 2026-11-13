@@ -74,7 +74,10 @@ arguments = ["check-public-interface"]
 
 [rule.package-directory-mismatch]
 
+# An internal package's name may join lowercase words with underscores (call_options, not calloptions).
+# Every other package name keeps the default.
 [rule.package-naming]
+exclude = ["~(^|/)internal/(.*/)?[a-z0-9]+(_[a-z0-9]+)+/[^/]+$"]
 
 [rule.redundant-build-tag]
 

@@ -51,6 +51,9 @@ var (
 	sessionNotFound    = scriptedError{http.StatusForbidden, "session_not_found", "Session from session_id claim in JWT does not exist"}
 	userNotFound       = scriptedError{http.StatusForbidden, "user_not_found", "User from sub claim in JWT does not exist"}
 	logoutFailed       = scriptedError{http.StatusInternalServerError, "unexpected_failure", "Error logging out user"}
+	weakPassword       = scriptedError{http.StatusUnprocessableEntity, "weak_password", "Password should be at least 6 characters."}
+	otpDisabled        = scriptedError{http.StatusUnprocessableEntity, "otp_disabled", "Signups not allowed for otp"}
+	otpExpired         = scriptedError{http.StatusForbidden, "otp_expired", "Token has expired or is invalid"}
 )
 
 // answer returns the scripted answer that sends e as the server's versioned
