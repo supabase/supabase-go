@@ -54,6 +54,8 @@ var (
 	weakPassword       = scriptedError{http.StatusUnprocessableEntity, "weak_password", "Password should be at least 6 characters."}
 	otpDisabled        = scriptedError{http.StatusUnprocessableEntity, "otp_disabled", "Signups not allowed for otp"}
 	otpExpired         = scriptedError{http.StatusForbidden, "otp_expired", "Token has expired or is invalid"}
+	reauthentication   = scriptedError{http.StatusBadRequest, "reauthentication_needed", "Password update requires reauthentication"}
+	samePassword       = scriptedError{http.StatusUnprocessableEntity, "same_password", "New password should be different from the old password."}
 )
 
 // answer returns the scripted answer that sends e as the server's versioned
@@ -1397,6 +1399,9 @@ func TestZeroSessionIsInert(t *testing.T) {
 			if result, err := session.Refresh(t.Context()); result != nil || !errors.Is(err, auth.ErrSignedOut) {
 				t.Errorf("Refresh() = (%v, %v), want ErrSignedOut", result, err)
 			}
+			if result, err := session.UpdateUser(t.Context(), auth.UserUpdate{UserMetadata: map[string]any{"plan": "pro"}}); result != nil || !errors.Is(err, auth.ErrSignedOut) {
+				t.Errorf("UpdateUser() = (%v, %v), want ErrSignedOut", result, err)
+			}
 			if result, err := session.SignOut(t.Context()); err != nil || result == nil {
 				t.Errorf("SignOut() = (%v, %v), want the empty result", result, err)
 			}
@@ -1409,6 +1414,9 @@ func TestZeroSessionIsInert(t *testing.T) {
 			if server != nil {
 				if hits := server.requestsTo(logoutPath); len(hits) != 1 {
 					t.Errorf("logout requests = %d, want the one that ended the session alone", len(hits))
+				}
+				if hits := server.requestsTo(userPath); len(hits) != 0 {
+					t.Errorf("user requests = %d, want none from the ended session's UpdateUser", len(hits))
 				}
 			}
 			store := &recordingStore{}

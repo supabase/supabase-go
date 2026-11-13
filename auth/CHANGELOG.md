@@ -15,6 +15,10 @@ Sign-up and one-time code sign-in, by email address or phone number:
 - `Client.SignInWithOTPByEmail` and `Client.SignInWithOTPByPhone`
 - `Client.VerifyOTPByEmail`, `Client.VerifyOTPByPhone` and `Client.VerifyOTPByTokenHash`
 
+Self-service profile updates:
+
+- `Client.UpdateUser` and `Session.UpdateUser`
+
 ## `v0.1.0-alpha.4` (2026-11-09)
 
 ### Added

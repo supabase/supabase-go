@@ -2,12 +2,13 @@
 // expiry and the user document of a [State], and keeps it consistent under
 // concurrent use: one refresh in flight at a time whose result every waiting
 // caller shares unless the caller that started it gave up, a generation that
-// fences a refresh overtaken by the session's end and store writes that reach
-// the caller's store one at a time, in commit order. Listeners are told of
-// each change in that order, once the store holds it. The network crosses
-// the package boundary as the [RefreshFunc] the caller supplies and the
-// verdict on its failures as the caller's [Options.Definitive], so no
-// request is built and no error shaped here.
+// fences a refresh overtaken by the session's end, a user document replaced
+// only while the session is live and store writes that reach the caller's
+// store one at a time, in commit order. Listeners are told of each change in
+// that order, once the store holds it. The network crosses the package
+// boundary as the [RefreshFunc] the caller supplies, the user document the
+// caller obtained and the verdict on refresh failures as the caller's
+// [Options.Definitive], so no request is built and no error shaped here.
 package session
 
 import (
@@ -67,7 +68,7 @@ const (
 // Change is one change to a [Session] that its listeners are told of.
 // Status is the status the session ended with for [Ended], the session's
 // status as it stood when the listener was added for [Added] and [Live] for
-// [Refreshed].
+// [Refreshed] and [UserUpdated].
 type Change struct {
 	Kind   ChangeKind
 	Status Status
@@ -93,6 +94,9 @@ const (
 
 	// Refreshed is a refresh that committed renewed state.
 	Refreshed ChangeKind = "Refreshed"
+
+	// UserUpdated is a replacement of the user document that committed.
+	UserUpdated ChangeKind = "UserUpdated"
 
 	// Ended is the session's end.
 	Ended ChangeKind = "Ended"
@@ -495,6 +499,34 @@ func (s *Session) renew(ctx context.Context, ending Status, within time.Duration
 		writeErr = s.perform(ctx, pending)
 	}
 	return writeErr, err
+}
+
+// UpdateUser replaces the user document the state holds with user, the
+// tokens and expiry unchanged, tells the listeners and writes the store. The
+// replacement commits only while the session is live: once it has ended,
+// an [*EndedError] is returned and nothing changes. A user that does not
+// decode as a user document is returned as its decode error, the state
+// unchanged. writeErr is the failure of the store write this call performed.
+func (s *Session) UpdateUser(ctx context.Context, user []byte) (writeErr, err error) {
+	var pending write
+	s.locked(func() {
+		if s.status != Live {
+			err = s.endedErrorLocked()
+			return
+		}
+		updated, stateErr := NewState(s.state.accessToken, s.state.refreshToken, s.state.expiresAt, user)
+		if stateErr != nil {
+			err = stateErr
+			return
+		}
+		s.state = updated
+		pending = s.capture(updated.encode())
+		s.notifyLocked(Change{Kind: UserUpdated, Status: Live, sequence: pending.sequence})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.perform(ctx, pending), nil
 }
 
 // Persist writes the current state to store and makes store the one every

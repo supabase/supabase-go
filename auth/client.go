@@ -16,14 +16,15 @@ import (
 	"github.com/supabase/supabase-go/core/configuration"
 )
 
-// Client verifies end-user JWTs, fetches user profiles and registers and
-// signs users in for one Supabase project, and a Client constructed with a
-// secret API key also administers the project's users through
-// [Client.Admin]. Construct a standalone client with [New], or build one on a
-// shared [configuration.Configuration] with [NewFromConfiguration]. A Client
-// caches the project's signing keys internally, so construct one Client per
-// project and reuse it rather than constructing per request. A Client holds
-// no user's state and is safe for concurrent use by multiple goroutines.
+// Client verifies end-user JWTs, fetches and updates user profiles and
+// registers and signs users in for one Supabase project, and a Client
+// constructed with a secret API key also administers the project's users
+// through [Client.Admin]. Construct a standalone client with [New], or build
+// one on a shared [configuration.Configuration] with [NewFromConfiguration].
+// A Client caches the project's signing keys internally, so construct one
+// Client per project and reuse it rather than constructing per request. A
+// Client holds no user's state and is safe for concurrent use by multiple
+// goroutines.
 //
 // A Client authenticates with the project API key alone and holds no
 // signing-key secrets. It never starts background work and owns no resources

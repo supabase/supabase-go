@@ -1,9 +1,9 @@
 // Package auth is the Supabase Auth client for server-side [JWT] verification
 // and for the sessions of users a Go program signs in. A [Client] verifies the
 // end-user access tokens a backend receives - on the [Authorization header] of
-// an inbound request, say - and fetches the profile of the user a token
-// authenticates. It also registers users and signs them in, by password or
-// by one-time code, returning each one's session as a [Session].
+// an inbound request, say - and fetches and updates the profile of the user a
+// token authenticates. It also registers users and signs them in, by password
+// or by one-time code, returning each one's session as a [Session].
 //
 // [Client.GetClaims] is the primary entry point. It returns a token's verified
 // [Claims] - who the user is and how they authenticated - together with the
@@ -57,8 +57,16 @@
 //
 // A Session renews its access token on demand through [Session.AccessToken],
 // which a Database client takes as its access-token provider, or ahead of
-// expiry through [Session.AutoRefresh], reports each change to the listeners
+// expiry through [Session.AutoRefresh], changes its user's profile through
+// [Session.UpdateUser], reports each change to the listeners
 // [Session.AddEventListener] adds and ends with [Session.SignOut].
+//
+// A program that signs users in builds its Client with the project's
+// publishable key. Registration and sign-in need no other key, and each
+// Session authenticates its own calls with the user's access token. The
+// secret key bypasses Row Level Security, so keep it out of any program that
+// does not need [Client.Admin]. A program that needs both builds two Clients,
+// one per key.
 //
 // [Client.Admin] is the project's administration surface - creating,
 // fetching, updating, listing, inviting and deleting users, minting the

@@ -524,6 +524,24 @@ features:
       - auth.SessionEventName
       - auth.SessionEventSignedOut
       - auth.SessionEventTokenRefreshed
+      - auth.SessionEventUserUpdated
+  auth.session.update_user:
+    status: partially_implemented
+    note: |
+      No PKCE code challenge on an email change, which belongs to the
+      redirect flows.
+    symbols:
+      - auth.Client.UpdateUser
+      - auth.Session.UpdateUser
+      - auth.UserUpdate
+      - auth.UserUpdate.Channel
+      - auth.UserUpdate.CurrentPassword
+      - auth.UserUpdate.Email
+      - auth.UserUpdate.Nonce
+      - auth.UserUpdate.Password
+      - auth.UserUpdate.Phone
+      - auth.UserUpdate.RedirectTo
+      - auth.UserUpdate.UserMetadata
   auth.sign_in.sign_in_with_otp:
     status: partially_implemented
     note: |
