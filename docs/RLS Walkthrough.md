@@ -41,7 +41,7 @@ sequenceDiagram
     end
 ```
 
-Only the API is written in Go, and it holds only the code the demonstration needs. Sign-up goes straight to Auth, as it would from the app on a musician's device. Signing users up is the app's job rather than the API's, and the SDK's `auth` module has no sign-up call anyway. It verifies tokens on the server. Maria's practice log goes in through `supabase db query`, which connects straight to Postgres as the `postgres` admin role. So the API needs only its one read, and the table needs only a read policy.
+Only the API is written in Go, and it holds only the code the demonstration needs. Sign-up goes straight to Auth, as it would from the app on a musician's device, since signing users up is the app's job rather than the API's. Maria's practice log goes in through `supabase db query`, which connects straight to Postgres as the `postgres` admin role. So the API needs only its one read, and the table needs only a read policy.
 
 ## Prerequisites
 
@@ -129,10 +129,11 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/supabase/supabase-go/postgrest"
 	"github.com/supabase/supabase-go/supabase"
@@ -149,7 +150,8 @@ func main() {
 	publishableKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
 	client, err := supabase.New(projectURL, publishableKey)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("creating the client", "error", err)
+		os.Exit(1)
 	}
 
 	http.HandleFunc("GET /practice-logs", func(writer http.ResponseWriter, request *http.Request) {
@@ -159,13 +161,13 @@ func main() {
 			return
 		}
 
-		claims, _, _, err := client.Auth().GetClaims(request.Context(), token)
+		result, err := client.Auth().GetClaims(request.Context(), token)
 		if err != nil {
-			log.Printf("rejecting token: %v", err)
+			slog.Warn("rejecting token", "error", err)
 			http.Error(writer, "invalid token", http.StatusUnauthorized)
 			return
 		}
-		log.Printf("serving practice logs to user %s", claims.Subject())
+		slog.Info("serving practice logs", "user", result.Claims().Subject())
 
 		// Query as the verified user, so Row Level Security returns only their rows.
 		practiceLogs, _, err := postgrest.Collect(
@@ -177,17 +179,23 @@ func main() {
 			),
 		)
 		if err != nil {
-			log.Printf("querying practice logs: %v", err)
+			slog.Error("querying practice logs", "error", err)
 			http.Error(writer, "query failed", http.StatusBadGateway)
 			return
 		}
 
 		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode(practiceLogs)
+		if err := json.NewEncoder(writer).Encode(practiceLogs); err != nil {
+			slog.Warn("writing the response", "error", err)
+		}
 	})
 
-	log.Print("listening on http://localhost:8080")
-	log.Fatal(http.ListenAndServe("localhost:8080", nil))
+	server := &http.Server{Addr: "localhost:8080", ReadHeaderTimeout: 10 * time.Second}
+	slog.Info("listening on http://localhost:8080")
+	if err := server.ListenAndServe(); err != nil {
+		slog.Error("serving", "error", err)
+		os.Exit(1)
+	}
 }
 ```
 
