@@ -45,7 +45,7 @@ sequenceDiagram
     API-->>App: 401 invalid token
 ```
 
-Only the API is written in Go, and it uses only the SDK's `auth` module, with no Database access. Sign-up and sign-out go straight to Auth, as they would from the app on a musician's device. The upgrade goes straight to Auth's admin endpoint with the project's secret key, as it would from the billing system's own server ([`updateUserById`](https://supabase.com/docs/reference/javascript/auth-admin-updateuserbyid) is the same call in supabase-js). All three are jobs for other parts of the app rather than the API, and the SDK has no calls for them anyway. The API holds only the publishable key.
+Only the API is written in Go, and it uses only the SDK's `auth` module, with no Database access. Sign-up and sign-out go straight to Auth, as they would from the app on a musician's device. The upgrade goes straight to Auth's admin endpoint with the project's secret key, as it would from the billing system's own server ([`updateUserById`](https://supabase.com/docs/reference/javascript/auth-admin-updateuserbyid) is the same call in supabase-js). All three are jobs for other parts of the app rather than the API. The API holds only the publishable key.
 
 ## Prerequisites
 
@@ -95,10 +95,11 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/supabase/supabase-go/auth"
 )
@@ -120,44 +121,52 @@ func main() {
 	publishableKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
 	client, err := auth.New(projectURL, publishableKey)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("creating the client", "error", err)
+		os.Exit(1)
 	}
 
 	http.HandleFunc("GET /backing-tracks", func(writer http.ResponseWriter, request *http.Request) {
 		token, found := strings.CutPrefix(request.Header.Get("Authorization"), "Bearer ")
 		if !found {
-			log.Print("rejecting request without a bearer token")
+			slog.Warn("rejecting a request without a bearer token")
 			http.Error(writer, "missing bearer token", http.StatusUnauthorized)
 			return
 		}
 
 		// Ask Auth for the user as they are now, not as the token describes them.
-		user, err := client.GetUser(request.Context(), token)
+		result, err := client.GetUser(request.Context(), token)
 		var authError *auth.Error
 		switch {
 		case errors.As(err, &authError) && authError.HTTPStatus < http.StatusInternalServerError:
-			log.Printf("rejecting token: %v", err)
+			slog.Warn("rejecting token", "error", err)
 			http.Error(writer, "invalid token", http.StatusUnauthorized)
 			return
 		case err != nil:
-			log.Printf("fetching user: %v", err)
+			slog.Error("fetching the user", "error", err)
 			http.Error(writer, "auth unavailable", http.StatusBadGateway)
 			return
 		}
 
-		if plan, _ := user.AppMetadata()["plan"].(string); plan != "premium" {
-			log.Printf("user %s is not on the premium plan", user.ID())
+		user := result.User()
+		if user.AppMetadata()["plan"] != "premium" {
+			slog.Info("refusing a user without the premium plan", "user", user.ID())
 			http.Error(writer, "premium plan required", http.StatusForbidden)
 			return
 		}
 
-		log.Printf("serving backing tracks to user %s", user.ID())
+		slog.Info("serving backing tracks", "user", user.ID())
 		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode(backingTracks)
+		if err := json.NewEncoder(writer).Encode(backingTracks); err != nil {
+			slog.Warn("writing the response", "error", err)
+		}
 	})
 
-	log.Print("listening on http://localhost:8080")
-	log.Fatal(http.ListenAndServe("localhost:8080", nil))
+	server := &http.Server{Addr: "localhost:8080", ReadHeaderTimeout: 10 * time.Second}
+	slog.Info("listening on http://localhost:8080")
+	if err := server.ListenAndServe(); err != nil {
+		slog.Error("serving", "error", err)
+		os.Exit(1)
+	}
 }
 ```
 

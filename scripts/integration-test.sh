@@ -159,6 +159,73 @@ for module in "${modules[@]}"; do
   )
 done
 
+# Sign a new user up over the Auth REST API, as an application's own sign-up
+# flow does, and print Auth's JSON answer. $1 is the email address and $2 the
+# password.
+sign_up() {
+  curl --fail-with-body --silent --show-error \
+    --header "apikey: ${PUBLISHABLE_KEY}" \
+    --header "Content-Type: application/json" \
+    --data "$(jq -cn --arg email "$1" --arg password "$2" '{email: $email, password: $password}')" \
+    "${API_URL}/auth/v1/signup"
+}
+
+# A walkthrough under docs/ shows its example's main.go in full, then has the
+# reader serve that program on localhost:8080 and call it with curl. The three
+# helpers below take the same steps for the example in the current directory.
+repository_root="$(pwd)"
+
+# Fail with a diff unless the walkthrough's one Go code block matches main.go
+# line for line. $1 is the walkthrough's path from the repository root.
+check_walkthrough_shows_main() {
+  local walkthrough="${repository_root}/$1" blocks
+  blocks="$(grep -c '^```go$' "${walkthrough}" || true)"
+  if [[ "${blocks}" -ne 1 ]]; then
+    echo "$1 holds ${blocks} Go code blocks, where one is expected" >&2
+    return 1
+  fi
+  if ! awk '/^```go$/ { inside = 1; next } inside && /^```$/ { exit } inside' "${walkthrough}" | diff -u - main.go; then
+    echo "$1 must show main.go verbatim" >&2
+    return 1
+  fi
+}
+
+# Build the program and serve it in the background until the calling subshell
+# exits, failing unless it answers on localhost:8080 within ten seconds.
+serve_in_background() {
+  if curl --silent --output /dev/null http://localhost:8080/; then
+    echo "localhost:8080 is already in use" >&2
+    return 1
+  fi
+  build_directory="$(mktemp -d)"
+  server_pid=""
+  trap 'if [[ -n "${server_pid}" ]]; then kill "${server_pid}" 2>/dev/null || true; wait "${server_pid}" 2>/dev/null || true; fi; rm -rf "${build_directory}"' EXIT
+  go build -o "${build_directory}/server" .
+  "${build_directory}/server" &
+  server_pid=$!
+  for _ in $(seq 50); do
+    if curl --silent --output /dev/null http://localhost:8080/; then
+      return 0
+    fi
+    sleep 0.2
+  done
+  echo "nothing answered on localhost:8080" >&2
+  return 1
+}
+
+# Call the served program with a user's access token, failing unless it
+# answers with the expected status and body. $1 is the path, $2 the access
+# token, $3 the status and $4 the body without its trailing newline.
+expect_answer() {
+  local answer expected="$4"$'\n'"$3"
+  answer="$(curl --silent --show-error --write-out '%{http_code}' \
+    --header "Authorization: Bearer $2" "http://localhost:8080$1")"
+  if [[ "${answer}" != "${expected}" ]]; then
+    printf 'GET %s answered:\n%s\nwhere the walkthrough expects:\n%s\n' "$1" "${answer}" "${expected}" >&2
+    return 1
+  fi
+}
+
 # The example programs are consumer-shaped documentation: each must actually
 # run against the stack, not merely compile, so a drifted example fails here
 # rather than in a reader's hands. Each is handed the one key its posture
@@ -182,17 +249,57 @@ for example in $(enumerate_example_modules); do
         ;;
       examples/auth-session-service)
         # The service signs in as an account its operator created, so the
-        # harness registers one over the Auth REST API first, as an
-        # application's own sign-up flow would.
+        # harness registers one first.
         export SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}"
         export SERVICE_EMAIL="service-$(date +%s)-$$@example.com"
         export SERVICE_PASSWORD="service-password-$$"
-        curl --fail --silent --show-error --output /dev/null \
-          --header "apikey: ${PUBLISHABLE_KEY}" \
-          --header "Content-Type: application/json" \
-          --data "{\"email\":\"${SERVICE_EMAIL}\",\"password\":\"${SERVICE_PASSWORD}\"}" \
-          "${API_URL}/auth/v1/signup"
+        sign_up "${SERVICE_EMAIL}" "${SERVICE_PASSWORD}" > /dev/null
         go run . -run-for=3s
+        ;;
+      examples/rls-backend)
+        # The RLS walkthrough's backend, called as in the walkthrough's step 4:
+        # Maria reads her own practice log and Wei reads none. The walkthrough
+        # inserts Maria's row as the postgres role, and here Maria inserts it
+        # under her own token, which the integration schema's policies allow.
+        check_walkthrough_shows_main "docs/RLS Walkthrough.md"
+        export SUPABASE_PROJECT_URL="${API_URL}" SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}"
+        serve_in_background
+        maria="$(sign_up "maria-$(date +%s)-$$@example.com" example-password)"
+        maria_token="$(jq -er '.access_token' <<< "${maria}")"
+        curl --fail-with-body --silent --show-error --output /dev/null \
+          --header "apikey: ${PUBLISHABLE_KEY}" \
+          --header "Authorization: Bearer ${maria_token}" \
+          --header "Content-Type: application/json" \
+          --data "$(jq -c '{user_id: .user.id, piece: "Prelude in C", minutes: 30}' <<< "${maria}")" \
+          "${API_URL}/rest/v1/practice_logs"
+        expect_answer /practice-logs "${maria_token}" 200 '[{"piece":"Prelude in C","minutes":30}]'
+        wei="$(sign_up "wei-$(date +%s)-$$@example.com" example-password)"
+        wei_token="$(jq -er '.access_token' <<< "${wei}")"
+        expect_answer /practice-logs "${wei_token}" 200 '[]'
+        ;;
+      examples/premium-access-api)
+        # The Premium Access walkthrough's API, called as in the walkthrough's
+        # step 3: one token is refused before the upgrade, served after it and
+        # refused again after sign-out. The upgrade takes the secret key, which
+        # the API is never handed.
+        check_walkthrough_shows_main "docs/Premium Access Walkthrough.md"
+        export SUPABASE_PROJECT_URL="${API_URL}" SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}"
+        serve_in_background
+        sidney="$(sign_up "sidney-$(date +%s)-$$@example.com" example-password)"
+        sidney_token="$(jq -er '.access_token' <<< "${sidney}")"
+        sidney_id="$(jq -er '.user.id' <<< "${sidney}")"
+        expect_answer /backing-tracks "${sidney_token}" 403 'premium plan required'
+        curl --fail-with-body --silent --show-error --output /dev/null --request PUT \
+          --header "apikey: ${SECRET_KEY}" \
+          --header "Content-Type: application/json" \
+          --data '{"app_metadata": {"plan": "premium"}}' \
+          "${API_URL}/auth/v1/admin/users/${sidney_id}"
+        expect_answer /backing-tracks "${sidney_token}" 200 '[{"piece":"Prelude in C","tempo":72},{"piece":"Moonlight Sonata","tempo":54}]'
+        curl --fail-with-body --silent --show-error --output /dev/null --request POST \
+          --header "apikey: ${PUBLISHABLE_KEY}" \
+          --header "Authorization: Bearer ${sidney_token}" \
+          "${API_URL}/auth/v1/logout"
+        expect_answer /backing-tracks "${sidney_token}" 401 'invalid token'
         ;;
       *)
         export SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY}"

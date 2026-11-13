@@ -53,7 +53,8 @@ enumerate_example_modules() {
     examples/database-standalone \
     examples/tracing-otel \
     examples/admin-provisioning \
-    examples/auth-session-service
+    examples/auth-session-service \
+    examples/premium-access-api
 }
 
 # Enumerate every non-published consumer-shaped module: the adjacent test

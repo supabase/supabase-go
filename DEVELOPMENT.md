@@ -155,6 +155,8 @@ Choose the directory by what the test holds. A test that needs only the publisha
 
 Runnable consumer-shaped programs live under [`examples/`](examples/), one non-published module per example with `replace` directives to the local tree - the same shape as the `integrationtest` modules, entered with `GOWORK=off` for the same reason. The fast tier compile-guards them (`go vet` via `./scripts/build-and-test.sh`) and lint covers them, while `./scripts/integration-test.sh` additionally runs each one against the local stack, so a drifted example fails the build rather than a reader. Example-only dependencies (OpenTelemetry for `tracing-otel`, `golang.org/x/sync` for `auth-session-service`) stay quarantined in the example's own module and never enter a consumer's graph.
 
+Each walkthrough under [`docs/`](docs/) builds one of these programs and shows its `main.go` in full. The integration script fails when the walkthrough's copy differs from the file, so a change to either is made to both.
+
 ### Telemetry header test
 
 Suites in the workspace always see the unknown-version `0.0.0` in the `X-Client-Info` header, because an in-tree build cannot resolve SDK module versions from build information. The consumer-view check covers the resolution real consumers exercise: the `telemetrytest/` module requires the SDK modules at fabricated versions, `replace`s them to the local tree and asserts the exact header every entry point sends. A second leg rebuilds the same program in GOPATH mode, where binaries carry no module records, and asserts the version-unknowable `0.0.0` fallback. It needs only the Go toolchain and runs as part of the fast tier via `./scripts/check-fast.sh`, or alone:
