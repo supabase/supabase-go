@@ -1,3 +1,5 @@
+// Deprecated: the supabase root package has moved to: github.com/supabase/supabase-go
+// Import it from there instead.
 module github.com/supabase/supabase-go/supabase
 
 // This module's consumer compatibility floor - the minimum Go version required

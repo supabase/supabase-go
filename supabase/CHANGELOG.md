@@ -5,6 +5,16 @@ All notable changes to this module will be documented in this file.
 This module is one of a number of modules defined in a multi-module repository.
 Refer to [GitHub `../CHANGELOG.md`](https://github.com/supabase/supabase-go/blob/main/CHANGELOG.md) for further details on structure, format and sibling modules.
 
+## Unreleased
+
+### Deprecated
+
+Deprecates this module in favor of `github.com/supabase/supabase-go`, the `supabase` root package's new path, where its releases will continue.
+
+The code is unchanged from the previous release, but `go get` and pkg.go.dev now warn that the module is deprecated.
+
+To move, change your import from `github.com/supabase/supabase-go/supabase` to `github.com/supabase/supabase-go` and run `go mod tidy`. The package is still named `supabase`, so the rest of your code stays the same.
+
 ## `v0.1.0-alpha.4` (2026-11-09)
 
 ### Changed
