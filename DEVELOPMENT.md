@@ -5,6 +5,9 @@
 This file holds the Go/SDK-specific guidance for working in this repository.
 General, organization-wide contribution policy lives in our [shared `.github` repository](https://github.com/supabase/.github)'s CONTRIBUTING.md file.
 
+The engineering principles shared by every official Supabase client SDK live in [`supabase/sdk`](https://github.com/supabase/sdk/blob/main/docs/principles.md).
+Read them before writing or reviewing code, and cite a principle by a link to its heading.
+
 ## Pre-GA: external code contributions are not being accepted yet
 
 This SDK is being built first-party through its Alpha and Beta phases.
