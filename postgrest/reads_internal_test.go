@@ -334,91 +334,32 @@ func TestCollectAbandonsRetryWhenContextEnds(t *testing.T) {
 	}
 }
 
-// TestInsertIsNeverRetried proves a write is never re-sent, even with retries
-// forced on: a POST answered with a transient 503 sees exactly one attempt,
-// because only GET and HEAD are retryable.
-func TestInsertIsNeverRetried(t *testing.T) {
-	stubRetrySleep(t)
-	server, retryCounts := scriptedServer(t, scriptedResponse{status: http.StatusServiceUnavailable})
-	client := newRetryTestClient(t, server.URL)
-
-	_, err := Execute(
-		t.Context(),
-		client,
-		From[map[string]any]("instruments").Insert(map[string]any{"name": "violin"}),
-		WithRetry(true),
-	)
-	if err == nil {
-		t.Fatal("Execute succeeded, want an error")
+// TestWritesAreNeverRetried proves no write is ever re-sent, even with retries
+// forced on: an insert, update, delete or upsert answered with a transient 503
+// sees exactly one attempt, because only GET and HEAD are retryable.
+func TestWritesAreNeverRetried(t *testing.T) {
+	testCases := []struct {
+		name     string
+		mutation Mutation[map[string]any]
+	}{
+		{name: "insert", mutation: From[map[string]any]("instruments").Insert(map[string]any{"name": "violin"})},
+		{name: "update", mutation: From[map[string]any]("instruments").Update(map[string]any{"name": "violin"})},
+		{name: "delete", mutation: From[map[string]any]("instruments").Delete()},
+		{name: "upsert", mutation: From[map[string]any]("products").Upsert(map[string]any{"sku": "X1"})},
 	}
-	if got := len(*retryCounts); got != 1 {
-		t.Errorf("requests = %d, want 1 (a write is never retried, even with WithRetry(true))", got)
-	}
-}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			stubRetrySleep(t)
+			server, retryCounts := scriptedServer(t, scriptedResponse{status: http.StatusServiceUnavailable})
+			client := newRetryTestClient(t, server.URL)
 
-// TestUpdateIsNeverRetried proves an update is never re-sent either: a PATCH
-// answered with a transient 503 sees exactly one attempt even with retries
-// forced on, because only GET and HEAD are retryable.
-func TestUpdateIsNeverRetried(t *testing.T) {
-	stubRetrySleep(t)
-	server, retryCounts := scriptedServer(t, scriptedResponse{status: http.StatusServiceUnavailable})
-	client := newRetryTestClient(t, server.URL)
-
-	_, err := Execute(
-		t.Context(),
-		client,
-		From[map[string]any]("instruments").Update(map[string]any{"name": "violin"}),
-		WithRetry(true),
-	)
-	if err == nil {
-		t.Fatal("Execute succeeded, want an error")
-	}
-	if got := len(*retryCounts); got != 1 {
-		t.Errorf("requests = %d, want 1 (a write is never retried, even with WithRetry(true))", got)
-	}
-}
-
-// TestDeleteIsNeverRetried proves a delete is never re-sent either: a DELETE
-// answered with a transient 503 sees exactly one attempt even with retries
-// forced on, because only GET and HEAD are retryable.
-func TestDeleteIsNeverRetried(t *testing.T) {
-	stubRetrySleep(t)
-	server, retryCounts := scriptedServer(t, scriptedResponse{status: http.StatusServiceUnavailable})
-	client := newRetryTestClient(t, server.URL)
-
-	_, err := Execute(
-		t.Context(),
-		client,
-		From[map[string]any]("instruments").Delete(),
-		WithRetry(true),
-	)
-	if err == nil {
-		t.Fatal("Execute succeeded, want an error")
-	}
-	if got := len(*retryCounts); got != 1 {
-		t.Errorf("requests = %d, want 1 (a write is never retried, even with WithRetry(true))", got)
-	}
-}
-
-// TestUpsertIsNeverRetried proves an upsert is never re-sent either: a POST
-// answered with a transient 503 sees exactly one attempt even with retries
-// forced on, because only GET and HEAD are retryable.
-func TestUpsertIsNeverRetried(t *testing.T) {
-	stubRetrySleep(t)
-	server, retryCounts := scriptedServer(t, scriptedResponse{status: http.StatusServiceUnavailable})
-	client := newRetryTestClient(t, server.URL)
-
-	_, err := Execute(
-		t.Context(),
-		client,
-		From[map[string]any]("products").Upsert(map[string]any{"sku": "X1"}),
-		WithRetry(true),
-	)
-	if err == nil {
-		t.Fatal("Execute succeeded, want an error")
-	}
-	if got := len(*retryCounts); got != 1 {
-		t.Errorf("requests = %d, want 1 (a write is never retried, even with WithRetry(true))", got)
+			if _, err := Execute(t.Context(), client, testCase.mutation, WithRetry(true)); err == nil {
+				t.Fatal("Execute succeeded, want an error")
+			}
+			if got := len(*retryCounts); got != 1 {
+				t.Errorf("requests = %d, want 1 (a write is never retried, even with WithRetry(true))", got)
+			}
+		})
 	}
 }
 

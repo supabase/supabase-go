@@ -59,7 +59,7 @@ If you self-host Supabase, we recommend upgrading your services to their latest 
 This SDK is built for backend processes that hold privileged credentials, with its security posture enforced by design:
 
 - **Zero external runtime dependencies**: the published modules require only each other, so consumers inherit no third-party code from us.
-- **Vulnerability scanning is continuous and scheduled**: `govulncheck` runs on every push and pull request and daily on a schedule.
+- **Vulnerability scanning is continuous and scheduled**: on every push and pull request and daily on a schedule, `govulncheck` checks what the SDK's code can reach, and OSV-Scanner checks every dependency the repository declares, its tooling included.
 - **Credentials never enter logs**: silent by default, and an injected logger gets one debug record per request round trip - bodies, query strings and header values are never logged.
 - **Keys live only in memory**: API keys and end-user tokens are held in client configuration for the client's lifetime and never persisted.
 - **No Cgo**: pure Go throughout, with no memory-unsafe boundary of our own.

@@ -78,7 +78,7 @@ func run(ctx context.Context, client *auth.Client, email, password string) error
 	})
 	defer remove()
 
-	// groupContext is cancelled when ctx is, or when either goroutine fails.
+	// groupContext is canceled when ctx is, or when either goroutine fails.
 	group, groupContext := errgroup.WithContext(ctx)
 	group.Go(func() error { return session.AutoRefresh(groupContext) })
 	group.Go(func() error { return verifyPeriodically(groupContext, client, session) })

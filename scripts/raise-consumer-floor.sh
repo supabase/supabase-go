@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Raise the consumer floor to the next Go minor version: bump every artefact
+# Raise the consumer floor to the next Go minor version: bump every artifact
 # that carries the floor - go.work, the floor-carrying go.mod files and CI's
 # floor matrix legs - in lockstep, then commit the result. Run locally from
 # the repository root. Fails before changing anything if the working tree is

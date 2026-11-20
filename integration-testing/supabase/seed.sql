@@ -81,7 +81,7 @@ insert into public."⚠ reserved ⚠" (name, text, "array") values ('just closin
 insert into public."⚠ reserved ⚠" (name, text, "array") values ('just dollar', '$', array['$']);
 insert into public."⚠ reserved ⚠" (name, text, "array") values ('just opening square bracket', '[', array['[']);
 insert into public."⚠ reserved ⚠" (name, text, "array") values ('just closing square bracket', ']', array[']']);
-insert into public."⚠ reserved ⚠" (name, text, "array") values ('just semi-colon', ';', array[';']);
+insert into public."⚠ reserved ⚠" (name, text, "array") values ('just semicolon', ';', array[';']);
 -- - Other characters which AI gets excited about when considering escaping for PostgREST.
 --   - "you must put double quotes around it": https://www.postgresql.org/docs/current/arrays.html#ARRAYS-INPUT
 --   - "use curly braces instead of square brackets" re ov: https://docs.postgrest.org/en/latest/references/api/tables_views.html#operators

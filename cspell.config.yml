@@ -15,21 +15,14 @@ ignorePaths:
 dictionaryDefinitions:
   - name: local-codebase
     path: dictionary.txt
+  # Every word in this list is reported as forbidden, in any letter case when
+  # the entry is lowercase: the British and Canadian spellings that SCOWL lists
+  # outside American English. scripts/generate-non-us-spellings.sh writes it.
+  - name: non-us-spellings
+    path: tools/scowl/non-us-spellings.txt
+    kind: flag-words
 
-dictionaries: [local-codebase]
-
-# The en_US dictionary is built from the SCOWL size-70 "large" word list, which
-# accepts common British variants (favour, behaviours), so American-variant
-# consistency is enforced here rather than by the locale.
-flagWords:
-  - behaviour->behavior
-  - behaviours->behaviors
-  - decentralised->decentralized
-  - favour->favor
-  - focussing->focusing
-  - optimisations->optimizations
-  - stabilisation->stabilization
-  - synchronisation->synchronization
+dictionaries: [local-codebase, non-us-spellings]
 
 patterns:
 

@@ -302,6 +302,21 @@ newest_version() {
   sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1
 }
 
+# Print the newest tag on a remote repository formed of the given prefix
+# followed by a three-part version, and the commit it points at, as
+# 'tag commit'. For an annotated tag, that is the commit the tag peels to.
+# Probes that live origin, so network access is required. $1 is the
+# repository URL, $2 the prefix.
+newest_tag_with_commit() {
+  local repository_url="$1" tag_prefix="$2" tag_listing newest_tag
+  tag_listing="$(git ls-remote --tags "${repository_url}" "${tag_prefix}*")"
+  newest_tag="${tag_prefix}$(printf '%s\n' "${tag_listing}" | tag_names | versions_with_prefix "${tag_prefix}" | newest_version)"
+  printf '%s\n' "${tag_listing}" | awk -v tag="${newest_tag}" -v peeled="refs/tags/${newest_tag}^{}" -v plain="refs/tags/${newest_tag}" '
+    $2 == peeled { peeled_commit = $1 }
+    $2 == plain { plain_commit = $1 }
+    END { print tag, (peeled_commit != "" ? peeled_commit : plain_commit) }'
+}
+
 # Print the path of the script pinning the Supabase CLI for the integration
 # tests - the single source of truth for that pin: SUPABASE_CLI_VERSION plus
 # one cli_sha256 value per supported platform.
@@ -319,4 +334,23 @@ pinned_supabase_cli_version() {
 # is required.
 latest_supabase_cli_version() {
   git ls-remote --tags https://github.com/supabase/cli 'v*' | tag_names | versions_with_prefix 'v' | newest_version
+}
+
+# Succeed when tools/node/node_modules holds the package tree that
+# tools/node/package-lock.json pins. npm records each tree it installs in
+# node_modules/.package-lock.json, and the two must list the same packages at
+# the same paths, each at the same version and integrity. The lockfile's root
+# entry describes tools/node itself and takes no part. Otherwise, including
+# when nothing is installed, print the command that installs the pinned tree
+# and return non-zero, so a caller under `set -e` stops.
+require_pinned_node_tools() {
+  if ! jq -e -n \
+    --slurpfile locked tools/node/package-lock.json \
+    --slurpfile installed tools/node/node_modules/.package-lock.json \
+    'def tree: .packages | del(."") | map_values({version, integrity});
+     ($locked[0] | tree) == ($installed[0] | tree)' > /dev/null 2>&1; then
+    echo "tools/node dependencies are missing or differ from tools/node/package-lock.json. Run this, then retry:" >&2
+    echo "  (cd tools/node && npm ci)" >&2
+    return 1
+  fi
 }

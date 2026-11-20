@@ -25,7 +25,7 @@ Self-service profile updates:
 
 Background refresh and session events:
 
-- `Session.AutoRefresh`, a blocking loop that renews the access token ahead of expiry until its context is cancelled
+- `Session.AutoRefresh`, a blocking loop that renews the access token ahead of expiry until its context is canceled
 - `Session.AddEventListener`, with `SessionEvent` and its `SessionEventName` constants `SessionEventInitialSession`, `SessionEventTokenRefreshed` and `SessionEventSignedOut`
 - `SignOutReason`, carried by `SessionEventSignedOut`, with `SignOutReasonUserInitiated` and `SignOutReasonSessionExpired`
 

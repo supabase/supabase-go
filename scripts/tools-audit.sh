@@ -2,10 +2,11 @@
 # Report where the repository's externally sourced, version-pinned tooling
 # sits against each tool's canonical origin: the GitHub Actions pins in
 # .github/workflows/, the Go tool module in tools/go, the npm tool module in
-# tools/node, the Supabase CLI pin in scripts/integration-test.sh and the Go
-# consumer floor in go.work. Read-only and report-only: nothing is installed
-# or modified, an available update is information rather than a failure and
-# the exit status is non-zero only when the audit itself cannot complete.
+# tools/node, the SCOWL pin in scripts/generate-non-us-spellings.sh, the
+# Supabase CLI pin in scripts/integration-test.sh and the Go consumer floor in
+# go.work. Read-only and report-only: nothing is installed or modified, an
+# available update is information rather than a failure and the exit status is
+# non-zero only when the audit itself cannot complete.
 # Probes live origins (GitHub tags, the Go module proxy, the npm registry,
 # go.dev), so it needs network access and sits outside check-fast.sh and CI.
 # Requires git, curl, jq, go and npm. Run from the repository root.
@@ -14,6 +15,10 @@ set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
 echo "Tools Audit..."
+
+# The npm section reports the installed versions of tools/node's packages, so
+# the audit cannot complete unless they are the ones its lockfile pins.
+require_pinned_node_tools
 
 # Upgrade-available conclusions render bold red when stdout is a terminal,
 # and plain when piped or when NO_COLOR is set (https://no-color.org).
@@ -31,22 +36,17 @@ echo "==> GitHub Actions pins (.github/workflows/)"
 # The comment's tag decides the scheme: everything before the trailing
 # three-part version is the prefix, so 'v7.0.0' audits v* tags and
 # 'capability-matrix/v1.13.0' audits capability-matrix/v* tags. The newest
-# matching tag's commit (the peeled ^{} entry when the tag is annotated) is
-# compared against the pinned SHA - the SHA is the pin, so a stale version
-# comment cannot fake currency.
+# matching tag's commit is compared against the pinned SHA - the SHA is the
+# pin, so a stale version comment cannot fake currency.
 grep -hoE 'uses: [A-Za-z0-9._/-]+@[0-9a-f]{40} # [^ ]+' .github/workflows/*.yml | sort -u \
   | while read -r _ pinned_reference _ pinned_tag; do
       action_path="${pinned_reference%@*}"
       pinned_sha="${pinned_reference#*@}"
       repository_url="https://github.com/$(printf '%s' "${action_path}" | cut -d/ -f1-2)"
       tag_prefix="$(printf '%s' "${pinned_tag}" | sed -E 's/[0-9]+\.[0-9]+\.[0-9]+$//')"
-      tag_listing="$(git ls-remote --tags "${repository_url}" "${tag_prefix}*")"
-      latest_version="$(printf '%s\n' "${tag_listing}" | tag_names | versions_with_prefix "${tag_prefix}" | newest_version)"
-      latest_tag="${tag_prefix}${latest_version}"
-      latest_sha="$(printf '%s\n' "${tag_listing}" | awk -v peeled="refs/tags/${latest_tag}^{}" -v plain="refs/tags/${latest_tag}" '
-        $2 == peeled { peeled_sha = $1 }
-        $2 == plain { plain_sha = $1 }
-        END { print (peeled_sha != "" ? peeled_sha : plain_sha) }')"
+      newest="$(newest_tag_with_commit "${repository_url}" "${tag_prefix}")"
+      latest_tag="${newest% *}"
+      latest_sha="${newest#* }"
       if [ "${latest_sha}" = "${pinned_sha}" ]; then
         echo "  ${action_path} ${pinned_tag}: ✅ current"
       else
@@ -125,6 +125,7 @@ audit_go_tool_module() {
 audit_go_tool_module tools/go
 audit_go_tool_module tools/go/gopls
 audit_go_tool_module tools/go/gosec
+audit_go_tool_module tools/go/osv-scanner
 
 echo
 echo "==> Node tooling (tools/node, pinned by package.json + package-lock.json)"
@@ -144,11 +145,31 @@ if [ "${npm_status}" -eq 0 ]; then
   echo "  ✅ all current"
 elif printf '%s\n' "${outdated_json}" | jq -e 'type == "object" and (has("error") | not) and length > 0' > /dev/null 2>&1; then
   printf '%s\n' "${outdated_json}" | jq -r --arg highlight "${highlight}" --arg reset "${reset}" \
-    'to_entries[] | "  \(.key) \(.value.current // "not installed"): \($highlight)\(.value.latest) available\($reset)\n    release notes: https://www.npmjs.com/package/\(.key)?activeTab=versions\n    bump: (cd tools/node && npm install --save-dev --save-exact \(.key)@\(.value.latest))"'
+    'to_entries[] | "  \(.key) \(.value.current): \($highlight)\(.value.latest) available\($reset)\n    release notes: https://www.npmjs.com/package/\(.key)?activeTab=versions\n    bump: (cd tools/node && npm install --save-dev --save-exact \(.key)@\(.value.latest))"'
   echo "  afterwards run: ./scripts/spell-check.sh"
 else
   echo "npm outdated did not produce an outdated report (exit ${npm_status}); see its message above." >&2
   exit 1
+fi
+
+scowl_pin_file="scripts/generate-non-us-spellings.sh"
+echo
+echo "==> SCOWL pin (${scowl_pin_file})"
+# The commit is the pin and the release tag only its label, so a stale label
+# cannot fake currency.
+pinned_scowl_release="$(sed -nE 's/^SCOWL_RELEASE="(.+)"$/\1/p' "${scowl_pin_file}")"
+pinned_scowl_commit="$(sed -nE 's/^SCOWL_COMMIT="([0-9a-f]{40})"$/\1/p' "${scowl_pin_file}")"
+newest_scowl="$(newest_tag_with_commit https://github.com/en-wl/wordlist rel-)"
+newest_scowl_release="${newest_scowl% *}"
+newest_scowl_commit="${newest_scowl#* }"
+if [ "${newest_scowl_commit}" = "${pinned_scowl_commit}" ]; then
+  echo "  en-wl/wordlist ${pinned_scowl_release}: ✅ current"
+else
+  echo "  en-wl/wordlist ${pinned_scowl_release}: ${highlight}${newest_scowl_release} available${reset}"
+  echo "    pin: SCOWL_RELEASE=\"${newest_scowl_release}\""
+  echo "         SCOWL_COMMIT=\"${newest_scowl_commit}\""
+  echo "    afterwards run: ./${scowl_pin_file} && ./scripts/spell-check.sh"
+  echo "    release notes: https://github.com/en-wl/wordlist/releases"
 fi
 
 echo

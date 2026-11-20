@@ -51,9 +51,13 @@ Lint and vulnerability scanning run via two scripts that are *exactly* what CI r
 Spell-checking uses [cSpell](https://cspell.org), via Node/npm:
 
 ```bash
-(cd tools/node && npm ci)    # one-time setup (re-run only when the tools/node/package-lock.json lockfile changes)
+(cd tools/node && npm ci)    # install the pinned cspell, and again whenever tools/node/package-lock.json changes
 ./scripts/spell-check.sh     # cspell - Go and Markdown sources
 ```
+
+A pull or a branch switch can change the lockfile and leave the install as it was, because git ignores `node_modules`. `spell-check.sh` then fails until you run `npm ci` again, so a local spell check always uses the cspell that CI uses.
+
+We write American English. cspell's en-US dictionary still accepts some British spellings, so the spell check also reports every word in [`tools/scowl/non-us-spellings.txt`](tools/scowl/non-us-spellings.txt) as forbidden. The list holds the British and Canadian spellings that [SCOWL](https://github.com/en-wl/wordlist), the word database behind cspell's English dictionaries, lists outside American English. `./scripts/generate-non-us-spellings.sh` regenerates it from the pinned SCOWL release. It needs Python 3.7 and SQLite 3.33 or later, which nothing else here does.
 
 The published module graph is guarded too: every first-party `require` in a workspace module (`go.mod` file) must name another workspace module - the modules we actually publish - so a consumer's build can resolve them. Our [`go.work`](go.work) overlay otherwise resolves siblings from local source and hides a require pointing at an unpublished or non-existent first-party path until consumers hit it after tags exist. The same check also holds the require graph to its layering DAG - core requires nothing first-party, a domain module requires only core and only the root `supabase` module composes the domains:
 
@@ -219,9 +223,10 @@ This avoids the heavier weight `build-essential` meta-package, as well as option
 Everything we execute from outside the repository is pinned to an immutable digest, and that applies to **both** GitHub Actions and our Go tooling - first-party included, with no exemption.
 
 - **GitHub Actions:** every `uses:` is pinned to a full-length 40-character commit SHA, with the human-readable version in a trailing comment - for example `uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0`. A version tag like `@v7` is a *movable* git pointer: whoever controls it (or compromises the publisher) can re-point it at malicious code that then runs with the workflow's token and secrets. Actions have no lockfile, so the SHA is the only immutable reference. This is GitHub's own [security-hardening guidance](https://docs.github.com/en/actions/security-for-github-actions/security-guidance/security-hardening-for-github-actions) and is now enforceable as a [repository policy](https://github.blog/changelog/2025-08-15-github-actions-policy-now-supports-blocking-and-sha-pinning-actions/) (which this repo has enabled); it aligns with [SLSA](https://slsa.dev/spec/). Tools like [`pinact`](https://github.com/suzuki-shunsuke/pinact) can help you resolve tags to SHAs.
-- **Go tooling:** the linters and vuln scanner live in separate, non-published tool modules under [`tools/go/`](tools/go/), gopls and gosec each in a module of their own whose `go.mod` says why, each pinned by checksum in its committed `go.sum` - the Go-native equivalent of a commit-SHA pin. The scripts build those exact, verified versions; nothing floats.
+- **Go tooling:** the linters and vuln scanners live in separate, non-published tool modules under [`tools/go/`](tools/go/), gopls, gosec and OSV-Scanner each in a module of their own whose `go.mod` says why, each pinned by checksum in its committed `go.sum` - the Go-native equivalent of a commit-SHA pin. The scripts build those exact, verified versions; nothing floats.
 - **Companion control:** do not use `pull_request_target` in any workflow with access to secrets (see the [pwn-requests advisory](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/)).
 - **Node tooling:** the spell checker (cspell) is pinned the same way, one ecosystem over. Its entire dependency tree is locked by SHA-512 integrity hash in [`tools/node/package-lock.json`](tools/node/package-lock.json), the npm-native equivalent of `go.sum`, strictly used by `npm ci`.
+- **Word data:** the spell check's forbidden spellings come from SCOWL, pinned in [`scripts/generate-non-us-spellings.sh`](scripts/generate-non-us-spellings.sh) to a release tag and the commit it points at. The script writes nothing unless the tag still resolves to that commit. SCOWL's README warns that its command line and database schema may still change, so a new release can need the script's query adjusting.
 
 ## Auditing tool currency
 
@@ -231,7 +236,7 @@ Everything pinned above goes stale by design - refreshing a pin is a deliberate,
 ./scripts/tools-audit.sh
 ```
 
-It covers the GitHub Actions pins, the Go tool modules (under [`tools/go`](tools/go/)), the npm tool module ([`tools/node`](tools/node/)), the pinned Supabase CLI and the Go consumer floor. It is read-only and report-only: an available update is information rather than a failure, so the script sits outside `check-fast.sh` and CI, and it probes live origins (GitHub tags, the Go module proxy, the npm registry, go.dev) so it needs network access.
+It covers the GitHub Actions pins, the Go tool modules (under [`tools/go`](tools/go/)), the npm tool module ([`tools/node`](tools/node/)), the SCOWL release behind the spell check's forbidden spellings, the pinned Supabase CLI and the Go consumer floor. It is read-only and report-only: an available update is information rather than a failure, so the script sits outside `check-fast.sh` and CI, and it probes live origins (GitHub tags, the Go module proxy, the npm registry, go.dev) so it needs network access.
 
 Two pins sit outside its reach and are checked by eye when touched: the versioned runner image labels in the workflows (`runs-on: ubuntu-26.04` - compare against [GitHub's available images](https://github.com/actions/runner-images?tab=readme-ov-file#available-images)) and the Postgres `major_version` in [`integration-testing/supabase/config.toml`](integration-testing/supabase/config.toml), which follows the pinned CLI's default image rather than any independent origin.
 
@@ -241,7 +246,7 @@ The Actions tab lists a "Dependency Graph" workflow that this repository does no
 
 A Degraded result naming one of our modules at the zero pseudo-version (`unknown revision 000000000000`) is expected while any published module requires an untagged sibling. The job runs `go mod graph` under the root [`go.work`](go.work), where every published module's requirements apply, and that version exists nowhere.
 
-It is safe to ignore. The dependency list survives, so alerts still cover everything and only the edges between dependencies are lost. Only tags fix it, and disabling the graph would lose the alerts too. [`tools/go`](tools/go/), [`tools/go/gopls`](tools/go/gopls/) and [`tools/go/gosec`](tools/go/gosec/) have their own `go.work`, but the examples have none, because their `go` line is the consumer floor and a `go.work` would add a second line to raise each time.
+It is safe to ignore. The dependency list survives, so alerts still cover everything and only the edges between dependencies are lost. Only tags fix it, and disabling the graph would lose the alerts too. [`tools/go`](tools/go/), [`tools/go/gopls`](tools/go/gopls/), [`tools/go/gosec`](tools/go/gosec/) and [`tools/go/osv-scanner`](tools/go/osv-scanner/) have their own `go.work`, but the examples have none, because their `go` line is the consumer floor and a `go.work` would add a second line to raise each time.
 
 A Degraded message naming anything else, such as a third-party module, is worth investigating.
 
@@ -403,9 +408,16 @@ go version             # expect go1.26.6 linux/arm64
 ./scripts/check-fast.sh
 ```
 
+### When the vulnerability scan fails on a dependency
+
+OSV-Scanner fails the scan when a known advisory affects a dependency version declared in any `go.mod` or npm lockfile in the repository, whether or not any code reaches it. Its report lists each manifest with the affected packages and versions, the advisories and the minimal fix version for each.
+
+- **A fixed version exists:** raise the dependency in that manifest. For a module outside the workspace, that is `GOWORK=off go -C <module> get <dependency>@<fixed version> && GOWORK=off go -C <module> mod tidy`, the same route `./scripts/tools-audit.sh` prints for a tool bump.
+- **No fixed version exists yet:** accept the advisory with an ignore entry in an `osv-scanner.toml` beside that manifest, giving its `id`, a `reason` and an `effectiveUntil` date, after which the scan fails again. See [OSV-Scanner's configuration](https://google.github.io/osv-scanner/configuration/).
+
 ### When the vulnerability scan fails on the Go standard library
 
-`govulncheck` checks both the dependencies in our `go.mod` files and the standard library of whichever Go toolchain runs the scan. The `Found in:` line of a finding tells you which case you have. A module path such as `golang.org/x/crypto@v0.32.0` is a dependency, fixed in the affected module's `go.mod`. `Standard library` with a version like `crypto/tls@go1.26.4` means the flaw is in the machine's Go toolchain, which no repository file declares or can fix, and which never reaches consumers - the SDK ships as source, so their binaries carry their own toolchain's standard library. A concrete example of hitting this was [GO-2026-5856](https://pkg.go.dev/vuln/GO-2026-5856) ([CVE-2026-42505](https://www.cve.org/CVERecord?id=CVE-2026-42505)), where scans running with go1.26.4 failed until the machine's toolchain moved to go1.26.5 with no repository change needed.
+`govulncheck` checks both the published modules' dependencies and the standard library of whichever Go toolchain runs the scan. The `Found in:` line of a finding tells you which case you have. A module path such as `golang.org/x/crypto@v0.32.0` is a dependency, fixed in the affected module's `go.mod`. `Standard library` with a version like `crypto/tls@go1.26.4` means the flaw is in the machine's Go toolchain, which no repository file declares or can fix, and which never reaches consumers - the SDK ships as source, so their binaries carry their own toolchain's standard library. A concrete example of hitting this was [GO-2026-5856](https://pkg.go.dev/vuln/GO-2026-5856) ([CVE-2026-42505](https://www.cve.org/CVERecord?id=CVE-2026-42505)), where scans running with go1.26.4 failed until the machine's toolchain moved to go1.26.5 with no repository change needed.
 
 Nothing here pins a build toolchain (we have directives that set a consumer floor, in respect of what we publish to users - see [`decisions.md`](decisions.md)) and Go only [switches toolchains](https://go.dev/doc/toolchain) when a version is named explicitly, so the remedy is to name one, choosing how long it should stick:
 

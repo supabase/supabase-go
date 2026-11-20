@@ -15,9 +15,12 @@ copilot-instructions.*
 CLAUDE.md
 
 # Our progressive disclosure strategy for agent skills means that content in this file
-# is "miscellaneous" at best, so unlikely to add focussed value.
+# is "miscellaneous" at best, so unlikely to add focused value.
 # see .agents/skills/README.md
 AGENTS.md
+
+# JetBrains IDEs (GoLand, IntelliJ IDEA) keep their project settings here.
+.idea/
 
 # Most likely a Go distribution (for example, `go1.26.5.darwin-arm64.pkg`), downloaded by the
 # local developer in order to upgrade their environment.

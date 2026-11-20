@@ -1048,7 +1048,7 @@ func TestFiltersWithReserved(t *testing.T) {
 		{"just dollar", "$"},
 		{"just opening square bracket", "["},
 		{"just closing square bracket", "]"},
-		{"just semi-colon", ";"},
+		{"just semicolon", ";"},
 		{"just opening brace", "{"},
 		{"just closing brace", "}"},
 		{"just caret", "^"},

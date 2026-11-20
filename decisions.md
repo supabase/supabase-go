@@ -65,7 +65,7 @@ The `go` directive in published modules (the consumer floor) is separate from, a
 
 **Why**:  
 They are different concerns: the published `go` directive is a compatibility contract for the consumer's unknown environment, while the CI/lint toolchain is our own deterministic environment (latest, our choice).
-A latest toolchain compiles a floor-versioned module fine.
+The latest toolchain compiles a floor-versioned module fine.
 Tool-pinning machinery must never live in the published modules, or it would drag our environment's needs into the consumer's contract and force the floor up.
 
 ## Use a committed go.work workspace for intra-repo module resolution
@@ -147,7 +147,7 @@ GitHub's "require SHA-pinned actions" setting is enabled for this repository.
 
 **Why**:  
 Actions have no lockfile and version tags are mutable git pointers - re-pointing a tag runs attacker code with the workflow token and secrets - so a commit SHA (and, for Go tools, a committed `go.sum` checksum) is the only immutable reference.
-On-demand refreshes keep "pinned" and "latest" close without scheduled churn, and Dependabot security updates still catch advisories with a reviewable diff, so pinning trades off against neither freshness nor safety.
+On-demand refreshes keep "pinned" and "latest" close without scheduled churn, and the vulnerability scan catches advisories against pinned versions, so pinning trades off against neither freshness nor safety.
 This follows Supabase's org-wide policy ([Git & GitHub](https://app.notion.com/p/c4922b923c544a2ea0377d60a0f21aec), Linear [PRODSEC-21](https://linear.app/supabase/issue/PRODSEC-21/) and [PRODSEC-67](https://linear.app/supabase/issue/PRODSEC-67/)) and extends the same discipline to our Go tooling.
 
 ## CI runner images are versioned labels, never `ubuntu-latest`
@@ -173,11 +173,24 @@ The published modules are dependency-free, leaving a module cache little to rest
 **What**:  
 Versions are resolved to latest at setup and refreshed on demand by the maintainer while the repo is under solo active development.
 Discovery is scripted while application stays manual: read-only [`scripts/tools-audit.sh`](scripts/tools-audit.sh) reports where every pin sits against its canonical origin and the bump route for each, and never applies anything.
-Dependabot security updates stay enabled via repo settings so advisories still raise a PR, but scheduled version-update PRs are deferred until the repo opens to broader contribution.
+Scheduled Dependabot version-update PRs are deferred until the repo opens to broader contribution, while Dependabot security updates stay enabled via repo settings.
 
 **Why**:  
 Under solo active development the repo is never idle long enough for scheduled update PRs to catch real staleness, so a weekly stream would be distraction rather than protection.
-Scripted discovery keeps the refresh deliberate while advisories still arrive on their own.
+Scripted discovery keeps the refresh deliberate.
+Advisories need no schedule, since the vulnerability scan catches them, daily and on every pull request.
+
+## The vulnerability scan fails on declared vulnerable versions, reachable or not
+
+**What**:  
+[`scripts/vulncheck.sh`](scripts/vulncheck.sh) fails when a known advisory affects a dependency version declared in any `go.mod` or npm lockfile in the repository, a tool module's included, whether or not code reaches it.
+OSV-Scanner makes that check against OSV.dev, which merges the Go vulnerability database with GitHub's advisories.
+It runs beside govulncheck, which keeps scanning the published modules for what their code can reach.
+
+**Why**:  
+A reachability scan stays silent on a vulnerable version that only a tool's own tests import, and Dependabot alerts only on advisories that GitHub has reviewed.
+Scanners that judge declared versions, an IDE's dependency checker among them, report such a version regardless, so the scripts fail on the same terms rather than leaving it to them.
+The accepted cost is that an advisory anywhere in a tool's dependency graph fails pull requests and the daily run until a bump, or an `osv-scanner.toml` entry with an expiry date, clears it.
 
 ## Domain navigation is context-free and cannot fail
 
@@ -310,7 +323,7 @@ In this SDK both are done by hand, so no machine would read the grammar.
 ## Agent guidance lives in `.agents/skills`, and a root `.gitignore` keeps other agent surfaces out
 
 **What**:  
-Direct AI guidance, where that guidance is designed primarily for consumption by agents, is contained within [`.agents/skills/`](.agents/skills/), whose [README](.agents/skills/README.md) states the full approach (progressive disclosure, routing, etc..).
+Direct AI guidance, where that guidance is designed primarily for consumption by agents, is contained within [`.agents/skills/`](.agents/skills/), whose [README](.agents/skills/README.md) states the full approach (progressive disclosure, routing, etc.).
 A root [`.gitignore`](.gitignore) aims to keep other agent entry points out, for cleanliness (for example, `.claude/` and `.cursor/`).
 
 **Why**:  
@@ -530,7 +543,7 @@ The panic survives only where module identity is present and contradicts the cal
 ## The consumer floor is a policy: the oldest Go major the Go project still supports
 
 **What**:  
-Every floor-carrying artefact - the published `go.mod` directives, [`go.work`](go.work), the consumer-shaped modules outside the workspace and [CI](.github/workflows/ci.yml)'s floor matrix legs - carries the oldest Go major release still supported by the Go project, raised in lockstep by [`scripts/raise-consumer-floor.sh`](scripts/raise-consumer-floor.sh).
+Every floor-carrying artifact - the published `go.mod` directives, [`go.work`](go.work), the consumer-shaped modules outside the workspace and [CI](.github/workflows/ci.yml)'s floor matrix legs - carries the oldest Go major release still supported by the Go project, raised in lockstep by [`scripts/raise-consumer-floor.sh`](scripts/raise-consumer-floor.sh).
 This floor should be raised opportunistically after each Go release rather than on release day.
 The policy is stated consumer-facing in [our `README.md`](.github/README.md) ("Supported Go versions").
 
@@ -542,11 +555,11 @@ A lower floor buys no reach: every Go line below the floor is end of life, so no
 
 **What**:  
 The `database.configuration.request_timeout` capability is claimed in [`sdk-compliance.yaml`](sdk-compliance.yaml) with `configuration.WithHTTPClient` as its symbol and no new API: consumers set a construction-time deadline by passing an `http.Client` whose `Timeout` field is set.
-The wrap in [`transport.WrapClient`](core/internal/transport/transport.go) clones the caller's client, so the field survives construction, and the deadline spans exactly the SDK's I/O - connection, headers and the response-body read - cancelling in-flight requests when it elapses.
+The wrap in [`transport.WrapClient`](core/internal/transport/transport.go) clones the caller's client, so the field survives construction, and the deadline spans exactly the SDK's I/O - connection, headers and the response-body read - canceling in-flight requests when it elapses.
 A per-request context deadline composes with it the Go-native way: whichever fires first cancels, and both surface as errors matching `context.DeadlineExceeded`.
 
 **Why**:  
-Go's standard `http.Client` already expresses the canonical semantic natively ("Timeout specifies a time limit for requests made by this Client", cancelling as if the request's context ended), so a dedicated `WithTimeout` option would be a second spelling of a field the injected client already carries - configuration surface without new capability.
+Go's standard `http.Client` already expresses the canonical semantic natively ("Timeout specifies a time limit for requests made by this Client", canceling as if the request's context ended), so a dedicated `WithTimeout` option would be a second spelling of a field the injected client already carries - configuration surface without new capability.
 The sibling precedent is Python's, which claims the capability through the language-native mechanism plus an explanatory note.
 JS and Flutter needed explicit options only because `fetch` and Dart's `http` lack a native construction-time whole-request client timeout.
 
@@ -554,7 +567,7 @@ JS and Flutter needed explicit options only because `fetch` and Dart's `http` la
 
 **What**:  
 `Insert(rows ...T)` is a method on `QueryBuilder[T]`, always sent as one JSON array - a single row, many rows or, for no arguments, the empty array `[]`, never `null`.
-No client-side column union is computed for a bulk insert: each row sends exactly the keys its own marshalling produces.
+No client-side column union is computed for a bulk insert: each row sends exactly the keys its own marshaling produces.
 Every write verb returns the same terminal `MutationBuilder[T]`, whose one shaping method, `Returning(columns)`, writes the `select` parameter with replace semantics where an empty string means every column.
 
 **Why**:  
@@ -776,5 +789,5 @@ Go offers no compatible way to change a published function signature, so every r
 The envelope makes response growth additive - a new accessor, never a second method beside the first - and an empty result reserves the same room on bodiless calls, where a bare `error` can never widen.
 The result is a pointer so that a failed call returns `nil` for it and code that ignores the error fails at the first accessor, on the line with the bug, where a value return would hand back a zero result that reads as an answer: an empty `ListUsersResult` is a page with no users.
 The sibling precedent does not transfer: supabase-js returns `{ error }` from its bodiless calls and can add fields to that object compatibly, while a Go return cannot, so this SDK alone needs the vessel in place before a field arrives.
-The stdlib's naked-tuple idiom lost the weighing: the ceremony costs one `_,` per action call, and an increasing share of calling code is written by builders (human+robot pairs), which emit one mechanical rule more reliably than a per-call judgement.
+The stdlib's naked-tuple idiom lost the weighing: the ceremony costs one `_,` per action call, and an increasing share of calling code is written by builders (human+robot pairs), which emit one mechanical rule more reliably than a per-call judgment.
 The derivation term is operation rather than method, which is overloaded between a Go method and an HTTP method, and an operation that orchestrates more than one endpoint keeps a well-formed result name.

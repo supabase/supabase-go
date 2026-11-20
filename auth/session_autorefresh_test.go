@@ -19,7 +19,7 @@ const autoRefreshLead = 90 * time.Second
 
 // startAutoRefresh runs AutoRefresh on a goroutine of its own and returns
 // the function that cancels its context and reports what it returned. The
-// context is cancelled when the test ends in any case.
+// context is canceled when the test ends in any case.
 func startAutoRefresh(t *testing.T, session *auth.Session) (stop func() error) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
@@ -273,7 +273,7 @@ func TestAutoRefreshReportsAStoreThatCannotBeSaved(t *testing.T) {
 }
 
 func TestAutoRefreshStopsCleanly(t *testing.T) {
-	t.Run("cancelled while it sleeps", func(t *testing.T) {
+	t.Run("canceled while it sleeps", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			server := newInProcessSessionServer(t)
 			session := server.signIn(t, server.client(t), time.Hour)
@@ -288,7 +288,7 @@ func TestAutoRefreshStopsCleanly(t *testing.T) {
 		})
 	})
 
-	t.Run("cancelled while its request is held open", func(t *testing.T) {
+	t.Run("canceled while its request is held open", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			server := newInProcessSessionServer(t)
 			session := server.signIn(t, server.client(t), time.Hour)

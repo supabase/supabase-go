@@ -636,10 +636,10 @@ func TestCollectReportsMissingClientWithoutIO(t *testing.T) {
 	}
 }
 
-// TestCollectHonoursContextCancellation pins the context contract:
-// cancelling the caller's context aborts the in-flight request and the
+// TestCollectHonorsContextCancellation pins the context contract:
+// canceling the caller's context aborts the in-flight request and the
 // cause stays matchable with errors.Is through the wrapped chain.
-func TestCollectHonoursContextCancellation(t *testing.T) {
+func TestCollectHonorsContextCancellation(t *testing.T) {
 	started := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
 		close(started)

@@ -213,7 +213,7 @@ func TestInsertReturningProjectsColumns(t *testing.T) {
 // the wire, and no request is made.
 func TestInsertMarshalFailureSurfacesAtExecute(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-		t.Error("no HTTP request should be made when the payload cannot be marshalled")
+		t.Error("no HTTP request should be made when the payload cannot be marshaled")
 	}))
 	defer server.Close()
 

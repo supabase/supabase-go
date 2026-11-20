@@ -200,7 +200,7 @@ func ExampleClient_SignInWithPassword() {
 
 // ExampleSession_AutoRefresh keeps a long-running service's session fresh
 // for as long as the service runs. AutoRefresh blocks, so it runs on a
-// goroutine of its own and is stopped by cancelling its context, and the
+// goroutine of its own and is stopped by canceling its context, and the
 // service waits for it to return before signing out, so that no refresh can
 // land after the sign-out. Its return value says how the loop ended: nil for
 // a cancellation or a sign-out, ErrSessionExpired for a session the server

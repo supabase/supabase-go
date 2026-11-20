@@ -13,7 +13,7 @@ A release is therefore prepared by:
 3. Release automation pushes the tags that the merged pull request declared.
 4. A human dispatches the Seed Release workflow, which pulls the tagged versions through the public Go module proxy.
 
-Steps 1, 2 and 4 are manually handled by a human operator (perhaps with AI assistance) positioning that human as the release gate where "sense checks" must be made. Only step 3 runs on its own, on every merge to `main`. While we could automate these steps more, and perhaps we might in future, the release cadence and need for flexibility right now mean that this manual handling is the preferred operations method for now in this SDK.
+Steps 1, 2 and 4 are manually handled by a human operator (perhaps with AI assistance) positioning that human as the release gate where "sense checks" must be made. Only step 3 runs on its own, on every merge to `main`. While we could automate these steps more, and perhaps we might in the future, the release cadence and need for flexibility right now mean that this manual handling is the preferred operations method for now in this SDK.
 
 > [!TIP]
 > Most releases touch several modules at once, so the interactive wrapper described in [Cut a coordinated release](#cut-a-coordinated-release) is usually the preferred way to run them.

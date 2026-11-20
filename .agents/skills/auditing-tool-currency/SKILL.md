@@ -1,6 +1,6 @@
 ---
 name: auditing-tool-currency
-description: "Guides auditing the repository's externally sourced, version-pinned tooling against canonical origins - the GitHub Actions pins, the Go tool module under tools/go, the npm tool module under tools/node, the pinned Supabase CLI and the Go consumer floor. Use when asked which tools could be upgraded, whether pins are stale or to prepare an upgrade report or plan. Audit and report only: applying a bump is the changing-build-and-continuous-integration skill's territory."
+description: "Guides auditing the repository's externally sourced, version-pinned tooling against canonical origins - the GitHub Actions pins, the Go tool module under tools/go, the npm tool module under tools/node, the SCOWL release behind the spell check's forbidden spellings, the pinned Supabase CLI and the Go consumer floor. Use when asked which tools could be upgraded, whether pins are stale or to prepare an upgrade report or plan. Audit and report only: applying a bump is the changing-build-and-continuous-integration skill's territory."
 ---
 
 Run [`scripts/tools-audit.sh`](../../../scripts/tools-audit.sh) first: it is the executable inventory of every pin, reporting current against latest from each canonical origin with the bump route and release-notes link for each, and it never modifies anything.

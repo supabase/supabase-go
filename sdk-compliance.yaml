@@ -372,7 +372,7 @@ features:
     status: implemented
     note: |
       No start, stop or enable control: the loop is auth.Session.AutoRefresh,
-      which blocks on the caller's goroutine until its context is cancelled,
+      which blocks on the caller's goroutine until its context is canceled,
       so the SDK owns no goroutine to leak.
     symbols:
       - auth.Session.AutoRefresh

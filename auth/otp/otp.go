@@ -9,7 +9,7 @@ import (
 	"github.com/supabase/supabase-go/auth/messaging"
 )
 
-// EmailType is the kind of a code sent to an email address, as the server
+// EmailType is the kind of code sent to an email address, as the server
 // names it. The constants are the kinds the server issues today.
 type EmailType string
 
@@ -27,7 +27,7 @@ const (
 	TypeEmailChange EmailType = "email_change"
 )
 
-// PhoneType is the kind of a code sent to a phone number, as the server
+// PhoneType is the kind of code sent to a phone number, as the server
 // names it. The constants are the kinds the server issues today.
 type PhoneType string
 

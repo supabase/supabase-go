@@ -15,9 +15,9 @@ import (
 )
 
 // enrollTOTPFactor enrolls a TOTP factor for the user accessToken belongs to
-// and returns the new factor's id. It calls the user-side enrolment endpoint
+// and returns the new factor's id. It calls the user-side enrollment endpoint
 // over raw HTTP deliberately: the MFA admin capabilities act on enrolled
-// factors, and enrolment itself is a different, user-side capability this SDK
+// factors, and enrollment itself is a different, user-side capability this SDK
 // does not offer yet.
 func enrollTOTPFactor(t *testing.T, projectURL, apiKey, accessToken, friendlyName string) string {
 	t.Helper()
@@ -105,7 +105,7 @@ func TestAdminSignOut(t *testing.T) {
 }
 
 // TestAdminMFAFactors walks one factor through its whole admin lifecycle -
-// list after enrolment, the user resource mirroring it, rename, the ignored
+// list after enrollment, the user resource mirroring it, rename, the ignored
 // phone number, the bare update, delete - asserting every property the served
 // factor carries at each step.
 func TestAdminMFAFactors(t *testing.T) {
@@ -134,7 +134,7 @@ func TestAdminMFAFactors(t *testing.T) {
 		t.Errorf("Status = %q, want unverified - the factor was enrolled but never proven", enrolled.Status())
 	}
 	if enrolled.FriendlyName() != "Original authenticator" {
-		t.Errorf("FriendlyName = %q, want the enrolment's label", enrolled.FriendlyName())
+		t.Errorf("FriendlyName = %q, want the enrollment's label", enrolled.FriendlyName())
 	}
 	if enrolled.Phone() != "" {
 		t.Errorf("Phone = %q, want empty on a TOTP factor", enrolled.Phone())
@@ -171,7 +171,7 @@ func TestAdminMFAFactors(t *testing.T) {
 		t.Errorf("renamed = (%q, %q, %q), want everything but the label unchanged", renamed.ID(), renamed.Type(), renamed.Status())
 	}
 	if !renamed.CreatedAt().Equal(enrolled.CreatedAt()) {
-		t.Errorf("CreatedAt = %v, want the enrolment instant %v unchanged", renamed.CreatedAt(), enrolled.CreatedAt())
+		t.Errorf("CreatedAt = %v, want the enrollment instant %v unchanged", renamed.CreatedAt(), enrolled.CreatedAt())
 	}
 
 	// A phone number on a TOTP factor is ignored, success and all, as the

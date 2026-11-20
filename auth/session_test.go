@@ -305,10 +305,10 @@ func TestRefreshIsSingleFlight(t *testing.T) {
 		t.Errorf("RefreshToken() while the refresh is in flight = %q, want refresh-1 until it commits", session.RefreshToken())
 	}
 
-	cancelled, cancel := context.WithCancel(t.Context())
+	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
-	if accessToken, err := session.AccessToken(cancelled); accessToken != "" || !errors.Is(err, context.Canceled) {
-		t.Errorf("AccessToken(cancelled) = (%q, %v), want context.Canceled", accessToken, err)
+	if accessToken, err := session.AccessToken(canceled); accessToken != "" || !errors.Is(err, context.Canceled) {
+		t.Errorf("AccessToken(canceled) = (%q, %v), want context.Canceled", accessToken, err)
 	}
 
 	close(hold)
@@ -346,7 +346,7 @@ func (c *waitObservingContext) Done() <-chan struct{} {
 	return c.Context.Done()
 }
 
-func TestCancelledRefreshFailsOnlyItsStarter(t *testing.T) {
+func TestCanceledRefreshFailsOnlyItsStarter(t *testing.T) {
 	server := newSessionServer(t)
 	session := server.signIn(t, server.client(t), expiredAlready)
 	hold := make(chan struct{})

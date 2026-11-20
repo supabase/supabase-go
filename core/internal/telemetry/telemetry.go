@@ -23,7 +23,7 @@ const unknownVersion = "0.0.0"
 // ClientInformationHeaderValue returns a value suitable for use for the
 // X-Client-Info header sent with HTTP requests submitted to Supabase services.
 //
-// The returned value is delimited with "; " (semi-colon followed by a space),
+// The returned value is delimited with "; " (semicolon followed by a space),
 // always in the following order:
 //   - entry module and its version (e.g. "supabase-go/0.1.0" or
 //     "postgrest-go/0.0.0" when build information records no version)
