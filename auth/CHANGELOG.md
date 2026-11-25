@@ -25,6 +25,9 @@ Aligns our implementation of `Client.GetClaims` with the [cross-SDK claims verif
 - a token whose header names an algorithm other than its signing key's now fails with `ErrInvalidSignature`, where before the key's algorithm verified it
 - a token signed with a key this client cannot verify with, such as an Ed448 key, now defers to the Auth server, where before it failed with `ErrInvalidSignature`
 - `Ed25519` and `Ed448` now count as `EdDSA`, in a token's header and in a signing key's `alg`
+- a JWK Set response without a `keys` array now fails the call, where before it was taken as a set with no keys
+- a refetch of the JWK Set forced by an unknown key id now backs off after failing too, deferring such tokens to the Auth server meanwhile, where before each one retried the download
+- a key id missing from a first download of the JWK Set, or one after ten minutes, now forces a refetch before the backoff starts, where before it started the backoff
 
 ## `v0.1.0-alpha.5` (2026-11-16)
 

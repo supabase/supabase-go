@@ -245,19 +245,27 @@ type keyWire struct {
 	Exponent  string    `json:"e"`
 }
 
+// errNoKeysArray is reported by [ParseSet] for a JSON document without a keys
+// array.
+var errNoKeysArray = errors.New("no keys array")
+
 // ParseSet decodes a JWK Set document into its keys, returning the decode
-// error verbatim when the document is not the documented JSON shape. An empty
-// set - a project with no asymmetric signing keys - yields no keys.
+// error verbatim when the document is not the documented JSON shape and
+// failing a JSON document without a keys array. An empty array - a project
+// with no asymmetric signing keys - yields no keys.
 func ParseSet(document []byte) ([]Key, error) {
 	var wire struct {
-		Keys []keyWire `json:"keys"`
+		Keys *[]keyWire `json:"keys"`
 	}
 	if err := json.Unmarshal(document, &wire); err != nil {
 		return nil, err
 	}
+	if wire.Keys == nil {
+		return nil, errNoKeysArray
+	}
 
-	keys := make([]Key, 0, len(wire.Keys))
-	for _, entry := range wire.Keys {
+	keys := make([]Key, 0, len(*wire.Keys))
+	for _, entry := range *wire.Keys {
 		keys = append(keys, Key{
 			keyType:  entry.KeyType,
 			keyID:    entry.KeyID,

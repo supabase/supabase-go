@@ -273,17 +273,20 @@ func TestGetClaimsUnknownKeyIDFallsBackToServer(t *testing.T) {
 		t.Errorf("user endpoint hit %d times, want 1 (fallback for unknown kid)", hits)
 	}
 
-	// A second unknown-kid token arriving straight after must not force another
-	// JWK Set fetch: the miss is answered from the fetch just made, and only
+	// The first download lacked the kid, so a second unknown-kid token forces
+	// one refetch, whose fruitless answer opens the backoff window: a third,
+	// arriving straight after, is answered from the set just fetched, and only
 	// the server round trip repeats.
-	if _, err := client.GetClaims(context.Background(), foreign.Token(t, testkit.DefaultClaims())); err != nil {
-		t.Fatalf("GetClaims (second): %v", err)
+	for range 2 {
+		if _, err := client.GetClaims(context.Background(), foreign.Token(t, testkit.DefaultClaims())); err != nil {
+			t.Fatalf("GetClaims (repeated): %v", err)
+		}
 	}
-	if hits := mock.userHits.Load(); hits != 2 {
-		t.Errorf("user endpoint hit %d times, want 2", hits)
+	if hits := mock.userHits.Load(); hits != 3 {
+		t.Errorf("user endpoint hit %d times, want 3", hits)
 	}
-	if fetches := mock.jwkSetFetches.Load(); fetches != 1 {
-		t.Errorf("JWK Set fetched %d times across an unknown-kid storm, want 1", fetches)
+	if fetches := mock.jwkSetFetches.Load(); fetches != 2 {
+		t.Errorf("JWK Set fetched %d times across an unknown-kid storm, want 2", fetches)
 	}
 }
 

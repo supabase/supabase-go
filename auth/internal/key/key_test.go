@@ -218,9 +218,9 @@ func TestParseSetKeysArray(t *testing.T) {
 		wantErr  bool
 	}{
 		{`{"keys":[]}`, false},
-		{`{}`, false},
-		{`{"keys":null}`, false},
-		{`null`, false},
+		{`{}`, true},
+		{`{"keys":null}`, true},
+		{`null`, true},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.document, func(t *testing.T) {

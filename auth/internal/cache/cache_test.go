@@ -77,15 +77,16 @@ func TestCacheFruitlessForcedFetchesBackOff(t *testing.T) {
 		}
 	}
 
-	lookup(0, 1)                    // first miss always fetches, opening a 1s window
-	lookup(500*time.Millisecond, 1) // inside 1s: answered from the last fetch
-	lookup(time.Second, 2)          // window elapsed: fetches, doubling to 2s
-	lookup(2*time.Second, 2)        // only 1s after that fetch: gated
-	lookup(3*time.Second, 3)        // 2s elapsed: fetches, doubling to 4s
-	lookup(7*time.Second, 4)        // 4s elapsed: fetches, doubling to 8s
-	lookup(15*time.Second, 5)       // 8s elapsed: fetches, doubling to 16s
-	lookup(30*time.Second, 5)       // 15s elapsed: gated at the backstop
-	lookup(31*time.Second, 6)       // 16s elapsed: one fetch per backstop from here
+	lookup(0, 1)                    // a first download lacking the key id opens no window
+	lookup(0, 2)                    // so the next miss forces a fetch, opening a 1s window
+	lookup(500*time.Millisecond, 2) // inside 1s: answered from the last fetch
+	lookup(time.Second, 3)          // window elapsed: fetches, doubling to 2s
+	lookup(2*time.Second, 3)        // only 1s after that fetch: gated
+	lookup(3*time.Second, 4)        // 2s elapsed: fetches, doubling to 4s
+	lookup(7*time.Second, 5)        // 4s elapsed: fetches, doubling to 8s
+	lookup(15*time.Second, 6)       // 8s elapsed: fetches, doubling to 16s
+	lookup(30*time.Second, 6)       // 15s elapsed: gated at the backstop
+	lookup(31*time.Second, 7)       // 16s elapsed: one fetch per backstop from here
 }
 
 // TestCacheFailedForcedFetch pins what a forced fetch that fails leaves for the
@@ -119,8 +120,10 @@ func TestCacheFailedForcedFetch(t *testing.T) {
 		}
 	}
 
-	lookup(time.Second, fetchFailure, 2) // the forced fetch fails, and so does the lookup
-	lookup(time.Second, fetchFailure, 3) // no window opened, so the next miss fetches again
+	lookup(time.Second, fetchFailure, 2)   // the forced fetch fails, and so does the lookup: a 1s window
+	lookup(time.Second, nil, 2)            // inside 1s: not found, with no fetch
+	lookup(2*time.Second, fetchFailure, 3) // window elapsed: fails again, doubling to 2s
+	lookup(3*time.Second, nil, 3)          // inside 2s: no fetch
 }
 
 // TestCacheExpiredDownloadAndTheBackoff pins how a download into an expired
@@ -142,11 +145,11 @@ func TestCacheExpiredDownloadAndTheBackoff(t *testing.T) {
 
 	lookup(0, "kid-1", 1)                          // first download
 	lookup(time.Second, "bogus", 2)                // forced, fruitless: a 1s window
-	lookup(11*time.Minute, "bogus", 3)             // expired download lacking the key id: the window doubles to 2s
-	lookup(11*time.Minute+time.Second, "bogus", 3) // inside 2s: no fetch
-	lookup(22*time.Minute, "kid-1", 4)             // expired download finding its key id: the window closes
-	lookup(22*time.Minute, "bogus", 5)             // forced, fruitless: the window reopens at 1s
-	lookup(22*time.Minute+time.Second, "bogus", 6) // 1s elapsed: forced again
+	lookup(11*time.Minute, "bogus", 3)             // expired download lacking the key id: the window stays as it was
+	lookup(11*time.Minute+time.Second, "bogus", 4) // the 1s window closed long ago: forced, fruitless, doubling to 2s
+	lookup(22*time.Minute, "kid-1", 5)             // expired download finding its key id: the window stays as it was
+	lookup(22*time.Minute, "bogus", 6)             // forced, fruitless: the window doubles to 4s
+	lookup(22*time.Minute+time.Second, "bogus", 6) // inside 4s: no fetch
 }
 
 func TestCacheRefetchOnUnknownKeyID(t *testing.T) {
@@ -202,8 +205,13 @@ func TestCacheResolvingFetchClearsBackoff(t *testing.T) {
 	})
 	base := time.Now()
 
-	// A fruitless forced fetch opens the backoff window.
-	_, found, err := keyCache.Key(context.Background(), "bogus", base)
+	// After the first download, a fruitless forced fetch opens the backoff
+	// window.
+	_, found, err := keyCache.Key(context.Background(), "kid-1", base)
+	if err != nil || !found {
+		t.Fatalf("first lookup: found=%v err=%v", found, err)
+	}
+	_, found, err = keyCache.Key(context.Background(), "bogus", base)
 	if err != nil || found {
 		t.Fatalf("fruitless lookup: found=%v err=%v", found, err)
 	}
@@ -223,8 +231,8 @@ func TestCacheResolvingFetchClearsBackoff(t *testing.T) {
 	if _, found, err := keyCache.Key(context.Background(), "bogus-2", base.Add(time.Second)); err != nil || found {
 		t.Fatalf("lookup after the window cleared: found=%v err=%v", found, err)
 	}
-	if fetches.Load() != 3 {
-		t.Errorf("fetches = %d, want 3 (fruitless, resolving, immediately allowed)", fetches.Load())
+	if fetches.Load() != 4 {
+		t.Errorf("fetches = %d, want 4 (first, fruitless, resolving, immediately allowed)", fetches.Load())
 	}
 }
 
