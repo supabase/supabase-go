@@ -1012,6 +1012,66 @@ func TestCollectSingleMaybeCountsReadsFromContentRange(t *testing.T) {
 	}
 }
 
+// TestCollectSingleMaybeDecodesASliceRow pins what a slice Row receives from a
+// function call, whose rows the Content-Range header counts: a function's
+// single array value, its empty and one-element forms and a set of two rows.
+func TestCollectSingleMaybeDecodesASliceRow(t *testing.T) {
+	testCases := []struct {
+		name         string
+		contentRange string
+		body         string
+		want         string
+		wantRow      []int
+	}{
+		{"a function's array value", "0-0/*", `[1,2,3]`, "a decoding error", nil},
+		{"a function's empty array value", "0-0/*", `[]`, "found", []int{}},
+		{"a function's one-element array value", "0-0/*", `[5]`, "a decoding error", nil},
+		{"two rows", "0-1/2", `[1,2]`, "a decoding error", nil},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+				writer.Header().Set("Content-Type", "application/json")
+				writer.Header().Set("Content-Range", testCase.contentRange)
+				respond.Body(t, writer, []byte(testCase.body))
+			}))
+			defer server.Close()
+
+			row, found, response, err := postgrest.CollectSingleMaybe(
+				t.Context(),
+				newTestClient(t, server),
+				postgrest.RPC[[]int]("numbers").Rows(),
+			)
+			_, decodingFailed := errors.AsType[*json.UnmarshalTypeError](err)
+			var got string
+			switch {
+			case decodingFailed:
+				got = "a decoding error"
+			case errors.Is(err, postgrest.ErrTooManyRows):
+				got = "too many rows"
+			case err != nil:
+				t.Fatalf("CollectSingleMaybe: %v", err)
+			case found:
+				got = "found"
+			default:
+				got = "not found"
+			}
+			if got != testCase.want {
+				t.Fatalf("CollectSingleMaybe = (%v, %v, %v), want %s", row, found, err, testCase.want)
+			}
+			if !slices.Equal(row, testCase.wantRow) {
+				t.Errorf("row = %v, want %v", row, testCase.wantRow)
+			}
+			if found && response.HTTPStatus != http.StatusOK {
+				t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
+			}
+			if err != nil && (row != nil || found || response != (postgrest.Response{})) {
+				t.Errorf("CollectSingleMaybe = (%v, %v, %+v), want zero values beside the error", row, found, response)
+			}
+		})
+	}
+}
+
 // TestCollectSingleMaybeKeepsAFunctionCallPlural pins that a function call is
 // a read whatever its method: the POST reaches the wire with the default
 // plural Accept header, never the singular form.
