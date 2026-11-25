@@ -126,8 +126,8 @@ func TestGetClaimsNotBeforeClaim(t *testing.T) {
 		wantUserHits      int32
 		wantJWKSetFetches int32
 	}{
-		{"in the future, verified locally", signer.Token, now.Add(time.Hour), nil, 0, 1},
-		{"in the future, routed to the server", legacyToken, now.Add(time.Hour), nil, 1, 0},
+		{"in the future, verified locally", signer.Token, now.Add(time.Hour), auth.ErrNotYetValidJWT, 0, 0},
+		{"in the future, routed to the server", legacyToken, now.Add(time.Hour), auth.ErrNotYetValidJWT, 0, 0},
 		{"in the past", signer.Token, now.Add(-time.Hour), nil, 0, 1},
 		{"at the current second", signer.Token, now, nil, 0, 1},
 	}

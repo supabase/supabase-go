@@ -67,6 +67,10 @@ const ErrMalformedJWT = authError("JWT is malformed")
 // absent or in the past.
 const ErrExpiredJWT = authError("JWT has expired")
 
+// ErrNotYetValidJWT is reported by [Client.GetClaims] when the token's nbf
+// claim is in the future.
+const ErrNotYetValidJWT = authError("JWT is not yet valid")
+
 // ErrInvalidSignature is reported by [Client.GetClaims] when the token's
 // signature does not verify against the project's signing key.
 const ErrInvalidSignature = authError("JWT signature is invalid")

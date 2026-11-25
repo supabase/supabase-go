@@ -60,7 +60,7 @@ func TestErrorShapesFromServer(t *testing.T) {
 }
 
 func TestSentinelsAreDistinct(t *testing.T) {
-	all := []error{auth.ErrMissingJWT, auth.ErrMalformedJWT, auth.ErrExpiredJWT, auth.ErrInvalidSignature}
+	all := []error{auth.ErrMissingJWT, auth.ErrMalformedJWT, auth.ErrExpiredJWT, auth.ErrNotYetValidJWT, auth.ErrInvalidSignature}
 	for i := range all {
 		for j := range all {
 			if i != j && errors.Is(all[i], all[j]) {

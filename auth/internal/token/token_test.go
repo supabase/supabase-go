@@ -99,6 +99,7 @@ func TestClaimsTypedFields(t *testing.T) {
 		"aud":          "authenticated",
 		"exp":          int64(1_800_000_000),
 		"iat":          int64(1_700_000_000),
+		"nbf":          int64(1_750_000_000),
 		"role":         "authenticated",
 		"aal":          "aal2",
 		"session_id":   "session-id",
@@ -121,6 +122,9 @@ func TestClaimsTypedFields(t *testing.T) {
 	}
 	if !claims.IssuedAt().Equal(time.Unix(1_700_000_000, 0).UTC()) {
 		t.Errorf("IssuedAt = %v", claims.IssuedAt())
+	}
+	if !claims.NotBefore().Equal(time.Unix(1_750_000_000, 0).UTC()) {
+		t.Errorf("NotBefore = %v", claims.NotBefore())
 	}
 	if claims.Role() != "authenticated" {
 		t.Errorf("Role = %q", claims.Role())
@@ -157,6 +161,7 @@ func TestClaimsCustomClaims(t *testing.T) {
 	claims := claimsOf(t, map[string]any{
 		"sub":          "user-id",
 		"exp":          int64(1_800_000_000),
+		"nbf":          int64(1_750_000_000),
 		"app_metadata": map[string]any{"provider": "email"},
 		"amr":          []map[string]any{{"method": "password", "timestamp": 1_700_000_000}},
 		"tenant":       "acme",
@@ -175,6 +180,10 @@ func TestClaimsCustomClaims(t *testing.T) {
 	// A claim mapped to a typed accessor is not surfaced as a custom claim.
 	if _, ok := claims.CustomClaim("sub"); ok {
 		t.Error("CustomClaim(sub) found, want absent")
+	}
+	// The nbf claim is the exception: it is surfaced both ways.
+	if notBefore, ok := claims.CustomClaim("nbf"); !ok || notBefore != float64(1_750_000_000) {
+		t.Errorf("CustomClaim(nbf) = %v, %v, want it surfaced", notBefore, ok)
 	}
 }
 
@@ -210,5 +219,30 @@ func TestClaimsMissingIssuedAt(t *testing.T) {
 	})
 	if !claims.IssuedAt().IsZero() {
 		t.Errorf("IssuedAt = %v, want zero", claims.IssuedAt())
+	}
+}
+
+func TestClaimsMissingNotBefore(t *testing.T) {
+	claims := claimsOf(t, map[string]any{
+		"sub": "user-id",
+		"exp": int64(1_800_000_000),
+	})
+	if !claims.NotBefore().IsZero() {
+		t.Errorf("NotBefore = %v, want zero", claims.NotBefore())
+	}
+}
+
+func TestClaimsNotBeforeNotANumber(t *testing.T) {
+	// An nbf that is not a number names no time to judge the token against:
+	// Claims must fail rather than read the token as carrying none.
+	decoded, err := token.Decode(testkit.CraftToken(t, "ES256", "key-1", map[string]any{
+		"exp": int64(1_800_000_000),
+		"nbf": "tomorrow",
+	}))
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if _, err := decoded.Claims(); err == nil {
+		t.Error("Claims() error = nil, want a malformed-token error")
 	}
 }

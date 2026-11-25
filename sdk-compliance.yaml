@@ -400,6 +400,7 @@ features:
       - auth.ErrExpiredJWT
       - auth.ErrInvalidSignature
       - auth.ErrMalformedJWT
+      - auth.ErrNotYetValidJWT
       - auth.GetClaimsResult
       - auth.GetClaimsResult.Claims
       - auth.GetClaimsResult.Header

@@ -116,6 +116,7 @@ type Claims struct {
 	audience                    []string
 	expiresAt                   time.Time
 	issuedAt                    time.Time
+	notBefore                   time.Time
 	role                        string
 	authenticatorAssuranceLevel string
 	sessionID                   string
@@ -142,6 +143,10 @@ func (c Claims) ExpiresAt() time.Time { return c.expiresAt }
 // none.
 func (c Claims) IssuedAt() time.Time { return c.issuedAt }
 
+// NotBefore returns the nbf claim, or the zero time when the token carried
+// none.
+func (c Claims) NotBefore() time.Time { return c.notBefore }
+
 // Role returns the role claim.
 func (c Claims) Role() string { return c.role }
 
@@ -163,7 +168,7 @@ func (c Claims) Phone() string { return c.phone }
 func (c Claims) IsAnonymous() bool { return c.isAnonymous }
 
 // CustomClaim returns the named claim and whether the token carried it, for
-// claims outside the typed accessors. Values are as [encoding/json] decodes
+// claims outside standardClaimNames. Values are as [encoding/json] decodes
 // into an any, and nested maps and slices are shared references - a deliberate
 // shallowness the public surface documents.
 func (c Claims) CustomClaim(name string) (any, bool) {
@@ -197,6 +202,7 @@ type claimsWire struct {
 	Audience                    audience `json:"aud"`
 	ExpiresAt                   int64    `json:"exp"`
 	IssuedAt                    int64    `json:"iat"`
+	NotBefore                   int64    `json:"nbf"`
 	Role                        string   `json:"role"`
 	AuthenticatorAssuranceLevel string   `json:"aal"`
 	SessionID                   string   `json:"session_id"`
@@ -205,14 +211,15 @@ type claimsWire struct {
 	IsAnonymous                 bool     `json:"is_anonymous"`
 }
 
-// standardClaimNames are the claim keys claimsWire maps to typed accessors, so
-// Claims parsing can exclude them when building the custom-claim map.
+// standardClaimNames are the claim keys Claims parsing excludes when building
+// the custom-claim map: each key claimsWire maps to a typed accessor, except
+// nbf, which stays a custom claim too.
 var standardClaimNames = []string{
 	"iss", "sub", "aud", "exp", "iat", "role",
 	"aal", "session_id", "email", "phone", "is_anonymous",
 }
 
-// Claims parses the token's claims bytes. Claims beyond the typed accessors
+// Claims parses the token's claims bytes. Claims outside standardClaimNames
 // are retained for [Claims.CustomClaim]. Any error means the token is
 // malformed.
 func (t Token) Claims() (Claims, error) {
@@ -246,6 +253,9 @@ func (t Token) Claims() (Claims, error) {
 	}
 	if wire.IssuedAt != 0 {
 		claims.issuedAt = time.Unix(wire.IssuedAt, 0).UTC()
+	}
+	if wire.NotBefore != 0 {
+		claims.notBefore = time.Unix(wire.NotBefore, 0).UTC()
 	}
 	return claims, nil
 }
