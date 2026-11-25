@@ -21,9 +21,9 @@
 // set published at the project's remote /.well-known/jwks.json endpoint, which
 // means that the most common path needs no further per-request round trip to
 // the Auth server. A token the key set cannot verify locally (that is, one
-// signed with the legacy shared secret, or carrying an unrecognized key id) is
-// verified by the remote Supabase Auth server (the same round trip
-// [Client.GetUser] makes).
+// signed with the legacy shared secret, carrying an unrecognized key id or
+// matched to a key this client cannot verify with) is verified by the remote
+// Supabase Auth server (the same round trip [Client.GetUser] makes).
 //
 // Local verification works because Supabase signs tokens with an asymmetric
 // key pair. The remote Supabase Auth server holds the private half and signs

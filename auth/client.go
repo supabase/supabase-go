@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -95,8 +96,9 @@ func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.F
 // against the project's published key set, fetched from the
 // /.well-known/jwks.json discovery endpoint and cached for ten minutes; a token
 // the key set cannot verify locally - one signed with the legacy shared secret,
-// or carrying an unrecognized key id - is verified by the Auth server instead,
-// exactly as [Client.GetUser] verifies. Claims are returned only after one of
+// carrying an unrecognized key id or matched to a key this client cannot
+// verify with - is verified by the Auth server instead, exactly as
+// [Client.GetUser] verifies. Claims are returned only after one of
 // those verifications succeeds, with the [JWTHeader] and signature describing
 // the token envelope on both routes.
 //
@@ -118,7 +120,8 @@ func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.F
 //     JSON header and JSON claims.
 //   - [ErrExpiredJWT] when the exp claim is absent or in the past.
 //   - [ErrNotYetValidJWT] when the nbf claim is in the future.
-//   - [ErrInvalidSignature] when local signature verification fails.
+//   - [ErrInvalidSignature] when local signature verification fails, or the
+//     token's header names an algorithm other than its key's.
 //
 // A server-verified rejection surfaces as [*Error] with the Auth server's
 // response, and a JWK Set discovery failure is returned wrapped.
@@ -142,15 +145,13 @@ func (c *Client) GetClaims(ctx context.Context, jwt string) (*GetClaimsResult, e
 		return nil, ErrNotYetValidJWT
 	}
 	header := JWTHeader{inner: decoded.Header()}
+	result := &GetClaimsResult{claims: &Claims{inner: claims}, header: header, signature: decoded.Signature()}
 
 	// A token the local key set cannot verify - the legacy shared secret (an HS*
 	// or absent alg) or one without a key id - is verified by the Auth server,
 	// which trusts the returned claims only when it answers 200.
 	if !key.Supported(header.Algorithm()) || header.KeyID() == "" {
-		if _, err = c.GetUser(ctx, jwt); err != nil {
-			return nil, err
-		}
-		return &GetClaimsResult{claims: &Claims{inner: claims}, header: header, signature: decoded.Signature()}, nil
+		return c.verifyOnServer(ctx, jwt, result)
 	}
 
 	signingKey, found, err := c.keys.Key(ctx, header.KeyID(), c.now())
@@ -161,16 +162,28 @@ func (c *Client) GetClaims(ctx context.Context, jwt string) (*GetClaimsResult, e
 	// or a key the server knows but the discovery endpoint has not yet
 	// advertised - defers to server verification rather than failing locally.
 	if !found {
-		if _, err := c.GetUser(ctx, jwt); err != nil {
-			return nil, err
-		}
-		return &GetClaimsResult{claims: &Claims{inner: claims}, header: header, signature: decoded.Signature()}, nil
+		return c.verifyOnServer(ctx, jwt, result)
 	}
 
-	if err := signingKey.Verify(decoded.SigningInput(), decoded.Signature()); err != nil {
+	// A key this client cannot verify with - an algorithm or curve it lacks, or
+	// material that does not import - defers to the server too, the authority
+	// on what it signs with.
+	switch err := signingKey.Verify(header.Algorithm(), decoded.SigningInput(), decoded.Signature()); {
+	case errors.Is(err, key.ErrUnusable):
+		return c.verifyOnServer(ctx, jwt, result)
+	case err != nil:
 		return nil, ErrInvalidSignature
 	}
-	return &GetClaimsResult{claims: &Claims{inner: claims}, header: header, signature: decoded.Signature()}, nil
+	return result, nil
+}
+
+// verifyOnServer returns result once the Auth server accepts jwt, as
+// [Client.GetUser] verifies it, and the server's rejection otherwise.
+func (c *Client) verifyOnServer(ctx context.Context, jwt string, result *GetClaimsResult) (*GetClaimsResult, error) {
+	if _, err := c.GetUser(ctx, jwt); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // GetClaimsResult is [Client.GetClaims]'s answer: the verified claims and the

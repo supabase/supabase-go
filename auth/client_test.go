@@ -105,13 +105,13 @@ func TestGetClaimsAlgorithmBinding(t *testing.T) {
 		wantUserHits      int32
 		wantJWKSetFetches int32
 	}{
-		{"header naming another algorithm than its key's", testkit.NewRS256(t, "kid-1").ProposingAlgorithm("ES256"), nil, nil, 0, 1},
-		{"header naming Ed25519", testkit.NewEdDSA(t, "kid-1").ProposingAlgorithm("Ed25519"), nil, nil, 1, 0},
-		{"header naming Ed448 for an Ed25519 key", testkit.NewEdDSA(t, "kid-1").ProposingAlgorithm("Ed448"), nil, nil, 1, 0},
-		{"key whose alg is Ed25519", testkit.NewEdDSA(t, "kid-1"), map[string]any{"alg": "Ed25519"}, auth.ErrInvalidSignature, 0, 1},
-		{"Ed448 key", testkit.NewEdDSA(t, "kid-1"), map[string]any{"crv": "Ed448", "x": ed448PublicKey}, auth.ErrInvalidSignature, 0, 1},
-		{"key whose alg names another curve than its crv", testkit.NewEdDSA(t, "kid-1"), map[string]any{"alg": "Ed448"}, auth.ErrInvalidSignature, 0, 1},
-		{"key whose material does not import", testkit.NewES256(t, "kid-1"), map[string]any{"x": "%"}, auth.ErrInvalidSignature, 0, 1},
+		{"header naming another algorithm than its key's", testkit.NewRS256(t, "kid-1").ProposingAlgorithm("ES256"), nil, auth.ErrInvalidSignature, 0, 1},
+		{"header naming Ed25519", testkit.NewEdDSA(t, "kid-1").ProposingAlgorithm("Ed25519"), nil, nil, 0, 1},
+		{"header naming Ed448 for an Ed25519 key", testkit.NewEdDSA(t, "kid-1").ProposingAlgorithm("Ed448"), nil, auth.ErrInvalidSignature, 0, 1},
+		{"key whose alg is Ed25519", testkit.NewEdDSA(t, "kid-1"), map[string]any{"alg": "Ed25519"}, nil, 0, 1},
+		{"Ed448 key", testkit.NewEdDSA(t, "kid-1"), map[string]any{"crv": "Ed448", "x": ed448PublicKey}, nil, 1, 1},
+		{"key whose alg names another curve than its crv", testkit.NewEdDSA(t, "kid-1"), map[string]any{"alg": "Ed448"}, nil, 1, 1},
+		{"key whose material does not import", testkit.NewES256(t, "kid-1"), map[string]any{"x": "%"}, nil, 1, 1},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
