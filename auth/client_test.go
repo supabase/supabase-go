@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/supabase/supabase-go/auth"
 	"github.com/supabase/supabase-go/auth/internal/testkit"
@@ -104,6 +105,60 @@ func TestGetClaimsRejectsExpired(t *testing.T) {
 	delete(claims, "exp")
 	if _, err := client.GetClaims(context.Background(), signer.Token(t, claims)); !errors.Is(err, auth.ErrExpiredJWT) {
 		t.Errorf("GetClaims (absent exp) = %v, want ErrExpiredJWT", err)
+	}
+}
+
+// TestGetClaimsNotBeforeClaim pins how GetClaims treats a token's nbf claim
+// on each verification route: the outcome and the requests made in reaching
+// it.
+func TestGetClaimsNotBeforeClaim(t *testing.T) {
+	signer := testkit.NewES256(t, "kid-1")
+	legacyToken := func(t *testing.T, claims map[string]any) string {
+		t.Helper()
+		return testkit.CraftToken(t, "HS256", "", claims)
+	}
+	now := time.Now()
+	testCases := []struct {
+		name              string
+		mint              func(t *testing.T, claims map[string]any) string
+		notBefore         time.Time
+		wantErr           error
+		wantUserHits      int32
+		wantJWKSetFetches int32
+	}{
+		{"in the future, verified locally", signer.Token, now.Add(time.Hour), nil, 0, 1},
+		{"in the future, routed to the server", legacyToken, now.Add(time.Hour), nil, 1, 0},
+		{"in the past", signer.Token, now.Add(-time.Hour), nil, 0, 1},
+		{"at the current second", signer.Token, now, nil, 0, 1},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			mock := newMockAuthServer(t, signer)
+			client := mock.client(t)
+			claims := testkit.DefaultClaims()
+			claims["nbf"] = testCase.notBefore.Unix()
+
+			result, err := client.GetClaims(context.Background(), testCase.mint(t, claims))
+			if hits := mock.userHits.Load(); hits != testCase.wantUserHits {
+				t.Errorf("user endpoint hit %d times, want %d", hits, testCase.wantUserHits)
+			}
+			if fetches := mock.jwkSetFetches.Load(); fetches != testCase.wantJWKSetFetches {
+				t.Errorf("JWK Set fetched %d times, want %d", fetches, testCase.wantJWKSetFetches)
+			}
+			if testCase.wantErr != nil {
+				if result != nil || !errors.Is(err, testCase.wantErr) {
+					t.Errorf("GetClaims = (%v, %v), want (nil, %v)", result, err, testCase.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("GetClaims: %v", err)
+			}
+			notBefore, found := result.Claims().CustomClaim("nbf")
+			if !found || notBefore != float64(testCase.notBefore.Unix()) {
+				t.Errorf("CustomClaim(nbf) = (%v, %v), want (%d, true)", notBefore, found, testCase.notBefore.Unix())
+			}
+		})
 	}
 }
 
