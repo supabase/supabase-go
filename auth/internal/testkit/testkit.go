@@ -62,6 +62,13 @@ func (s Signer) Token(t *testing.T, claims map[string]any) string {
 	return signingInput + "." + base64URL(s.sign(signingInput))
 }
 
+// ProposingAlgorithm returns a copy of the signer whose tokens propose alg in
+// their header, which need not be the algorithm its key signs with.
+func (s Signer) ProposingAlgorithm(alg string) Signer {
+	s.algorithm = alg
+	return s
+}
+
 // TamperedToken mints a valid token and then corrupts its signature so
 // verification fails while the token stays structurally valid.
 func (s Signer) TamperedToken(t *testing.T, claims map[string]any) string {

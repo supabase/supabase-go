@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -88,6 +89,53 @@ func TestGetClaimsRejectsTamperedSignature(t *testing.T) {
 	}
 	if hits := mock.userHits.Load(); hits != 0 {
 		t.Errorf("user endpoint hit %d times, want 0 - a bad signature must not fall back", hits)
+	}
+}
+
+// TestGetClaimsAlgorithmBinding pins how GetClaims treats a token by the
+// algorithm its matched key binds and the one its header names: the outcome
+// and the requests made in reaching it.
+func TestGetClaimsAlgorithmBinding(t *testing.T) {
+	ed448PublicKey := base64.RawURLEncoding.EncodeToString(make([]byte, 57))
+	testCases := []struct {
+		name              string
+		signer            testkit.Signer
+		jwkOverrides      map[string]any
+		wantErr           error
+		wantUserHits      int32
+		wantJWKSetFetches int32
+	}{
+		{"header naming another algorithm than its key's", testkit.NewRS256(t, "kid-1").ProposingAlgorithm("ES256"), nil, nil, 0, 1},
+		{"header naming Ed25519", testkit.NewEdDSA(t, "kid-1").ProposingAlgorithm("Ed25519"), nil, nil, 1, 0},
+		{"header naming Ed448 for an Ed25519 key", testkit.NewEdDSA(t, "kid-1").ProposingAlgorithm("Ed448"), nil, nil, 1, 0},
+		{"key whose alg is Ed25519", testkit.NewEdDSA(t, "kid-1"), map[string]any{"alg": "Ed25519"}, auth.ErrInvalidSignature, 0, 1},
+		{"Ed448 key", testkit.NewEdDSA(t, "kid-1"), map[string]any{"crv": "Ed448", "x": ed448PublicKey}, auth.ErrInvalidSignature, 0, 1},
+		{"key whose alg names another curve than its crv", testkit.NewEdDSA(t, "kid-1"), map[string]any{"alg": "Ed448"}, auth.ErrInvalidSignature, 0, 1},
+		{"key whose material does not import", testkit.NewES256(t, "kid-1"), map[string]any{"x": "%"}, auth.ErrInvalidSignature, 0, 1},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			mock := newMockAuthServer(t, testCase.signer)
+			maps.Copy(mock.keys[0], testCase.jwkOverrides)
+			client := mock.client(t)
+
+			result, err := client.GetClaims(context.Background(), testCase.signer.Token(t, testkit.DefaultClaims()))
+			if hits := mock.userHits.Load(); hits != testCase.wantUserHits {
+				t.Errorf("user endpoint hit %d times, want %d", hits, testCase.wantUserHits)
+			}
+			if fetches := mock.jwkSetFetches.Load(); fetches != testCase.wantJWKSetFetches {
+				t.Errorf("JWK Set fetched %d times, want %d", fetches, testCase.wantJWKSetFetches)
+			}
+			if testCase.wantErr != nil {
+				if result != nil || !errors.Is(err, testCase.wantErr) {
+					t.Errorf("GetClaims = (%v, %v), want (nil, %v)", result, err, testCase.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("GetClaims: %v", err)
+			}
+		})
 	}
 }
 
