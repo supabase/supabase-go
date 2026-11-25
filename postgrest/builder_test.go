@@ -1083,8 +1083,8 @@ func TestCollectSingleMaybeWriteIsCountedByTheServer(t *testing.T) {
 // TestCollectSingleMaybeWriteAffectingNoRow pins the server's 406 for a write
 // that affected no row, whose details carry "0 rows" as whole words in either
 // wording PostgREST has used, as the empty result with no error and a
-// Response carrying that status and no count. A count of ten rows is not no
-// row.
+// Response reporting 200 in place of that status, with no count. A count of
+// ten rows is not no row.
 func TestCollectSingleMaybeWriteAffectingNoRow(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -1114,7 +1114,7 @@ func TestCollectSingleMaybeWriteAffectingNoRow(t *testing.T) {
 			if found || row != (instrument{}) {
 				t.Errorf("CollectSingleMaybe = (%+v, %v), want the empty result", row, found)
 			}
-			if want := (postgrest.Response{HTTPStatus: http.StatusNotAcceptable, Count: -1}); response != want {
+			if want := (postgrest.Response{HTTPStatus: http.StatusOK, Count: -1}); response != want {
 				t.Errorf("response = %+v, want %+v", response, want)
 			}
 		})
