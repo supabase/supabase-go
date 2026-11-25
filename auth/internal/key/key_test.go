@@ -209,3 +209,28 @@ func TestParseSetMalformed(t *testing.T) {
 		t.Error("ParseSet error = nil, want the decode error")
 	}
 }
+
+// TestParseSetKeysArray pins how ParseSet reads a JSON document by its keys
+// array, and by the lack of one.
+func TestParseSetKeysArray(t *testing.T) {
+	testCases := []struct {
+		document string
+		wantErr  bool
+	}{
+		{`{"keys":[]}`, false},
+		{`{}`, false},
+		{`{"keys":null}`, false},
+		{`null`, false},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.document, func(t *testing.T) {
+			keys, err := key.ParseSet([]byte(testCase.document))
+			if (err != nil) != testCase.wantErr {
+				t.Errorf("ParseSet error = %v, want an error: %v", err, testCase.wantErr)
+			}
+			if len(keys) != 0 {
+				t.Errorf("ParseSet returned %d keys, want none", len(keys))
+			}
+		})
+	}
+}

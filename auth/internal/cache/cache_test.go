@@ -88,6 +88,67 @@ func TestCacheFruitlessForcedFetchesBackOff(t *testing.T) {
 	lookup(31*time.Second, 6)       // 16s elapsed: one fetch per backstop from here
 }
 
+// TestCacheFailedForcedFetch pins what a forced fetch that fails leaves for the
+// next miss while the endpoint keeps failing.
+func TestCacheFailedForcedFetch(t *testing.T) {
+	published, err := key.ParseSet(testkit.JWKSetDocument(t, testkit.NewES256(t, "kid-1")))
+	if err != nil {
+		t.Fatalf("ParseSet: %v", err)
+	}
+	fetchFailure := errors.New("discovery unavailable")
+	var fetches atomic.Int32
+	keyCache := cache.NewCache(func(_ context.Context) ([]key.Key, error) {
+		// The first fetch succeeds and every later one fails.
+		if fetches.Add(1) > 1 {
+			return nil, fetchFailure
+		}
+		return published, nil
+	})
+	base := time.Now()
+
+	if _, found, err := keyCache.Key(context.Background(), "kid-1", base); err != nil || !found {
+		t.Fatalf("first lookup: found=%v err=%v", found, err)
+	}
+	lookup := func(offset time.Duration, wantErr error, wantFetches int32) {
+		t.Helper()
+		if _, found, err := keyCache.Key(context.Background(), "bogus", base.Add(offset)); found || !errors.Is(err, wantErr) {
+			t.Fatalf("lookup at +%v: found=%v err=%v, want not found and %v", offset, found, err, wantErr)
+		}
+		if fetches.Load() != wantFetches {
+			t.Errorf("fetches after lookup at +%v = %d, want %d", offset, fetches.Load(), wantFetches)
+		}
+	}
+
+	lookup(time.Second, fetchFailure, 2) // the forced fetch fails, and so does the lookup
+	lookup(time.Second, fetchFailure, 3) // no window opened, so the next miss fetches again
+}
+
+// TestCacheExpiredDownloadAndTheBackoff pins how a download into an expired
+// cache moves the window that fruitless forced fetches open.
+func TestCacheExpiredDownloadAndTheBackoff(t *testing.T) {
+	fetches, fetch := staticFetch(t, testkit.JWKSetDocument(t, testkit.NewES256(t, "kid-1")))
+	keyCache := cache.NewCache(fetch)
+	base := time.Now()
+
+	lookup := func(offset time.Duration, keyID string, wantFetches int32) {
+		t.Helper()
+		if _, _, err := keyCache.Key(context.Background(), keyID, base.Add(offset)); err != nil {
+			t.Fatalf("lookup of %s at +%v: %v", keyID, offset, err)
+		}
+		if fetches.Load() != wantFetches {
+			t.Errorf("fetches after lookup of %s at +%v = %d, want %d", keyID, offset, fetches.Load(), wantFetches)
+		}
+	}
+
+	lookup(0, "kid-1", 1)                          // first download
+	lookup(time.Second, "bogus", 2)                // forced, fruitless: a 1s window
+	lookup(11*time.Minute, "bogus", 3)             // expired download lacking the key id: the window doubles to 2s
+	lookup(11*time.Minute+time.Second, "bogus", 3) // inside 2s: no fetch
+	lookup(22*time.Minute, "kid-1", 4)             // expired download finding its key id: the window closes
+	lookup(22*time.Minute, "bogus", 5)             // forced, fruitless: the window reopens at 1s
+	lookup(22*time.Minute+time.Second, "bogus", 6) // 1s elapsed: forced again
+}
+
 func TestCacheRefetchOnUnknownKeyID(t *testing.T) {
 	first := testkit.NewES256(t, "kid-1")
 	second := testkit.NewES256(t, "kid-2")
