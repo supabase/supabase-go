@@ -1,7 +1,6 @@
 package asuser
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
@@ -176,14 +175,9 @@ func TestRPCArrayArgumentElements(t *testing.T) {
 	}
 }
 
-// TestCollectSingleMaybeFunctionArrayValue pins what a slice Row receives from
-// a function's single array value against real PostgREST, which counts that
-// value as one row: echo_text_array answers its text[] argument.
-//
-// The decoding error it expects is a bug, not the behavior wanted. The spec
-// resolves one row whose body is not a one-element array to the body whole,
-// so the call should find the array, and fixing CollectSingleMaybe flips this
-// test to expect that.
+// TestCollectSingleMaybeFunctionArrayValue proves what a slice Row receives
+// from a function's single array value against real PostgREST, which counts
+// that value as one row: echo_text_array answers its text[] argument.
 func TestCollectSingleMaybeFunctionArrayValue(t *testing.T) {
 	client := newIntegrationClient(t)
 	instruments := []string{"violin", "viola", "cello"}
@@ -193,11 +187,14 @@ func TestCollectSingleMaybeFunctionArrayValue(t *testing.T) {
 		client,
 		postgrest.RPC[[]string]("echo_text_array").Arguments(map[string]any{"elements": instruments}).Rows(),
 	)
-	if _, ok := errors.AsType[*json.UnmarshalTypeError](err); !ok {
-		t.Fatalf("CollectSingleMaybe error = %v, want a decoding error", err)
+	if err != nil {
+		t.Fatalf("CollectSingleMaybe: %v", err)
 	}
-	if row != nil || found || response != (postgrest.Response{}) {
-		t.Errorf("CollectSingleMaybe = (%v, %v, %+v), want zero values", row, found, response)
+	if !found || !slices.Equal(row, instruments) {
+		t.Errorf("CollectSingleMaybe = (%v, %v), want the array found whole", row, found)
+	}
+	if response.HTTPStatus != http.StatusOK {
+		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
 	}
 }
 

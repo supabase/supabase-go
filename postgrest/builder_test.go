@@ -1023,10 +1023,10 @@ func TestCollectSingleMaybeDecodesASliceRow(t *testing.T) {
 		want         string
 		wantRow      []int
 	}{
-		{"a function's array value", "0-0/*", `[1,2,3]`, "a decoding error", nil},
+		{"a function's array value", "0-0/*", `[1,2,3]`, "found", []int{1, 2, 3}},
 		{"a function's empty array value", "0-0/*", `[]`, "found", []int{}},
 		{"a function's one-element array value", "0-0/*", `[5]`, "a decoding error", nil},
-		{"two rows", "0-1/2", `[1,2]`, "a decoding error", nil},
+		{"two rows", "0-1/2", `[1,2]`, "too many rows", nil},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
