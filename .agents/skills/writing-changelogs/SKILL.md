@@ -13,4 +13,6 @@ Each published module owns a `CHANGELOG.md` beside its code, and a user-facing c
 
 The entry speaks to a consumer deciding whether and how to upgrade. One lead line names the surface, terse bullets name its key entry points, and everything discoverable from the entry points themselves - signatures, field lists, wire behavior, doc-comment content - stays out. When more depth genuinely helps, link the canonical source rather than restating it.
 
+A lone item rarely needs a bullet, since the lead line can carry it, whether a single new identifier or a single change in behavior. Mark behavior that changed with "now", as in "now fails with `ErrNotYetValidJWT`", so a human reader sees at a glance what differs after upgrading. An entry that aligns our implementation with a spec names the capability as well as linking the spec, by its fully qualified id from `sdk-compliance.yaml` written as code, such as `auth.session.get_claims`.
+
 Completeness is the failure to guard against: a draft naming every identifier a change introduced buries the few calls a consumer starts from beneath everything that arrived with them. Before finishing, strike each identifier that arrived only as part of another new one the entry already names.
