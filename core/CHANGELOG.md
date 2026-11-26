@@ -13,6 +13,8 @@ Refer to [GitHub `../DEVELOPMENT.md`](https://github.com/supabase/supabase-go/bl
 
 The HTTP client a `Configuration` holds now follows a redirect only within the request's scheme and host, port included, whatever the client's `CheckRedirect` policy. Before, it sent the project's API key, the `WithHeader` headers and, on a 307 or 308, the request body to whichever host a redirect named. A domain client now reports a redirect anywhere else as it reports any other non-2xx response.
 
+An `ErrInvalidURL` error now leaves out the project URL it rejects. Before, it quoted that URL, so a secret key passed in its place reached any log that recorded the error. When the URL fails to parse, the error now wraps the cause of the failure in place of the `*url.Error`, which quotes the URL too, so the error no longer matches `*url.Error`.
+
 ## `v0.1.0-alpha.4` (2026-11-16)
 
 ### Changed

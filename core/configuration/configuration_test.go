@@ -31,11 +31,11 @@ func TestNewValidation(t *testing.T) {
 	}
 }
 
-// TestNewSwappedURLAndKey pins a security defect. When a caller passes the
-// project URL and the secret key the wrong way round, New rejects the key it
-// received as the project URL with an error whose text quotes the key, so a
-// program that logs the error writes the key to its log. The text quotes the
-// key in both of the ways New can reject it:
+// TestNewSwappedURLAndKey pins the error New returns when a caller passes
+// the project URL and the secret key the wrong way round. New rejects the
+// key it received as the project URL with an error whose text never quotes
+// the key, so a program that logs the error keeps the key out of its log.
+// That holds in both of the ways New can reject it:
 //   - the key fails the check for an absolute http or https URL
 //   - the key fails to parse, as it does when it ends in the newline that a
 //     key read from a file can keep
@@ -54,9 +54,8 @@ func TestNewSwappedURLAndKey(t *testing.T) {
 			if !errors.Is(err, configuration.ErrInvalidURL) {
 				t.Fatalf("configuration.New error = %v, want errors.Is %v", err, configuration.ErrInvalidURL)
 			}
-			// Wrongly, the error text quotes the key.
-			if !strings.Contains(err.Error(), key) {
-				t.Errorf("configuration.New error = %q, want it to quote the key", err)
+			if strings.Contains(err.Error(), key) {
+				t.Errorf("configuration.New error = %q, want it free of the key", err)
 			}
 		})
 	}

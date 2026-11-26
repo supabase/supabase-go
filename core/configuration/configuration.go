@@ -4,6 +4,7 @@ package configuration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -29,8 +30,9 @@ const (
 	ErrMissingKey = configurationError("API key is required")
 
 	// ErrInvalidURL is returned when the project URL cannot be used as an
-	// absolute HTTP or HTTPS base URL. The underlying parse error, when there is
-	// one, is wrapped and recoverable with [errors.Unwrap].
+	// absolute HTTP or HTTPS base URL. The error never repeats the URL. When
+	// the URL fails to parse, the error wraps the cause, which can quote the
+	// malformed part of the URL, such as a port.
 	ErrInvalidURL = configurationError("project URL is invalid")
 )
 
@@ -123,8 +125,7 @@ func WithLogger(logger *slog.Logger) Option {
 // Returns one of these sentinel errors, when inputs are unusable:
 //   - [ErrMissingURL] when rawURL is empty.
 //   - [ErrMissingKey] when apiKey is empty.
-//   - [ErrInvalidURL] when rawURL is not an absolute http or https URL. The
-//     underlying parse failure, when there is one, is wrapped.
+//   - [ErrInvalidURL] when rawURL is not an absolute http or https URL.
 //
 // See [WithHTTPClient], [WithHeader], [WithRetry] and [WithLogger] for the
 // available options.
@@ -138,10 +139,14 @@ func New(entryModulePath core.ModulePath, rawURL, apiKey string, options ...Opti
 
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
+		// A *url.Error repeats the URL it failed to parse, so only its cause is wrapped.
+		if parseError, ok := errors.AsType[*url.Error](err); ok {
+			err = parseError.Err
+		}
 		return nil, fmt.Errorf("%w: %w", ErrInvalidURL, err)
 	}
 	if (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
-		return nil, fmt.Errorf("%w: must be an absolute http(s) URL, got %q", ErrInvalidURL, rawURL)
+		return nil, fmt.Errorf("%w: must be an absolute http(s) URL", ErrInvalidURL)
 	}
 
 	configuration := &Configuration{
