@@ -123,6 +123,11 @@ type UserAttributes struct {
 
 	// BanDuration bans the user for a duration given in [time.ParseDuration]
 	// syntax, such as "24h". The literal "none" lifts a ban.
+	//
+	// A banned user can neither sign in nor refresh a session, and
+	// [Client.GetUser] refuses their access tokens. A token issued before the
+	// ban still passes local verification by [Client.GetClaims] until it
+	// expires.
 	BanDuration string `json:"ban_duration,omitzero"`
 
 	// ID sets the created user's id, a UUID in canonical hyphenated form, in

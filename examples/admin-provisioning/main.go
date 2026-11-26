@@ -138,12 +138,23 @@ func reconcile(ctx context.Context, admin *auth.Admin) error {
 	return nil
 }
 
-// offboard resolves the user's id from the profiles mirror - one
-// PostgREST query as the service role - then bans sign-ins so access ends the
-// moment the decision is made, and deletes the account. Deletion also removes
-// the account's identities, sessions and factors, and the mirror row goes
-// with it through its foreign key; rows other services hold against the id
-// are governed by those services' own schemas.
+// offboard resolves the user's id from the profiles mirror - one PostgREST
+// query as the service role. The mirror is only a copy, so offboard has Auth
+// confirm that the account still holds the address. It then bans the account
+// and deletes it.
+//
+// Deletion also removes the account's identities, sessions and factors, and
+// the mirror row goes with it through its foreign key. Rows other services
+// hold against the id are governed by those services' own schemas, and one
+// that references the id without on delete cascade fails the delete. When it
+// does, the ban still keeps the account from signing in or refreshing a
+// session.
+//
+// Neither the ban nor the delete revokes an access token already issued, and
+// one stays valid until it expires, an hour after issue by default. PostgREST
+// and a local verification by auth.Client.GetClaims accept it until then. A
+// route that must refuse it at once checks it with auth.Client.GetUser, which
+// asks Auth.
 func offboard(ctx context.Context, admin *auth.Admin, database *postgrest.Client, email string) error {
 	user, found, _, err := postgrest.CollectSingleMaybe(ctx, database,
 		postgrest.From[profile]("profiles").Select("id").Eq("email", email))
@@ -153,8 +164,16 @@ func offboard(ctx context.Context, admin *auth.Admin, database *postgrest.Client
 	if !found {
 		return fmt.Errorf("no user holds %s", email)
 	}
+	account, err := admin.GetUser(ctx, user.ID)
+	if err != nil {
+		return fmt.Errorf("fetching user: %w", err)
+	}
+	if account.User().Email() != email {
+		return fmt.Errorf("user %s no longer holds %s", user.ID, email)
+	}
 
-	if _, err := admin.UpdateUser(ctx, user.ID, auth.UserAttributes{BanDuration: "24h"}); err != nil {
+	// Auth has no ban without an end, so a hundred years stands in for one.
+	if _, err := admin.UpdateUser(ctx, user.ID, auth.UserAttributes{BanDuration: "876000h"}); err != nil {
 		return fmt.Errorf("banning user: %w", err)
 	}
 	if _, err := admin.DeleteUser(ctx, user.ID); err != nil {
