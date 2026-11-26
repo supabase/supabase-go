@@ -101,7 +101,8 @@ func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.F
 // the token envelope on both routes.
 //
 // Verification establishes authenticity - the token was signed for this
-// project and has not expired - not authorization. Policy over claim values
+// project, has not expired and is not presented before its nbf claim allows -
+// not authorization. Policy over claim values
 // such as audience, issuer or role stays with the caller, decided on the
 // verified [Claims] through its accessors, because those values vary
 // legitimately per deployment: the audience is configurable and third-party
@@ -116,6 +117,7 @@ func jwkSetFetch(httpClient configuration.HTTPClient, endpoint *url.URL) cache.F
 //   - [ErrMalformedJWT] when jwt is not a three-part base64url JWT carrying a
 //     JSON header and JSON claims.
 //   - [ErrExpiredJWT] when the exp claim is absent or in the past.
+//   - [ErrNotYetValidJWT] when the nbf claim is in the future.
 //   - [ErrInvalidSignature] when local signature verification fails.
 //
 // A server-verified rejection surfaces as [*Error] with the Auth server's
@@ -135,6 +137,9 @@ func (c *Client) GetClaims(ctx context.Context, jwt string) (*GetClaimsResult, e
 	}
 	if claims.ExpiresAt().IsZero() || !claims.ExpiresAt().After(c.now()) {
 		return nil, ErrExpiredJWT
+	}
+	if claims.NotBefore().After(c.now()) {
+		return nil, ErrNotYetValidJWT
 	}
 	header := JWTHeader{inner: decoded.Header()}
 

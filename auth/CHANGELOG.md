@@ -7,11 +7,19 @@ Refer to [GitHub `../DEVELOPMENT.md`](https://github.com/supabase/supabase-go/bl
 
 ## Unreleased
 
+### Added
+
+A sentinel for a token that is not valid yet, so that failure can be told apart from the others `Client.GetClaims` now returns `ErrNotYetValidJWT`.
+
 ### Changed
 
 Password sign-in now takes a method per identifier, aligning with the sign-up and one-time code sign-in signatures:
 
 - `Client.SignInWithPasswordByEmail` and `Client.SignInWithPasswordByPhone` (were `Client.SignInWithPassword` with `PasswordCredentials`)
+
+### Fixed
+
+Aligns our implementation of `Client.GetClaims` with the not-before rule of the [cross-SDK claims verification spec](https://github.com/supabase/sdk/blob/16c8713d21a14625dfeac6c7afa558399a646be4/packages/capability-matrix/specs/auth/session/get_claims.md) for the `auth.session.get_claims` capability, so a token whose `nbf` claim is in the future now fails with `ErrNotYetValidJWT` before any request is sent, where before one verified locally was accepted.
 
 ## `v0.1.0-alpha.5` (2026-11-16)
 

@@ -36,6 +36,8 @@ func ExampleClient_GetClaims() {
 	switch {
 	case errors.Is(err, auth.ErrExpiredJWT):
 		fmt.Println("token expired - ask the client to refresh")
+	case errors.Is(err, auth.ErrNotYetValidJWT):
+		fmt.Println("token not valid yet - reject")
 	case errors.Is(err, auth.ErrMalformedJWT), errors.Is(err, auth.ErrInvalidSignature):
 		fmt.Println("token forged or corrupt - reject")
 	case err != nil:
