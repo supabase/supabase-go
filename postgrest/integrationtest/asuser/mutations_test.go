@@ -794,7 +794,7 @@ func TestCollectSingleMaybeUpdateMatchingOneRow(t *testing.T) {
 // TestCollectSingleMaybeUpdateMatchingNoRows proves a write through
 // CollectSingleMaybe that matches nothing against real PostgREST: the server
 // refuses it with 406, which resolves to the empty result with no error and a
-// Response carrying that status and no count.
+// Response reporting 200 in place of that status, with no count.
 func TestCollectSingleMaybeUpdateMatchingNoRows(t *testing.T) {
 	client := newIntegrationClient(t)
 
@@ -812,7 +812,7 @@ func TestCollectSingleMaybeUpdateMatchingNoRows(t *testing.T) {
 	if found || row != (repertoirePiece{}) {
 		t.Errorf("CollectSingleMaybe = (%+v, %v), want the empty result", row, found)
 	}
-	if want := (postgrest.Response{HTTPStatus: http.StatusNotAcceptable, Count: -1}); response != want {
+	if want := (postgrest.Response{HTTPStatus: http.StatusOK, Count: -1}); response != want {
 		t.Errorf("response = %+v, want %+v", response, want)
 	}
 }

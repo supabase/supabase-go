@@ -8,11 +8,13 @@ import (
 // Response carries the metadata of a successfully executed query.
 type Response struct {
 	// HTTPStatus is the HTTP status code of the response. It is in the 2xx
-	// range, since a non-2xx answer surfaces as an [*Error] instead, except
-	// the 406 [CollectSingleMaybe] resolves to the empty result of a write
-	// that affected no row.
+	// range, since a non-2xx answer surfaces as an [*Error] instead.
 	// PostgREST answers 206 (Partial Content) rather than 200 only when a
 	// requested count reveals the response to be a window of a larger result.
+	//
+	// It is the status the server sent in every case but one: a write through
+	// [CollectSingleMaybe] that affects no row reports 200, where the server
+	// answered 406.
 	HTTPStatus int
 
 	// Count is the total number of rows matching the query when the server

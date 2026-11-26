@@ -104,11 +104,12 @@ const singularMediaType = "application/vnd.pgrst.object+json"
 //
 // A write - an insert, upsert, update or delete - travels the wire in
 // PostgREST's singular response format, so the server counts the rows it
-// affects inside the transaction and rolls back a write that affects more
-// than one, which then changes nothing and fails with the server's [*Error]
-// wrapping [ErrTooManyRows]. A write that affects no row is answered 406 by
-// the server, which resolves to the empty result with a Response carrying
-// that status and no count.
+// affects inside the transaction:
+//   - A write that affects more than one row is rolled back, so it changes
+//     nothing, and fails with the server's [*Error] wrapping [ErrTooManyRows].
+//   - A write that affects no row is answered with HTTP 406 by the server and
+//     yields the empty result. The error is nil, and the Response reports
+//     HTTP status 200 in place of that 406, with no count.
 //
 // A read, or a function call whatever its method, travels in the default
 // array format exactly as [Collect]'s does, and its rows are counted from
@@ -137,15 +138,15 @@ func isWrite(requestState request.Request) bool {
 
 // singleMaybeWrite sends the write in the singular format and resolves the
 // server's count: the object as the row, a 406 for no row as the empty result
-// and a 406 for more than one row as the server's [*Error] wrapping
-// [ErrTooManyRows].
+// under a [Response] reporting 200 and a 406 for more than one row as the
+// server's [*Error] wrapping [ErrTooManyRows].
 func singleMaybeWrite[Row any](ctx context.Context, client *Client, requestState request.Request, options ...Option) (Row, bool, Response, error) {
 	options = append(slices.Clip(options), withAccept(singularMediaType))
 	row, response, err := decodeWhole[Row](ctx, client, requestState, options...)
 	err = classifySingular(err)
 	switch {
 	case errors.Is(err, ErrNoRows):
-		return row, false, Response{HTTPStatus: http.StatusNotAcceptable, Count: -1}, nil
+		return row, false, Response{HTTPStatus: http.StatusOK, Count: -1}, nil
 	case err != nil:
 		return row, false, Response{}, err
 	}
