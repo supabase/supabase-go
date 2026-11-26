@@ -385,7 +385,7 @@ for module in "${ordered_modules[@]}"; do
   # those steps itself, immediately below.
   PREPARE_RELEASE_SUPPRESS_NEXT_STEPS=1 \
     ./scripts/prepare-release.sh "${module}" "${new_version}" ${pin_arguments[@]+"${pin_arguments[@]}"}
-  git add -A
+  git add -- $(prepared_release_paths "${module}")
   release_tag="$(release_tag_for "${module}" "${new_version}")"
   git commit --quiet --message="Prepare release ${release_tag}."
   echo "==> committed: Prepare release ${release_tag}."

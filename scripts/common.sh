@@ -191,6 +191,19 @@ unreleased_entry_lines() {
   ' "$1/CHANGELOG.md"
 }
 
+# Print the paths that preparing a published module for release writes, one
+# per line: the module's go.mod and changelog, and the go.mod and go.sum of
+# every consumer-shaped module. Only a path git reports as changed or
+# untracked is printed. $1 is the module directory.
+prepared_release_paths() {
+  local candidate_paths consumer_module
+  candidate_paths="$1/go.mod $1/CHANGELOG.md"
+  for consumer_module in $(enumerate_consumer_shaped_modules); do
+    candidate_paths="${candidate_paths} ${consumer_module}/go.mod ${consumer_module}/go.sum"
+  done
+  git status --porcelain -- ${candidate_paths} | awk '{ print $NF }' | sort
+}
+
 # Resolve a commit reference to its full SHA, HEAD when the reference is
 # empty, failing with guidance when it names nothing in this clone. $1 is
 # the reference, typically a script's optional argument naming a release
