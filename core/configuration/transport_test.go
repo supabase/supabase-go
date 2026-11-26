@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -129,6 +130,37 @@ func TestWithHeaderClientInfoReplacesTheSDKValue(t *testing.T) {
 	}
 }
 
+// TestTransportFailureError pins a defect in the error Do returns when a
+// request gets no answer. The error is the *url.Error that http.Client
+// returns, wrapping the transport's failure, and its text quotes the request
+// URL whole, query string included. A PostgREST query string holds the
+// filter values of a read, so a program that logs the error of a read that
+// timed out writes those values to its log.
+func TestTransportFailureError(t *testing.T) {
+	projectConfiguration, err := configuration.New(core.ModulePathRoot, "https://PROJECT_ID.supabase.co", "API_KEY",
+		configuration.WithHTTPClient(&http.Client{Transport: failingTransport{}}))
+	if err != nil {
+		t.Fatalf("configuration.New: %v", err)
+	}
+	request, err := http.NewRequest(http.MethodGet, "https://PROJECT_ID.supabase.co/rest/v1/players?select=id&email=eq.player%40example.com", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+
+	_, err = projectConfiguration.HTTPClient().Do(request)
+	if !errors.Is(err, errBrokenWire) {
+		t.Fatalf("Do error = %v, want errors.Is %v", err, errBrokenWire)
+	}
+	if _, ok := errors.AsType[*url.Error](err); !ok {
+		t.Errorf("Do error type = %T, want *url.Error", err)
+	}
+	// Wrongly, the text quotes the query string.
+	want := `Get "https://PROJECT_ID.supabase.co/rest/v1/players?select=id&email=eq.player%40example.com": broken wire`
+	if err.Error() != want {
+		t.Errorf("Do error = %q, want %q", err, want)
+	}
+}
+
 func recordingServer(t *testing.T) (*httptest.Server, *http.Header) {
 	t.Helper()
 	var received http.Header
@@ -140,9 +172,9 @@ func recordingServer(t *testing.T) (*httptest.Server, *http.Header) {
 	return server, &received
 }
 
-func sendGet(t *testing.T, doer configuration.HTTPClient, url string, mutate func(*http.Request)) {
+func sendGet(t *testing.T, doer configuration.HTTPClient, requestURL string, mutate func(*http.Request)) {
 	t.Helper()
-	request, err := http.NewRequest(http.MethodGet, url, nil)
+	request, err := http.NewRequest(http.MethodGet, requestURL, nil)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
