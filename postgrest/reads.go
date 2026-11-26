@@ -162,25 +162,30 @@ func singleMaybeRead[Row any](ctx context.Context, client *Client, requestState 
 	if err != nil {
 		return zero, false, Response{}, err
 	}
-	rows, err := decodeBody[[]Row](result.Body)
+	// The body splits into raw elements rather than decoding as rows, so that
+	// a function's single array value, whose elements a Row such as []int
+	// cannot each hold, still reaches the decode below as one row.
+	elements, err := decodeBody[[]json.RawMessage](result.Body)
 	if err != nil {
 		return zero, false, Response{}, err
 	}
 	count, counted := parseContentRangeRows(result.ContentRange)
 	if !counted {
-		count = len(rows)
+		count = len(elements)
 	}
 	switch {
 	case count == 0:
 		return zero, false, response, nil
 	case count > 1:
 		return zero, false, Response{}, fmt.Errorf("%w (%d rows)", ErrTooManyRows, count)
-	case len(rows) == 1:
-		return rows[0], true, response, nil
 	}
-	// One row whose body is not a one-element array is a function's single
-	// array value, and that value is the row.
-	row, err := decodeBody[Row](result.Body)
+	// One row is the element of a one-element array, and any other body is
+	// the row whole, such as a function's single array value.
+	encodedRow := result.Body
+	if len(elements) == 1 {
+		encodedRow = elements[0]
+	}
+	row, err := decodeBody[Row](encodedRow)
 	if err != nil {
 		return zero, false, Response{}, err
 	}

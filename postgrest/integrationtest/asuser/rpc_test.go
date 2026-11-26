@@ -175,6 +175,29 @@ func TestRPCArrayArgumentElements(t *testing.T) {
 	}
 }
 
+// TestCollectSingleMaybeFunctionArrayValue proves what a slice Row receives
+// from a function's single array value against real PostgREST, which counts
+// that value as one row: echo_text_array answers its text[] argument.
+func TestCollectSingleMaybeFunctionArrayValue(t *testing.T) {
+	client := newIntegrationClient(t)
+	instruments := []string{"violin", "viola", "cello"}
+
+	row, found, response, err := postgrest.CollectSingleMaybe(
+		t.Context(),
+		client,
+		postgrest.RPC[[]string]("echo_text_array").Arguments(map[string]any{"elements": instruments}).Rows(),
+	)
+	if err != nil {
+		t.Fatalf("CollectSingleMaybe: %v", err)
+	}
+	if !found || !slices.Equal(row, instruments) {
+		t.Errorf("CollectSingleMaybe = (%v, %v), want the array found whole", row, found)
+	}
+	if response.HTTPStatus != http.StatusOK {
+		t.Errorf("HTTPStatus = %d, want 200", response.HTTPStatus)
+	}
+}
+
 // TestRPCValueSingleUnnamedJSONParameter proves the single-unnamed-parameter
 // call from both sides of PostgREST's payload rule: the arguments become the
 // whole request body, and an array body is accepted only when every element is

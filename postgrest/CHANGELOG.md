@@ -9,7 +9,10 @@ Refer to [GitHub `../DEVELOPMENT.md`](https://github.com/supabase/supabase-go/bl
 
 ### Fixed
 
-Aligns our implementation of `CollectSingleMaybe` with the [cross-SDK at-most-one-row spec](https://github.com/supabase/sdk/blob/16c8713d21a14625dfeac6c7afa558399a646be4/packages/capability-matrix/specs/database/using_modifiers/maybe_single_row.md) for the `database.using_modifiers.maybe_single_row` capability, so the `Response` of a write that affects no row now reports HTTP status 200, where before it carried the server's 406.
+Aligns our implementation of `CollectSingleMaybe` with the [cross-SDK at-most-one-row spec](https://github.com/supabase/sdk/blob/16c8713d21a14625dfeac6c7afa558399a646be4/packages/capability-matrix/specs/database/using_modifiers/maybe_single_row.md) for the `database.using_modifiers.maybe_single_row` capability:
+
+- the `Response` of a write that affects no row now reports HTTP status 200, where before it carried the server's 406
+- a function's single array value, which the server counts as one row, now decodes whole into a slice `Row` such as `[]int`, where before the call failed with a decoding error
 
 ## `v0.1.0-alpha.3` (2026-11-24)
 
