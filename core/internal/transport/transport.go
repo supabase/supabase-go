@@ -69,6 +69,29 @@ func WrapClient(entryModulePath core.ModulePath, client *http.Client, apiKey str
 //   - within the origin, checkRedirect decides
 //   - within the origin when checkRedirect is nil, the client follows up to
 //     maximumRedirects of them
+//
+// The confinement overrides checkRedirect because transport sets the apikey
+// header and the global headers on every request it sends, each hop of a
+// redirect included. The standard library strips only sensitive headers such
+// as Authorization, and only from a hop to an unrelated host. A redirect
+// followed to another origin would therefore hand that origin the project key,
+// often the secret key, and a 307 or 308 would send it the request body too.
+//
+// Keeping those headers to the origin inside transport, and leaving redirects
+// to checkRedirect alone, would still send that body to the other origin. It
+// would also let the other origin's answer stand in for the project's own.
+// Nor could such a redirect succeed against a Supabase service, since the hop
+// would arrive without a key.
+//
+// Scheme and host are compared exactly, so a subdomain, a move from http to
+// https, a host in another case and a default port written out each count as
+// another origin. The comparison errs toward refusing a redirect that would
+// have been safe to follow.
+//
+// A refused redirect ends in [http.ErrUseLastResponse] rather than an error of
+// its own, so the client returns the redirect response. Each domain module
+// then reports it as it reports any other status outside 2xx. An error would
+// instead come back as a *url.Error whose text holds the redirect's Location.
 func sameOriginRedirects(checkRedirect func(*http.Request, []*http.Request) error) func(*http.Request, []*http.Request) error {
 	return func(request *http.Request, via []*http.Request) error {
 		origin := via[0].URL
