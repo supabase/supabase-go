@@ -140,9 +140,9 @@ func TestCollectRetriesOn503HonoringRetryAfter(t *testing.T) {
 	}
 }
 
-// TestCollectRetriesOn503WithZeroRetryAfter pins the waits between the
-// retries of a read answered 503 with a Retry-After of zero seconds, the
-// header PostgREST sends with every 503: none, so all three go out at once.
+// TestCollectRetriesOn503WithZeroRetryAfter proves a Retry-After of zero
+// seconds, the header PostgREST sends with every 503, leaves the computed
+// backoff in place.
 func TestCollectRetriesOn503WithZeroRetryAfter(t *testing.T) {
 	sleeps := stubRetrySleep(t)
 	server, retryCounts := scriptedServer(
@@ -162,7 +162,7 @@ func TestCollectRetriesOn503WithZeroRetryAfter(t *testing.T) {
 	if want := []string{"", "1", "2", "3"}; !slices.Equal(*retryCounts, want) {
 		t.Errorf("X-Retry-Count sequence = %q, want %q", *retryCounts, want)
 	}
-	if want := []time.Duration{0, 0, 0}; !slices.Equal(*sleeps, want) {
+	if want := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}; !slices.Equal(*sleeps, want) {
 		t.Errorf("delays = %v, want %v", *sleeps, want)
 	}
 	if rows != nil || response.HTTPStatus != 0 {

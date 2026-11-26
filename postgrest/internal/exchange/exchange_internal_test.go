@@ -6,7 +6,7 @@ import (
 )
 
 // TestRetryDelay pins the delay computation: exponential doubling from one
-// second, displaced by a parseable non-negative whole-seconds Retry-After.
+// second, displaced by a parseable positive whole-seconds Retry-After.
 func TestRetryDelay(t *testing.T) {
 	testCases := []struct {
 		name       string
@@ -18,7 +18,7 @@ func TestRetryDelay(t *testing.T) {
 		{"second backoff", 1, "", 2 * time.Second},
 		{"third backoff", 2, "", 4 * time.Second},
 		{"retry-after replaces backoff", 0, "7", 7 * time.Second},
-		{"retry-after zero", 2, "0", 0},
+		{"zero retry-after ignored", 2, "0", 4 * time.Second},
 		{"retry-after with edge whitespace", 0, " 7 ", 7 * time.Second},
 		{"negative retry-after ignored", 1, "-1", 2 * time.Second},
 		{"malformed retry-after ignored", 0, "soon", time.Second},

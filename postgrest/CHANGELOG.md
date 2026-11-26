@@ -14,6 +14,10 @@ Aligns our implementation of `CollectSingleMaybe` with the [cross-SDK at-most-on
 - the `Response` of a write that affects no row now reports HTTP status 200, where before it carried the server's 406
 - a function's single array value, which the server counts as one row, now decodes whole into a slice `Row` such as `[]int`, where before the call failed with a decoding error
 
+Automatic retries of a read:  
+A retry now waits its 1s, 2s or 4s backoff when the response's `Retry-After` header asks for zero seconds, where before it went out at once.
+PostgREST sends that header with every 503, so such a read spent its three retries with no wait between them.
+
 ## `v0.1.0-alpha.3` (2026-11-24)
 
 ### Fixed
