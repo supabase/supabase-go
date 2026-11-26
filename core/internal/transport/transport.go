@@ -3,6 +3,7 @@
 package transport
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -10,6 +11,10 @@ import (
 	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/internal/telemetry"
 )
+
+// maximumRedirects is how many redirects a client follows within the origin
+// of a request when it sets no redirect policy of its own.
+const maximumRedirects = 10
 
 // transport is an http.RoundTripper that injects Supabase authentication and
 // global headers into every outgoing request. It honors the RoundTripper
@@ -25,8 +30,10 @@ type transport struct {
 // WrapClient returns a copy of client whose transport injects the project API
 // key header, the supplied global headers and, unless the application set
 // one, the X-Client-Info header that identifies entryModulePath, and writes
-// one debug log emission per round trip through logger. The input client is
-// never mutated, so sharing [http.DefaultClient] remains safe.
+// one debug log emission per round trip through logger. Its redirect policy is
+// client's own, confined by sameOriginRedirects to the origin of each
+// request. The input client is never mutated, so sharing [http.DefaultClient]
+// remains safe.
 //
 // entryModulePath must be one of the following, with its module linked into
 // the build, otherwise this function panics:
@@ -50,7 +57,32 @@ func WrapClient(entryModulePath core.ModulePath, client *http.Client, apiKey str
 		clientInformationHeaderValue: telemetry.ClientInformationHeaderValue(entryModulePath),
 		logger:                       logger,
 	}
+	clone.CheckRedirect = sameOriginRedirects(client.CheckRedirect)
 	return &clone
+}
+
+// sameOriginRedirects returns a redirect policy confined to the origin of the
+// request a client was sent: its scheme and its host, port included, each
+// compared exactly. The policy answers a redirect as follows:
+//   - to another origin, it is not followed, and the client returns the
+//     redirect response itself
+//   - within the origin, checkRedirect decides
+//   - within the origin when checkRedirect is nil, the client follows up to
+//     maximumRedirects of them
+func sameOriginRedirects(checkRedirect func(*http.Request, []*http.Request) error) func(*http.Request, []*http.Request) error {
+	return func(request *http.Request, via []*http.Request) error {
+		origin := via[0].URL
+		if request.URL.Scheme != origin.Scheme || request.URL.Host != origin.Host {
+			return http.ErrUseLastResponse
+		}
+		if checkRedirect != nil {
+			return checkRedirect(request, via)
+		}
+		if len(via) >= maximumRedirects {
+			return fmt.Errorf("stopped after %d redirects", maximumRedirects)
+		}
+		return nil
+	}
 }
 
 // RoundTrip implements [http.RoundTripper].

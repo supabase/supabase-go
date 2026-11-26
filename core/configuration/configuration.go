@@ -60,7 +60,9 @@ type Option func(*Configuration)
 // mutates the supplied client: it is cloned and its transport is wrapped, so the
 // caller's client (including the shared [http.DefaultClient]) is left untouched.
 // Use this to control timeouts or proxies, or to inject an instrumented
-// transport such as otelhttp.NewTransport for tracing. A nil client is ignored.
+// transport such as otelhttp.NewTransport for tracing. The client's
+// CheckRedirect applies only to the redirects [Configuration.HTTPClient] may
+// follow. A nil client is ignored.
 func WithHTTPClient(client *http.Client) Option {
 	return func(c *Configuration) {
 		if client != nil {
@@ -190,6 +192,13 @@ func (c *Configuration) Retry() bool {
 // HTTPClient returns the [HTTPClient] configured for this project. Its transport
 // injects the API key header and any configured global headers. The result is
 // safe for concurrent use by multiple goroutines.
+//
+// It answers a redirect according to where the redirect leads:
+//   - within the scheme and host of the request it was sent, port included, it
+//     follows the redirect as the CheckRedirect of the client supplied through
+//     [WithHTTPClient] decides, or up to ten in a row when there is none
+//   - anywhere else, it never follows the redirect, whatever that
+//     CheckRedirect decides, and Do returns the redirect response itself
 func (c *Configuration) HTTPClient() HTTPClient {
 	return c.httpClient
 }

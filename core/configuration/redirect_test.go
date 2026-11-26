@@ -56,10 +56,11 @@ type hop struct {
 	authorization string
 }
 
-// TestRedirects pins which redirects the configured HTTP client follows and
-// what it sends on each request it makes: the project key, the global headers
-// and the request body to every host it is redirected to, whatever its
-// scheme, host or port.
+// TestRedirects proves that the configured HTTP client follows a redirect only
+// within the scheme and host, port included, of the request it was sent, as
+// the client's own policy decides there. A redirect anywhere else ends the
+// call at the redirect response, whatever that policy, so the project key,
+// the global headers and the request body reach no other scheme or host.
 func TestRedirects(t *testing.T) {
 	const userAuthorization = "Bearer user-token"
 	const payload = `{"password":"correct horse battery staple"}`
@@ -73,11 +74,11 @@ func TestRedirects(t *testing.T) {
 		wantErr       string
 		wantHops      []hop
 	}{
-		{"to another host", "https://elsewhere.example/next", nil, http.StatusOK, "", []hop{{redirectStart, userAuthorization}, {"https://elsewhere.example/next", ""}}},
-		{"to a subdomain", "https://eu.PROJECT_ID.supabase.co/next", nil, http.StatusOK, "", []hop{{redirectStart, userAuthorization}, {"https://eu.PROJECT_ID.supabase.co/next", userAuthorization}}},
-		{"to another scheme", "http://PROJECT_ID.supabase.co/next", nil, http.StatusOK, "", []hop{{redirectStart, userAuthorization}, {"http://PROJECT_ID.supabase.co/next", userAuthorization}}},
-		{"to another port", "https://PROJECT_ID.supabase.co:8443/next", nil, http.StatusOK, "", []hop{{redirectStart, userAuthorization}, {"https://PROJECT_ID.supabase.co:8443/next", userAuthorization}}},
-		{"to another host under a policy that follows every redirect", "https://elsewhere.example/next", followEvery, http.StatusOK, "", []hop{{redirectStart, userAuthorization}, {"https://elsewhere.example/next", ""}}},
+		{"to another host", "https://elsewhere.example/next", nil, http.StatusTemporaryRedirect, "", []hop{{redirectStart, userAuthorization}}},
+		{"to a subdomain", "https://eu.PROJECT_ID.supabase.co/next", nil, http.StatusTemporaryRedirect, "", []hop{{redirectStart, userAuthorization}}},
+		{"to another scheme", "http://PROJECT_ID.supabase.co/next", nil, http.StatusTemporaryRedirect, "", []hop{{redirectStart, userAuthorization}}},
+		{"to another port", "https://PROJECT_ID.supabase.co:8443/next", nil, http.StatusTemporaryRedirect, "", []hop{{redirectStart, userAuthorization}}},
+		{"to another host under a policy that follows every redirect", "https://elsewhere.example/next", followEvery, http.StatusTemporaryRedirect, "", []hop{{redirectStart, userAuthorization}}},
 		{"within the origin", "https://PROJECT_ID.supabase.co/next", nil, http.StatusOK, "", []hop{{redirectStart, userAuthorization}, {"https://PROJECT_ID.supabase.co/next", userAuthorization}}},
 		{"within the origin under a policy that refuses every redirect", "https://PROJECT_ID.supabase.co/next", refuseEvery, http.StatusTemporaryRedirect, "", []hop{{redirectStart, userAuthorization}}},
 		{"round a loop within the origin", redirectStart, nil, 0, "stopped after 10 redirects", slices.Repeat([]hop{{redirectStart, userAuthorization}}, 10)},

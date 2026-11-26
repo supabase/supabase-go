@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
-	"strings"
 	"sync"
 	"testing"
 
@@ -76,16 +75,17 @@ func (s *intermediaryServer) received() []receivedRequest {
 	return slices.Clone(s.requests)
 }
 
-// TestRedirectToAnotherServer pins a security defect. When the project's host
-// answers an admin call holding the secret key with a permanent redirect to a
-// server that is not the project's, the call follows it. A host retired in
-// favor of a mistyped or lapsed domain answers this way. Each outcome asserted
-// here is one the SDK must not produce:
-//   - that server receives the secret key and the new user's password
-//   - the call returns the user that server made up as one the project created
-//   - the key that server received opens the project's admin API
+// TestRedirectToAnotherServer proves that an admin call holding the secret key
+// keeps to the project's host. When that host answers the call with a
+// permanent redirect to a server that is not the project's, the call does not
+// follow it. A host retired in favor of a mistyped or lapsed domain answers
+// this way. The outcomes asserted here:
+//   - the call fails with the redirect's status, so it returns no user that
+//     server made up
+//   - that server receives no request, so neither the secret key nor the new
+//     user's password reaches it
 func TestRedirectToAnotherServer(t *testing.T) {
-	projectURL, secretKey := testkit.SecretCredentials(t)
+	_, secretKey := testkit.SecretCredentials(t)
 	intermediary := newIntermediaryServer(t)
 	target := intermediary.server.URL + "/auth/v1/admin/users"
 	projectHost := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -99,38 +99,13 @@ func TestRedirectToAnotherServer(t *testing.T) {
 
 	email := testkit.UniqueEmail(t)
 	result, err := client.Admin().CreateUser(t.Context(), auth.UserAttributes{Email: email, Password: testkit.Password, EmailConfirm: true})
-	// Wrongly, the call succeeds with a user the project never created.
-	if err != nil {
-		t.Fatalf("CreateUser: %v", err)
-	}
-	if created := result.User(); created.ID() != forgedUserID || created.Email() != email {
-		t.Errorf("created user = (%q, %q), want the one the intermediary made up, (%q, %q)", created.ID(), created.Email(), forgedUserID, email)
-	}
+	// The call fails with the redirect's status, returning no user.
+	assertServerError(t, result, err, http.StatusPermanentRedirect, "")
 
-	// Wrongly, the other server received the secret key and the password.
+	// The other server received no request, so it holds neither the secret key
+	// nor the password.
 	received := intermediary.received()
-	if len(received) != 1 {
-		t.Fatalf("intermediary received %d requests, want 1", len(received))
-	}
-	if received[0].apiKey != secretKey {
-		t.Error("intermediary received an apikey other than the secret key")
-	}
-	if !strings.Contains(received[0].body, `"password":"`+testkit.Password+`"`) {
-		t.Errorf("intermediary received body %s, want it to carry the new user's password", received[0].body)
-	}
-
-	// The project itself holds no user with the id CreateUser returned, so the
-	// call reported a user that exists nowhere but in the other server's answer.
-	fetched, err := newAdmin(t).GetUser(t.Context(), forgedUserID)
-	assertServerError(t, fetched, err, http.StatusNotFound, "user_not_found")
-
-	// The key the other server received opens the project's admin API, so
-	// whoever holds that server holds the project.
-	stolen, err := auth.New(projectURL, received[0].apiKey)
-	if err != nil {
-		t.Fatalf("auth.New with the key the intermediary received: %v", err)
-	}
-	if _, err := stolen.Admin().ListUsers(t.Context()); err != nil {
-		t.Errorf("ListUsers with the key the intermediary received: %v, want the project's users", err)
+	if len(received) != 0 {
+		t.Errorf("intermediary received %d requests, want none", len(received))
 	}
 }
