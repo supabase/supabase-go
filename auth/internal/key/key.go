@@ -33,35 +33,54 @@ const (
 	// for it (the docs' "RSA 2048" row).
 	RS256 Algorithm = "RS256"
 
-	// EdDSA is Ed25519 signing under JOSE's polymorphic EdDSA name.
+	// EdDSA is JOSE's polymorphic name for EdDSA signing, whose curve a key's
+	// crv names.
 	// The IANA registry deprecates that name in favor of the fully-specified
 	// Ed25519 and Ed448 values (RFC 9864), but EdDSA remains the alg the
 	// Supabase Auth server publishes for its Ed25519 signing keys.
 	// The hosted platform advertises Ed25519 keys as coming soon (as at
 	// September 2026); self-hosted projects can configure them today.
 	EdDSA Algorithm = "EdDSA"
+
+	// Ed25519 is RFC 9864's fully specified name for EdDSA over the Ed25519
+	// curve, which a token header or a key's alg may carry in place of EdDSA.
+	Ed25519 Algorithm = "Ed25519"
+
+	// Ed448 is RFC 9864's fully specified name for EdDSA over the Ed448 curve,
+	// which a token header or a key's alg may carry in place of EdDSA. Go's
+	// standard library implements no Ed448, so a key on that curve binds no
+	// algorithm here.
+	Ed448 Algorithm = "Ed448"
 )
 
-// Supported reports whether alg is one this package verifies locally against a
-// published signing key. A token declaring any other alg - the legacy HS*
-// family, none, or an absent alg - is the caller's cue to route to server
-// verification instead.
+// Supported reports whether a token declaring alg is checked against the
+// project's published keys: ES256, RS256 and EdDSA under any of its names. A
+// token declaring any other alg - the legacy HS* family, none or an absent
+// alg - is the caller's cue to route to server verification instead. Even
+// then, a key binding no algorithm implemented here fails [Key.Verify] with
+// [ErrUnusable].
 func Supported(alg string) bool {
 	switch Algorithm(alg) {
-	case ES256, RS256, EdDSA:
+	case ES256, RS256, EdDSA, Ed25519, Ed448:
 		return true
 	default:
 		return false
 	}
 }
 
-// errDoesNotVerify is the single failure [Key.Verify] reports, whatever the
-// cause, so a caller learns nothing beyond "not verified by this key".
+// ErrUnusable is reported by [Key.Verify] for a key this package cannot verify
+// with: one binding no algorithm implemented here, or whose material does not
+// import.
+var ErrUnusable = errors.New("key cannot verify locally")
+
+// errDoesNotVerify is the failure [Key.Verify] reports for a key it can use,
+// whatever the cause, so a caller learns nothing beyond "not verified by this
+// key".
 var errDoesNotVerify = errors.New("signature does not verify with this key")
 
 // Key is one verification key from a project's JWK Set. Its algorithm is
-// bound to the key material - the key's own alg field, or one inferred from
-// its type - never to what a token header claims.
+// bound from the key's own kty, crv and alg, never from what a token header
+// claims.
 type Key struct {
 	keyType  string
 	keyID    string
@@ -76,36 +95,52 @@ type Key struct {
 // ID returns the key id the JWK Set published for this key.
 func (k Key) ID() string { return k.keyID }
 
-// algorithm returns the JWT alg the key verifies. It prefers the key's own alg
-// and infers one from the key type when the field is absent.
-func (k Key) algorithm() Algorithm {
-	if k.alg != "" {
-		return k.alg
-	}
+// bind returns the algorithm the key verifies under, from its kty and crv and
+// from its alg when present, which must agree with them, or the empty
+// Algorithm when it binds none implemented here. A key on the Ed25519 curve
+// binds Ed25519 under any of EdDSA's names.
+func (k Key) bind() Algorithm {
 	switch {
-	case k.keyType == "RSA":
+	case k.keyType == "RSA" && (k.alg == "" || k.alg == RS256):
 		return RS256
-	case k.keyType == "EC" && k.curve == "P-256":
+	case k.keyType == "EC" && k.curve == "P-256" && (k.alg == "" || k.alg == ES256):
 		return ES256
-	case k.keyType == "OKP" && k.curve == "Ed25519":
-		return EdDSA
+	case k.keyType == "OKP" && k.curve == "Ed25519" && (k.alg == "" || k.alg == EdDSA || k.alg == Ed25519):
+		return Ed25519
 	default:
 		return ""
 	}
 }
 
-// Verify checks signature over signingInput using the algorithm the key
-// declares rather than the one the token header claims, so a token cannot
-// dictate how it is verified. Any error means the signature does not verify
-// with this key; the caller owns the consumer-facing sentinel.
-func (k Key) Verify(signingInput string, signature []byte) error {
+// headerNames reports whether a token header's alg names the bound algorithm:
+// by that name, or as EdDSA for a key bound to Ed25519.
+func headerNames(headerAlgorithm string, bound Algorithm) bool {
+	declared := Algorithm(headerAlgorithm)
+	return declared == bound || (declared == EdDSA && bound == Ed25519)
+}
+
+// Verify checks signature over signingInput using the algorithm bound from
+// the key, which headerAlgorithm, the token header's alg, must name, so a
+// token cannot dictate how it is verified. A key binding no algorithm
+// implemented here, or whose material does not import, fails with
+// [ErrUnusable]. Any other error means the signature does not verify with
+// this key, a header naming another algorithm included. The caller owns the
+// consumer-facing sentinel.
+func (k Key) Verify(headerAlgorithm, signingInput string, signature []byte) error {
+	bound := k.bind()
+	if bound == "" {
+		return ErrUnusable
+	}
+	if !headerNames(headerAlgorithm, bound) {
+		return errDoesNotVerify
+	}
 	digest := sha256.Sum256([]byte(signingInput))
 
-	switch k.algorithm() {
+	switch bound {
 	case ES256:
 		publicKey, err := k.ecdsaPublicKey()
 		if err != nil {
-			return errDoesNotVerify
+			return ErrUnusable
 		}
 		// A JWS ECDSA signature is the fixed-width r and s values concatenated,
 		// not the ASN.1 form ecdsa.Verify's sibling expects.
@@ -122,17 +157,17 @@ func (k Key) Verify(signingInput string, signature []byte) error {
 	case RS256:
 		publicKey, err := k.rsaPublicKey()
 		if err != nil {
-			return errDoesNotVerify
+			return ErrUnusable
 		}
 		if rsa.VerifyPKCS1v15(publicKey, crypto.SHA256, digest[:], signature) != nil {
 			return errDoesNotVerify
 		}
 		return nil
 
-	case EdDSA:
+	case Ed25519:
 		publicKey, err := k.ed25519PublicKey()
 		if err != nil {
-			return errDoesNotVerify
+			return ErrUnusable
 		}
 		// Ed25519 signs the message itself, not a digest of it.
 		if !ed25519.Verify(publicKey, []byte(signingInput), signature) {
@@ -141,7 +176,7 @@ func (k Key) Verify(signingInput string, signature []byte) error {
 		return nil
 
 	default:
-		return errDoesNotVerify
+		return ErrUnusable
 	}
 }
 
@@ -162,7 +197,7 @@ func (k Key) ecdsaPublicKey() (*ecdsa.PublicKey, error) {
 	// are rejected.
 	const coordinateSize = 32
 	if len(x) > coordinateSize || len(y) > coordinateSize {
-		return nil, errDoesNotVerify
+		return nil, ErrUnusable
 	}
 	point := make([]byte, 1+2*coordinateSize)
 	point[0] = 4 // SEC 1 uncompressed point form
@@ -192,7 +227,7 @@ func (k Key) ed25519PublicKey() (ed25519.PublicKey, error) {
 		return nil, err
 	}
 	if len(x) != ed25519.PublicKeySize {
-		return nil, errDoesNotVerify
+		return nil, ErrUnusable
 	}
 	return ed25519.PublicKey(x), nil
 }
@@ -210,19 +245,27 @@ type keyWire struct {
 	Exponent  string    `json:"e"`
 }
 
+// errNoKeysArray is reported by [ParseSet] for a JSON document without a keys
+// array.
+var errNoKeysArray = errors.New("no keys array")
+
 // ParseSet decodes a JWK Set document into its keys, returning the decode
-// error verbatim when the document is not the documented JSON shape. An empty
-// set - a project with no asymmetric signing keys - yields no keys.
+// error verbatim when the document is not the documented JSON shape and
+// failing a JSON document without a keys array. An empty array - a project
+// with no asymmetric signing keys - yields no keys.
 func ParseSet(document []byte) ([]Key, error) {
 	var wire struct {
-		Keys []keyWire `json:"keys"`
+		Keys *[]keyWire `json:"keys"`
 	}
 	if err := json.Unmarshal(document, &wire); err != nil {
 		return nil, err
 	}
+	if wire.Keys == nil {
+		return nil, errNoKeysArray
+	}
 
-	keys := make([]Key, 0, len(wire.Keys))
-	for _, entry := range wire.Keys {
+	keys := make([]Key, 0, len(*wire.Keys))
+	for _, entry := range *wire.Keys {
 		keys = append(keys, Key{
 			keyType:  entry.KeyType,
 			keyID:    entry.KeyID,

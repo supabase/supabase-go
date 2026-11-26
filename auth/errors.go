@@ -72,7 +72,8 @@ const ErrExpiredJWT = authError("JWT has expired")
 const ErrNotYetValidJWT = authError("JWT is not yet valid")
 
 // ErrInvalidSignature is reported by [Client.GetClaims] when the token's
-// signature does not verify against the project's signing key.
+// signature does not verify against the project's signing key, or its header
+// names an algorithm other than the key's.
 const ErrInvalidSignature = authError("JWT signature is invalid")
 
 // ErrInvalidUserID is reported by the [Admin] user operations when the given

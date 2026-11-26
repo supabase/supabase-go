@@ -19,7 +19,15 @@ Password sign-in now takes a method per identifier, aligning with the sign-up an
 
 ### Fixed
 
-Aligns our implementation of `Client.GetClaims` with the not-before rule of the [cross-SDK claims verification spec](https://github.com/supabase/sdk/blob/16c8713d21a14625dfeac6c7afa558399a646be4/packages/capability-matrix/specs/auth/session/get_claims.md) for the `auth.session.get_claims` capability, so a token whose `nbf` claim is in the future now fails with `ErrNotYetValidJWT` before any request is sent, where before one verified locally was accepted.
+Aligns our implementation of `Client.GetClaims` with the [cross-SDK claims verification spec](https://github.com/supabase/sdk/blob/16c8713d21a14625dfeac6c7afa558399a646be4/packages/capability-matrix/specs/auth/session/get_claims.md) for the `auth.session.get_claims` capability:
+
+- a token whose `nbf` claim is in the future now fails with `ErrNotYetValidJWT` before any request is sent, where before one verified locally was accepted
+- a token whose header names an algorithm other than its signing key's now fails with `ErrInvalidSignature`, where before the key's algorithm verified it
+- a token signed with a key this client cannot verify with, such as an Ed448 key, now defers to the Auth server, where before it failed with `ErrInvalidSignature`
+- `Ed25519` and `Ed448` now count as `EdDSA`, in a token's header and in a signing key's `alg`
+- a JWK Set response without a `keys` array now fails the call, where before it was taken as a set with no keys
+- a refetch of the JWK Set forced by an unknown key id now backs off after failing too, deferring such tokens to the Auth server meanwhile, where before each one retried the download
+- a key id missing from a first download of the JWK Set, or one after ten minutes, now forces a refetch before the backoff starts, where before it started the backoff
 
 ## `v0.1.0-alpha.5` (2026-11-16)
 

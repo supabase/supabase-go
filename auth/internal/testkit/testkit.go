@@ -38,6 +38,9 @@ type Signer struct {
 // published JWK.
 func (s Signer) KeyID() string { return s.keyID }
 
+// Algorithm returns the alg the signer stamps into token headers.
+func (s Signer) Algorithm() string { return s.algorithm }
+
 // PublicJWK returns a copy of the signer's public JWK, ready to serialize
 // into a JWK Set document.
 func (s Signer) PublicJWK() map[string]any { return maps.Clone(s.publicJWK) }
@@ -60,6 +63,13 @@ func (s Signer) Token(t *testing.T, claims map[string]any) string {
 	}
 	signingInput := base64URL(headerBytes) + "." + base64URL(claimsBytes)
 	return signingInput + "." + base64URL(s.sign(signingInput))
+}
+
+// ProposingAlgorithm returns a copy of the signer whose tokens propose alg in
+// their header, which need not be the algorithm its key signs with.
+func (s Signer) ProposingAlgorithm(alg string) Signer {
+	s.algorithm = alg
+	return s
 }
 
 // TamperedToken mints a valid token and then corrupts its signature so
