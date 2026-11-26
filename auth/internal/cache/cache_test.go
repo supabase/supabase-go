@@ -47,10 +47,10 @@ func lookUp(ctx context.Context, keyCache *cache.Cache, keyID string, now time.T
 }
 
 // holdForcedDownload returns a cache holding the set that publishes kid-1,
-// with a download in flight that the unknown key id bogus forced at base, and
-// finish, which lets that download serve the same set and waits for its
-// lookup to return. The test's cleanup runs finish if the test has not.
-func holdForcedDownload(t *testing.T, base time.Time) (keyCache *cache.Cache, finish func()) {
+// with a download in flight that the unknown key id bogus forced at base. At
+// the test's cleanup the download serves the same set, and its lookup must
+// return not found.
+func holdForcedDownload(t *testing.T, base time.Time) *cache.Cache {
 	t.Helper()
 	published, err := key.ParseSet(testkit.JWKSetDocument(t, testkit.NewES256(t, "kid-1")))
 	if err != nil {
@@ -59,7 +59,7 @@ func holdForcedDownload(t *testing.T, base time.Time) (keyCache *cache.Cache, fi
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	var fetches atomic.Int32
-	keyCache = cache.NewCache(func(_ context.Context) ([]key.Key, error) {
+	keyCache := cache.NewCache(func(_ context.Context) ([]key.Key, error) {
 		// The first download serves at once, and the second waits for release.
 		if fetches.Add(1) == 2 {
 			close(entered)
@@ -73,14 +73,42 @@ func holdForcedDownload(t *testing.T, base time.Time) (keyCache *cache.Cache, fi
 
 	forced := lookUp(t.Context(), keyCache, "bogus", base)
 	<-entered
-	finish = sync.OnceFunc(func() {
+	t.Cleanup(func() {
 		close(release)
 		if result := <-forced; result.err != nil || result.found {
 			t.Errorf("forced lookup: found=%v err=%v, want not found", result.found, result.err)
 		}
 	})
-	t.Cleanup(finish)
-	return keyCache, finish
+	return keyCache
+}
+
+// waitObservingContext closes waiting the first time its Done channel is
+// asked for, which a lookup does only once it waits on a download another
+// lookup started.
+type waitObservingContext struct {
+	context.Context
+	once    sync.Once
+	waiting chan struct{}
+}
+
+func newWaitObservingContext(parent context.Context) *waitObservingContext {
+	return &waitObservingContext{Context: parent, waiting: make(chan struct{})}
+}
+
+func (c *waitObservingContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.waiting) })
+	return c.Context.Done()
+}
+
+// awaitWaiting returns once the lookup given observed waits on a download in
+// flight, failing the test if it has not within five seconds.
+func awaitWaiting(t *testing.T, observed *waitObservingContext) {
+	t.Helper()
+	select {
+	case <-observed.waiting:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the lookup never waited on the download in flight")
+	}
 }
 
 func TestCacheHitWithinTTL(t *testing.T) {
@@ -348,53 +376,47 @@ func TestCacheFetchFailure(t *testing.T) {
 	}
 }
 
-// TestCacheHitDuringDownload pins a defect in how a lookup of a cached key
-// meets a download in flight. The lookup waits for the download to finish,
-// though the cached set can answer it.
+// TestCacheHitDuringDownload proves a lookup of a cached key is answered from
+// the cached set while a download is in flight.
 func TestCacheHitDuringDownload(t *testing.T) {
 	base := time.Now()
-	keyCache, finish := holdForcedDownload(t, base)
+	keyCache := holdForcedDownload(t, base)
 
-	looked := lookUp(t.Context(), keyCache, "kid-1", base)
-	// Wrongly, the lookup is still waiting while the download is held.
 	select {
-	case result := <-looked:
-		t.Fatalf("lookup while the download was held: found=%v err=%v, want it still waiting", result.found, result.err)
-	case <-time.After(100 * time.Millisecond):
-	}
-	finish()
-	if result := <-looked; result.err != nil || !result.found || result.cached.ID() != "kid-1" {
-		t.Errorf("lookup once the download finished: found=%v err=%v, want kid-1", result.found, result.err)
+	case result := <-lookUp(t.Context(), keyCache, "kid-1", base):
+		if result.err != nil || !result.found || result.cached.ID() != "kid-1" {
+			t.Errorf("lookup while the download was held: found=%v err=%v, want kid-1", result.found, result.err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the lookup of a cached key waited for the download in flight")
 	}
 }
 
-// TestCacheCanceledLookupDuringDownload pins a defect in how a lookup that
-// needs a download in flight meets the end of its context. The lookup goes on
-// waiting for the download after its context has ended, and returns no error
-// once the download finishes.
+// TestCacheCanceledLookupDuringDownload proves a lookup waiting on a download
+// in flight returns its context's error as soon as that context ends, while
+// the download goes on.
 func TestCacheCanceledLookupDuringDownload(t *testing.T) {
 	base := time.Now()
-	keyCache, finish := holdForcedDownload(t, base)
+	keyCache := holdForcedDownload(t, base)
 
-	canceled, cancel := context.WithCancel(t.Context())
+	parent, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	waiter := newWaitObservingContext(parent)
+	looked := lookUp(waiter, keyCache, "bogus-2", base)
+	awaitWaiting(t, waiter)
 	cancel()
-	looked := lookUp(canceled, keyCache, "bogus-2", base)
-	// Wrongly, the lookup is still waiting though its context has ended.
 	select {
 	case result := <-looked:
-		t.Fatalf("lookup while the download was held: found=%v err=%v, want it still waiting", result.found, result.err)
-	case <-time.After(100 * time.Millisecond):
-	}
-	finish()
-	if result := <-looked; result.err != nil || result.found {
-		t.Errorf("lookup once the download finished: found=%v err=%v, want not found and no error", result.found, result.err)
+		if result.found || !errors.Is(result.err, context.Canceled) {
+			t.Errorf("lookup whose context ended: found=%v err=%v, want context.Canceled", result.found, result.err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the lookup went on waiting for the download after its context had ended")
 	}
 }
 
-// TestCacheConcurrentFetchFailure pins a defect in how the lookups made while
-// a download into an empty cache is in flight meet its failure. Each of them
-// downloads again in turn and fails again, so the endpoint is asked once per
-// lookup.
+// TestCacheConcurrentFetchFailure proves the lookups waiting on a download
+// into an empty cache share its failure, so the endpoint is asked once.
 func TestCacheConcurrentFetchFailure(t *testing.T) {
 	fetchFailure := errors.New("discovery unavailable")
 	entered := make(chan struct{})
@@ -414,7 +436,9 @@ func TestCacheConcurrentFetchFailure(t *testing.T) {
 	results := []<-chan lookupResult{lookUp(t.Context(), keyCache, "kid-1", base)}
 	<-entered
 	for range lookups - 1 {
-		results = append(results, lookUp(t.Context(), keyCache, "kid-1", base))
+		waiter := newWaitObservingContext(t.Context())
+		results = append(results, lookUp(waiter, keyCache, "kid-1", base))
+		awaitWaiting(t, waiter)
 	}
 	close(release)
 
@@ -423,16 +447,15 @@ func TestCacheConcurrentFetchFailure(t *testing.T) {
 			t.Errorf("lookup %d: found=%v err=%v, want the fetch failure", i, result.found, result.err)
 		}
 	}
-	// Wrongly, each lookup downloaded.
-	if fetches.Load() != lookups {
-		t.Errorf("fetches = %d, want %d, one per lookup", fetches.Load(), lookups)
+	if fetches.Load() != 1 {
+		t.Errorf("fetches = %d, want 1, shared by every lookup", fetches.Load())
 	}
 }
 
 // TestCacheCanceledDownload pins what a download whose context ends before it
-// finishes leaves for a lookup made while it was in flight. The download fails
-// only the lookup that started it, and the other lookup returns its key from
-// a download of its own.
+// finishes leaves for a lookup waiting on it. The download fails only the
+// lookup that started it, and the waiting lookup returns its key from a
+// download of its own.
 func TestCacheCanceledDownload(t *testing.T) {
 	published, err := key.ParseSet(testkit.JWKSetDocument(t, testkit.NewES256(t, "kid-1")))
 	if err != nil {
@@ -456,17 +479,19 @@ func TestCacheCanceledDownload(t *testing.T) {
 	defer cancelStarter()
 	started := lookUp(starterContext, keyCache, "kid-1", base)
 	<-entered
-	other := lookUp(t.Context(), keyCache, "kid-1", base)
+	waiter := newWaitObservingContext(t.Context())
+	waited := lookUp(waiter, keyCache, "kid-1", base)
+	awaitWaiting(t, waiter)
 	cancelStarter()
 
 	if result := <-started; result.found || !errors.Is(result.err, context.Canceled) {
 		t.Errorf("lookup that started the download: found=%v err=%v, want context.Canceled", result.found, result.err)
 	}
-	if result := <-other; result.err != nil || !result.found || result.cached.ID() != "kid-1" {
-		t.Errorf("lookup made during the download: found=%v err=%v, want kid-1", result.found, result.err)
+	if result := <-waited; result.err != nil || !result.found || result.cached.ID() != "kid-1" {
+		t.Errorf("lookup that waited on the download: found=%v err=%v, want kid-1", result.found, result.err)
 	}
 	if fetches.Load() != 2 {
-		t.Errorf("fetches = %d, want 2, the canceled download and the other lookup's own", fetches.Load())
+		t.Errorf("fetches = %d, want 2, the canceled download and the waiting lookup's own", fetches.Load())
 	}
 }
 
