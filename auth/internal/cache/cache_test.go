@@ -82,35 +82,6 @@ func holdForcedDownload(t *testing.T, base time.Time) *cache.Cache {
 	return keyCache
 }
 
-// waitObservingContext closes waiting the first time its Done channel is
-// asked for, which a lookup does only once it waits on a download another
-// lookup started.
-type waitObservingContext struct {
-	context.Context
-	once    sync.Once
-	waiting chan struct{}
-}
-
-func newWaitObservingContext(parent context.Context) *waitObservingContext {
-	return &waitObservingContext{Context: parent, waiting: make(chan struct{})}
-}
-
-func (c *waitObservingContext) Done() <-chan struct{} {
-	c.once.Do(func() { close(c.waiting) })
-	return c.Context.Done()
-}
-
-// awaitWaiting returns once the lookup given observed waits on a download in
-// flight, failing the test if it has not within five seconds.
-func awaitWaiting(t *testing.T, observed *waitObservingContext) {
-	t.Helper()
-	select {
-	case <-observed.waiting:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the lookup never waited on the download in flight")
-	}
-}
-
 func TestCacheHitWithinTTL(t *testing.T) {
 	fetches, fetch := staticFetch(t, testkit.JWKSetDocument(t, testkit.NewES256(t, "kid-1")))
 	keyCache := cache.NewCache(fetch)
@@ -401,9 +372,9 @@ func TestCacheCanceledLookupDuringDownload(t *testing.T) {
 
 	parent, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	waiter := newWaitObservingContext(parent)
+	waiter := testkit.NewWaitObservingContext(parent)
 	looked := lookUp(waiter, keyCache, "bogus-2", base)
-	awaitWaiting(t, waiter)
+	testkit.AwaitWaiting(t, waiter)
 	cancel()
 	select {
 	case result := <-looked:
@@ -436,9 +407,9 @@ func TestCacheConcurrentFetchFailure(t *testing.T) {
 	results := []<-chan lookupResult{lookUp(t.Context(), keyCache, "kid-1", base)}
 	<-entered
 	for range lookups - 1 {
-		waiter := newWaitObservingContext(t.Context())
+		waiter := testkit.NewWaitObservingContext(t.Context())
 		results = append(results, lookUp(waiter, keyCache, "kid-1", base))
-		awaitWaiting(t, waiter)
+		testkit.AwaitWaiting(t, waiter)
 	}
 	close(release)
 
@@ -479,9 +450,9 @@ func TestCacheCanceledDownload(t *testing.T) {
 	defer cancelStarter()
 	started := lookUp(starterContext, keyCache, "kid-1", base)
 	<-entered
-	waiter := newWaitObservingContext(t.Context())
+	waiter := testkit.NewWaitObservingContext(t.Context())
 	waited := lookUp(waiter, keyCache, "kid-1", base)
-	awaitWaiting(t, waiter)
+	testkit.AwaitWaiting(t, waiter)
 	cancelStarter()
 
 	if result := <-started; result.found || !errors.Is(result.err, context.Canceled) {
