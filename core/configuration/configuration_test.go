@@ -2,6 +2,7 @@ package configuration_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/supabase/supabase-go/core"
@@ -25,6 +26,36 @@ func TestNewValidation(t *testing.T) {
 			_, err := configuration.New(core.ModulePathRoot, testCase.url, testCase.key)
 			if !errors.Is(err, testCase.wantError) {
 				t.Fatalf("configuration.New error = %v, want errors.Is %v", err, testCase.wantError)
+			}
+		})
+	}
+}
+
+// TestNewSwappedURLAndKey pins the error New returns when a caller passes
+// the project URL and the secret key the wrong way round. New rejects the
+// key it received as the project URL with an error whose text never quotes
+// the key, so a program that logs the error keeps the key out of its log.
+// That holds in both of the ways New can reject it:
+//   - the key fails the check for an absolute http or https URL
+//   - the key fails to parse, as it does when it ends in the newline that a
+//     key read from a file can keep
+func TestNewSwappedURLAndKey(t *testing.T) {
+	const key = "sb_secret_..."
+	tests := []struct {
+		name   string
+		rawURL string
+	}{
+		{name: "key", rawURL: key},
+		{name: "key with a trailing newline", rawURL: key + "\n"},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := configuration.New(core.ModulePathRoot, testCase.rawURL, "https://PROJECT_ID.supabase.co")
+			if !errors.Is(err, configuration.ErrInvalidURL) {
+				t.Fatalf("configuration.New error = %v, want errors.Is %v", err, configuration.ErrInvalidURL)
+			}
+			if strings.Contains(err.Error(), key) {
+				t.Errorf("configuration.New error = %q, want it free of the key", err)
 			}
 		})
 	}
