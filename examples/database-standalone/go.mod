@@ -7,7 +7,7 @@ module github.com/supabase/supabase-go/examples/database-standalone
 
 go 1.26
 
-require github.com/supabase/supabase-go/postgrest v0.1.0-alpha.3
+require github.com/supabase/supabase-go/postgrest v0.1.0-alpha.4
 
 require github.com/supabase/supabase-go/core v0.1.0-alpha.5 // indirect
 

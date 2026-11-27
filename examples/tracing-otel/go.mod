@@ -18,7 +18,7 @@ replace (
 require (
 	github.com/supabase/supabase-go v0.1.0-alpha.6
 	github.com/supabase/supabase-go/core v0.1.0-alpha.5
-	github.com/supabase/supabase-go/postgrest v0.1.0-alpha.3
+	github.com/supabase/supabase-go/postgrest v0.1.0-alpha.4
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.47.0
