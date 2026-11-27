@@ -251,9 +251,9 @@ var retryableStatusCodes = map[int]bool{
 
 // retryDelay returns the wait before the retry that follows the zero-based
 // attempt: one second doubled per attempt, or the whole seconds requested by
-// a parseable non-negative retryAfterHeader.
+// a parseable positive retryAfterHeader.
 func retryDelay(attempt int, retryAfterHeader string) time.Duration {
-	if seconds, err := strconv.Atoi(strings.TrimSpace(retryAfterHeader)); err == nil && seconds >= 0 {
+	if seconds, err := strconv.Atoi(strings.TrimSpace(retryAfterHeader)); err == nil && seconds > 0 {
 		return time.Duration(seconds) * time.Second
 	}
 	return time.Second << attempt

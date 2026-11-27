@@ -24,11 +24,11 @@ import (
 // separately and a timed-out attempt retries like any other transport
 // failure, so bound a whole read, backoff included, through ctx.
 // It waits 1s, 2s then 4s
-// between attempts, or the whole seconds of a Retry-After response header
-// when one parses, and gives up after three retries, surfacing the final
-// failure. A response whose body cannot be read in full or closed is not
-// retried, and its failure is returned. Each retried attempt carries an
-// X-Retry-Count header. Requests
+// between attempts, or the whole seconds a Retry-After response header
+// asks for when that is one or more, and gives up after three retries,
+// surfacing the final failure. A response whose body cannot be read in
+// full or closed is not retried, and its failure is returned. Each
+// retried attempt carries an X-Retry-Count header. Requests
 // are never retried once ctx is done, and requests with any other HTTP
 // method are never retried.
 //

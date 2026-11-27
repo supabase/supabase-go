@@ -140,6 +140,36 @@ func TestCollectRetriesOn503HonoringRetryAfter(t *testing.T) {
 	}
 }
 
+// TestCollectRetriesOn503WithZeroRetryAfter proves a Retry-After of zero
+// seconds, the header PostgREST sends with every 503, leaves the computed
+// backoff in place.
+func TestCollectRetriesOn503WithZeroRetryAfter(t *testing.T) {
+	sleeps := stubRetrySleep(t)
+	server, retryCounts := scriptedServer(
+		t,
+		scriptedResponse{status: http.StatusServiceUnavailable, retryAfter: "0"},
+	)
+	client := newRetryTestClient(t, server.URL)
+
+	rows, response, err := Collect(t.Context(), client, From[map[string]any]("instruments"))
+	var postgrestError *Error
+	if !errors.As(err, &postgrestError) {
+		t.Fatalf("want *Error in the chain, got %T: %v", err, err)
+	}
+	if postgrestError.HTTPStatus != http.StatusServiceUnavailable {
+		t.Errorf("HTTPStatus = %d, want %d", postgrestError.HTTPStatus, http.StatusServiceUnavailable)
+	}
+	if want := []string{"", "1", "2", "3"}; !slices.Equal(*retryCounts, want) {
+		t.Errorf("X-Retry-Count sequence = %q, want %q", *retryCounts, want)
+	}
+	if want := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}; !slices.Equal(*sleeps, want) {
+		t.Errorf("delays = %v, want %v", *sleeps, want)
+	}
+	if rows != nil || response.HTTPStatus != 0 {
+		t.Errorf("rows, response = %v, %+v, want nil and zero", rows, response)
+	}
+}
+
 // TestCollectStopsAfterMaximumRetries proves the loop gives up: a server
 // that never recovers sees the initial attempt plus MaximumRetries re-sends,
 // and the final failure surfaces as the typed PostgREST error.
