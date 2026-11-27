@@ -190,13 +190,19 @@ export SUPABASE_SECRET_KEY=sb_secret_...
 
 The secret key bypasses Row Level Security and can change any user, so keep it on servers you control and out of source control. The API never sees it.
 
+Then export a password for this step's sign-up, replacing `...` with one of your choice:
+
+```bash
+export USER_PASSWORD='...'
+```
+
 Sign up a musician, Sidney. The local stack does not ask new users to confirm their email address, so the response carries an access token right away:
 
 ```bash
 SIGNUP_RESPONSE=$(curl -sS --fail-with-body "$SUPABASE_PROJECT_URL/auth/v1/signup" \
   -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"email": "sidney@example.com", "password": "example-password"}')
+  -d "$(jq -n --arg password "$USER_PASSWORD" '{email: "sidney@example.com", password: $password}')")
 ```
 
 Extract Sidney's access token and user ID from the response:
