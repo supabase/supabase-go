@@ -62,7 +62,8 @@ type User struct {
 	RefreshToken string
 }
 
-// Password is the password every user SignUpUser registers signs in with.
+// Password is the password the integration tests create their users with.
+// It is public, so it must never reach a project other than the local stack.
 const Password = "integration-password"
 
 // UniqueEmail returns an email address unique to this test run, in lower
