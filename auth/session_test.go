@@ -328,24 +328,6 @@ func TestRefreshIsSingleFlight(t *testing.T) {
 	assertHoldsMinted(t, server, session, 1)
 }
 
-// waitObservingContext closes waiting the first time its Done channel is
-// asked for, which a reader does only once it waits on a refresh another
-// caller started.
-type waitObservingContext struct {
-	context.Context
-	once    sync.Once
-	waiting chan struct{}
-}
-
-func newWaitObservingContext(parent context.Context) *waitObservingContext {
-	return &waitObservingContext{Context: parent, waiting: make(chan struct{})}
-}
-
-func (c *waitObservingContext) Done() <-chan struct{} {
-	c.once.Do(func() { close(c.waiting) })
-	return c.Context.Done()
-}
-
 func TestCanceledRefreshFailsOnlyItsStarter(t *testing.T) {
 	server := newSessionServer(t)
 	session := server.signIn(t, server.client(t), expiredAlready)
@@ -361,15 +343,11 @@ func TestCanceledRefreshFailsOnlyItsStarter(t *testing.T) {
 	group.Go(func() { starterToken, starterErr = session.AccessToken(starterContext) })
 	server.awaitRequests(t, tokenPath, 2)
 
-	joinerContext := newWaitObservingContext(t.Context())
+	joinerContext := testkit.NewWaitObservingContext(t.Context())
 	var joinerToken string
 	var joinerErr error
 	group.Go(func() { joinerToken, joinerErr = session.AccessToken(joinerContext) })
-	select {
-	case <-joinerContext.waiting:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the second reader never waited on the refresh in flight")
-	}
+	testkit.AwaitWaiting(t, joinerContext)
 	cancelStarter()
 	group.Wait()
 
@@ -841,15 +819,11 @@ func TestSignOutGlobalRevokesFirst(t *testing.T) {
 		group.Go(func() { readToken, readErr = session.AccessToken(t.Context()) })
 		server.awaitRequests(t, tokenPath, 2)
 
-		signOutContext := newWaitObservingContext(t.Context())
+		signOutContext := testkit.NewWaitObservingContext(t.Context())
 		var result *auth.SignOutResult
 		var signOutErr error
 		group.Go(func() { result, signOutErr = session.SignOut(signOutContext) })
-		select {
-		case <-signOutContext.waiting:
-		case <-time.After(5 * time.Second):
-			t.Fatal("the sign-out never waited on the refresh in flight")
-		}
+		testkit.AwaitWaiting(t, signOutContext)
 		close(hold)
 		group.Wait()
 

@@ -1,8 +1,10 @@
-// Package testkit mints signed JWTs and publishes each signer's matching
-// public JWK, so tests across the auth module drive verification end to end
-// without an Auth server. It knows nothing of the packages under test: signers
-// speak only the wire formats, publishing each JWK as a plain map ready for a
-// JWK Set document or an httptest discovery endpoint.
+// Package testkit holds the fixtures that tests across the auth module share.
+// It knows nothing of the packages under test:
+//   - A [Signer] mints signed JWTs and publishes its matching public JWK, so
+//     tests drive verification end to end without an Auth server. It speaks
+//     only the wire formats, publishing the JWK as a plain map ready for a JWK
+//     Set document or an httptest discovery endpoint.
+//   - A [WaitObservingContext] tells a test when a call starts to wait on it.
 package testkit
 
 import (

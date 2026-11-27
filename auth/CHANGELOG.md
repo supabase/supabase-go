@@ -29,6 +29,12 @@ Aligns our implementation of `Client.GetClaims` with the [cross-SDK claims verif
 - a refetch of the JWK Set forced by an unknown key id now backs off after failing too, deferring such tokens to the Auth server meanwhile, where before each one retried the download
 - a key id missing from a first download of the JWK Set, or one after ten minutes, now forces a refetch before the backoff starts, where before it started the backoff
 
+While a download of the JWK Set is in flight, `Client.GetClaims` now:
+
+- verifies a token whose signing key is cached without waiting for the download, where before it waited for it to finish
+- shares that download with every call that needs it, its failure included, where before each call that waited on a failed download repeated it in turn
+- returns its context's error once its context ends while it waits for that download, where before its context had no effect on the wait
+
 ## `v0.1.0-alpha.5` (2026-11-16)
 
 ### Added
