@@ -6,7 +6,7 @@ This module is the root of a multi-module repository.
 The other published modules, which [`go.work`](go.work) lists, each keep a changelog of their own: [`auth`](auth/CHANGELOG.md), [`core`](core/CHANGELOG.md) and [`postgrest`](postgrest/CHANGELOG.md).
 Refer to [`DEVELOPMENT.md`](DEVELOPMENT.md#changelogs) for the structure and format every module's changelog follows.
 
-## Unreleased
+## `v0.1.0-alpha.7` (2026-11-27)
 
 ### Changed
 

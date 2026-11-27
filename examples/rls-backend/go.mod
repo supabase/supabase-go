@@ -8,7 +8,7 @@ module github.com/supabase/supabase-go/examples/rls-backend
 go 1.26
 
 require (
-	github.com/supabase/supabase-go v0.1.0-alpha.6
+	github.com/supabase/supabase-go v0.1.0-alpha.7
 	github.com/supabase/supabase-go/postgrest v0.1.0-alpha.4
 )
 
