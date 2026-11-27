@@ -6,7 +6,7 @@ module github.com/supabase/supabase-go/examples/premium-access-api
 
 go 1.26
 
-require github.com/supabase/supabase-go/auth v0.1.0-alpha.5
+require github.com/supabase/supabase-go/auth v0.1.0-alpha.6
 
 require github.com/supabase/supabase-go/core v0.1.0-alpha.5 // indirect
 
