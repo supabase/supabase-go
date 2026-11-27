@@ -50,6 +50,9 @@ func TestWithHTTPClientDoesNotMutateInput(t *testing.T) {
 	if custom.Transport != nil {
 		t.Error("input client's Transport was mutated")
 	}
+	if custom.CheckRedirect != nil {
+		t.Error("input client's CheckRedirect was mutated")
+	}
 	if projectConfiguration.HTTPClient() == custom {
 		t.Error("Configuration reused the caller's client instead of cloning it")
 	}

@@ -3,6 +3,7 @@
 package transport
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -10,6 +11,10 @@ import (
 	"github.com/supabase/supabase-go/core"
 	"github.com/supabase/supabase-go/core/internal/telemetry"
 )
+
+// maximumRedirects is how many redirects a client follows within the origin
+// of a request when it sets no redirect policy of its own.
+const maximumRedirects = 10
 
 // transport is an http.RoundTripper that injects Supabase authentication and
 // global headers into every outgoing request. It honors the RoundTripper
@@ -25,8 +30,10 @@ type transport struct {
 // WrapClient returns a copy of client whose transport injects the project API
 // key header, the supplied global headers and, unless the application set
 // one, the X-Client-Info header that identifies entryModulePath, and writes
-// one debug log emission per round trip through logger. The input client is
-// never mutated, so sharing [http.DefaultClient] remains safe.
+// one debug log emission per round trip through logger. Its redirect policy is
+// client's own, confined by sameOriginRedirects to the origin of each
+// request. The input client is never mutated, so sharing [http.DefaultClient]
+// remains safe.
 //
 // entryModulePath must be one of the following, with its module linked into
 // the build, otherwise this function panics:
@@ -50,7 +57,55 @@ func WrapClient(entryModulePath core.ModulePath, client *http.Client, apiKey str
 		clientInformationHeaderValue: telemetry.ClientInformationHeaderValue(entryModulePath),
 		logger:                       logger,
 	}
+	clone.CheckRedirect = sameOriginRedirects(client.CheckRedirect)
 	return &clone
+}
+
+// sameOriginRedirects returns a redirect policy confined to the origin of the
+// request a client was sent: its scheme and its host, port included, each
+// compared exactly. The policy answers a redirect as follows:
+//   - to another origin, it is not followed, and the client returns the
+//     redirect response itself
+//   - within the origin, checkRedirect decides
+//   - within the origin when checkRedirect is nil, the client follows up to
+//     maximumRedirects of them
+//
+// The confinement overrides checkRedirect because transport sets the apikey
+// header and the global headers on every request it sends, each hop of a
+// redirect included. The standard library strips only sensitive headers such
+// as Authorization, and only from a hop to an unrelated host. A redirect
+// followed to another origin would therefore hand that origin the project key,
+// often the secret key, and a 307 or 308 would send it the request body too.
+//
+// Keeping those headers to the origin inside transport, and leaving redirects
+// to checkRedirect alone, would still send that body to the other origin. It
+// would also let the other origin's answer stand in for the project's own.
+// Nor could such a redirect succeed against a Supabase service, since the hop
+// would arrive without a key.
+//
+// Scheme and host are compared exactly, so a subdomain, a move from http to
+// https, a host in another case and a default port written out each count as
+// another origin. The comparison errs toward refusing a redirect that would
+// have been safe to follow.
+//
+// A refused redirect ends in [http.ErrUseLastResponse] rather than an error of
+// its own, so the client returns the redirect response. Each domain module
+// then reports it as it reports any other status outside 2xx. An error would
+// instead come back as a *url.Error whose text holds the redirect's Location.
+func sameOriginRedirects(checkRedirect func(*http.Request, []*http.Request) error) func(*http.Request, []*http.Request) error {
+	return func(request *http.Request, via []*http.Request) error {
+		origin := via[0].URL
+		if request.URL.Scheme != origin.Scheme || request.URL.Host != origin.Host {
+			return http.ErrUseLastResponse
+		}
+		if checkRedirect != nil {
+			return checkRedirect(request, via)
+		}
+		if len(via) >= maximumRedirects {
+			return fmt.Errorf("stopped after %d redirects", maximumRedirects)
+		}
+		return nil
+	}
 }
 
 // RoundTrip implements [http.RoundTripper].
