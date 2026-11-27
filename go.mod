@@ -17,7 +17,7 @@ ignore (
 )
 
 require (
-	github.com/supabase/supabase-go/auth v0.1.0-alpha.5
-	github.com/supabase/supabase-go/core v0.1.0-alpha.4
-	github.com/supabase/supabase-go/postgrest v0.1.0-alpha.3
+	github.com/supabase/supabase-go/auth v0.1.0-alpha.6
+	github.com/supabase/supabase-go/core v0.1.0-alpha.5
+	github.com/supabase/supabase-go/postgrest v0.1.0-alpha.4
 )
