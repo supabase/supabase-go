@@ -163,6 +163,9 @@ done
 # Sign a new user up over the Auth REST API, as an application's own sign-up
 # flow does, and print Auth's JSON answer. $1 is the email address and $2 the
 # password.
+#
+# Every password this script signs a user up with is public, so sign_up must
+# never reach a project other than the local stack.
 sign_up() {
   curl --fail-with-body --silent --show-error \
     --header "apikey: ${PUBLISHABLE_KEY}" \

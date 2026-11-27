@@ -54,7 +54,7 @@ func TestAdminGenerateLinks(t *testing.T) {
 	email := testkit.UniqueEmail(t)
 
 	signup, err := admin.GenerateLink(ctx, auth.NewLinkRequest(email).
-		Signup("integration-password").
+		Signup(testkit.Password).
 		UserMetadata(map[string]any{"workspace": "integration"}))
 	if err != nil {
 		t.Fatalf("GenerateLink(Signup): %v", err)

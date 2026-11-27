@@ -34,7 +34,7 @@ func TestAdminUserLifecycle(t *testing.T) {
 
 	createResult, err := admin.CreateUser(t.Context(), auth.UserAttributes{
 		Email:        email,
-		Password:     "integration-password",
+		Password:     testkit.Password,
 		EmailConfirm: true,
 		UserMetadata: map[string]any{"display_name": "Lifecycle"},
 		AppMetadata:  map[string]any{"team": "integration"},
@@ -97,7 +97,7 @@ func TestAdminSoftDeleteUser(t *testing.T) {
 
 	createResult, err := admin.CreateUser(t.Context(), auth.UserAttributes{
 		Email:        email,
-		Password:     "integration-password",
+		Password:     testkit.Password,
 		EmailConfirm: true,
 	})
 	if err != nil {
@@ -162,7 +162,7 @@ func TestAdminUpdateUser(t *testing.T) {
 
 	createResult, err := admin.CreateUser(t.Context(), auth.UserAttributes{
 		Email:        email,
-		Password:     "integration-password",
+		Password:     testkit.Password,
 		EmailConfirm: true,
 		UserMetadata: map[string]any{"display_name": "Before", "locale": "en"},
 	})
@@ -266,7 +266,7 @@ func TestAdminListUsersPagination(t *testing.T) {
 		email := fmt.Sprintf("%s-%d@example.com", prefix, i)
 		result, err := admin.CreateUser(t.Context(), auth.UserAttributes{
 			Email:        email,
-			Password:     "integration-password",
+			Password:     testkit.Password,
 			EmailConfirm: true,
 		})
 		if err != nil {
