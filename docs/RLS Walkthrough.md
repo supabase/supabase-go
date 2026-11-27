@@ -209,13 +209,19 @@ go run .
 
 ## 4. Call the backend as a user
 
-Open a second terminal in the same folder and export the same two variables. Then sign up a user. The local stack does not ask new users to confirm their email address, so the response carries an access token right away:
+Open a second terminal in the same folder and export the same two variables. Also export a password for this step's sign-ups, replacing `...` with one of your choice:
+
+```bash
+export USER_PASSWORD='...'
+```
+
+Then sign up a user. The local stack does not ask new users to confirm their email address, so the response carries an access token right away:
 
 ```bash
 SIGNUP_RESPONSE=$(curl -sS --fail-with-body "$SUPABASE_PROJECT_URL/auth/v1/signup" \
   -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"email": "maria@example.com", "password": "example-password"}')
+  -d "$(jq -n --arg password "$USER_PASSWORD" '{email: "maria@example.com", password: $password}')")
 ```
 
 Extract Maria's access token from the response:
@@ -251,7 +257,7 @@ Now sign up a second user, Wei:
 SIGNUP_RESPONSE=$(curl -sS --fail-with-body "$SUPABASE_PROJECT_URL/auth/v1/signup" \
   -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"email": "wei@example.com", "password": "example-password"}')
+  -d "$(jq -n --arg password "$USER_PASSWORD" '{email: "wei@example.com", password: $password}')")
 ```
 
 Extract Wei's access token from the response:
