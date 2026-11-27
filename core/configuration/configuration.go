@@ -204,8 +204,44 @@ func (c *Configuration) Retry() bool {
 //     [WithHTTPClient] decides, or up to ten in a row when there is none
 //   - anywhere else, it never follows the redirect, whatever that
 //     CheckRedirect decides, and Do returns the redirect response itself
+//
+// When Do fails, it returns a *url.Error, as [http.Client.Do] does, whose URL
+// holds only the scheme, host and path of the request's URL, so the error's
+// text leaves out the query string and any user information. Its Op and Err
+// are those that [http.Client.Do] returned, so [errors.Is], [errors.As] and
+// its Timeout method answer as they would for that error.
 func (c *Configuration) HTTPClient() HTTPClient {
-	return c.httpClient
+	return redactingClient{c.httpClient}
+}
+
+// redactingClient is the [HTTPClient] a [Configuration] hands out. It holds
+// the client it sends through unexported, so a caller can neither reach nor
+// replace that client's transport.
+type redactingClient struct {
+	client *http.Client
+}
+
+// Do sends request through the client. When that fails with a *url.Error, Do
+// returns a copy whose URL keeps only the scheme, host and path.
+func (c redactingClient) Do(request *http.Request) (*http.Response, error) {
+	// #nosec G704 -- request is outgoing, built by the caller of Do. gosec takes
+	// it for one a server received and is passing on to a URL its sender chose.
+	response, err := c.client.Do(request)
+	if urlError, ok := errors.AsType[*url.Error](err); ok {
+		err = &url.Error{Op: urlError.Op, URL: schemeHostAndPath(urlError.URL), Err: urlError.Err}
+	}
+	return response, err
+}
+
+// schemeHostAndPath returns the scheme, host and path of rawURL, and nothing
+// when rawURL does not parse.
+func schemeHostAndPath(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	kept := url.URL{Scheme: parsed.Scheme, Host: parsed.Host, Path: parsed.Path, RawPath: parsed.RawPath}
+	return kept.String()
 }
 
 // BaseURL returns a copy of the project base URL. Callers may mutate the result

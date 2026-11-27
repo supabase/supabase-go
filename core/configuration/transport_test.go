@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -43,7 +44,7 @@ func TestTransportInjectsHeaders(t *testing.T) {
 
 func TestWithHTTPClientDoesNotMutateInput(t *testing.T) {
 	custom := &http.Client{}
-	projectConfiguration, err := configuration.New(core.ModulePathRoot, "https://PROJECT_ID.supabase.co", "k", configuration.WithHTTPClient(custom))
+	_, err := configuration.New(core.ModulePathRoot, "https://PROJECT_ID.supabase.co", "k", configuration.WithHTTPClient(custom))
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}
@@ -53,26 +54,41 @@ func TestWithHTTPClientDoesNotMutateInput(t *testing.T) {
 	if custom.CheckRedirect != nil {
 		t.Error("input client's CheckRedirect was mutated")
 	}
-	if projectConfiguration.HTTPClient() == custom {
-		t.Error("Configuration reused the caller's client instead of cloning it")
-	}
 }
 
 // TestWithHTTPClientPreservesTimeout guards the request_timeout capability's
 // only moving part: the clone taken by the transport wrap must keep the
 // caller's construction-time Timeout, or the deadline would silently vanish.
+// The server never answers, so only the Timeout can end the request, and the
+// error it ends with must still report itself as a timeout.
 func TestWithHTTPClientPreservesTimeout(t *testing.T) {
-	projectConfiguration, err := configuration.New(core.ModulePathRoot, "https://PROJECT_ID.supabase.co", "API_KEY",
-		configuration.WithHTTPClient(&http.Client{Timeout: 250 * time.Millisecond}))
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+		select {
+		case <-release:
+		case <-request.Context().Done(): // the client hung up first, as intended
+		}
+	}))
+	defer server.Close()
+	defer close(release) // unblocks the handler before Close waits on it
+
+	projectConfiguration, err := configuration.New(core.ModulePathRoot, server.URL, "API_KEY",
+		configuration.WithHTTPClient(&http.Client{Timeout: 50 * time.Millisecond}))
 	if err != nil {
 		t.Fatalf("configuration.New: %v", err)
 	}
-	wrapped, ok := projectConfiguration.HTTPClient().(*http.Client)
-	if !ok {
-		t.Fatalf("HTTPClient() concrete type = %T, want *http.Client", projectConfiguration.HTTPClient())
+	request, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
 	}
-	if got, want := wrapped.Timeout, 250*time.Millisecond; got != want {
-		t.Errorf("Timeout = %v, want %v (the wrap's clone dropped it)", got, want)
+
+	_, err = projectConfiguration.HTTPClient().Do(request)
+	urlError, ok := errors.AsType[*url.Error](err)
+	if !ok {
+		t.Fatalf("Do error = %v, want a *url.Error", err)
+	}
+	if !urlError.Timeout() {
+		t.Errorf("Timeout() = false, want true: %v", urlError)
 	}
 }
 
@@ -129,6 +145,35 @@ func TestWithHeaderClientInfoReplacesTheSDKValue(t *testing.T) {
 	}
 }
 
+// TestTransportFailureError proves the error Do returns when a request gets
+// no answer leaves the query string, which holds the filter values of a
+// PostgREST read, out of its text. The error is a *url.Error, as http.Client
+// returns, that still wraps the transport's failure, and its URL keeps only
+// the scheme, host and path of the request's URL.
+func TestTransportFailureError(t *testing.T) {
+	projectConfiguration, err := configuration.New(core.ModulePathRoot, "https://PROJECT_ID.supabase.co", "API_KEY",
+		configuration.WithHTTPClient(&http.Client{Transport: failingTransport{}}))
+	if err != nil {
+		t.Fatalf("configuration.New: %v", err)
+	}
+	request, err := http.NewRequest(http.MethodGet, "https://PROJECT_ID.supabase.co/rest/v1/players?select=id&email=eq.player%40example.com", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+
+	_, err = projectConfiguration.HTTPClient().Do(request)
+	if !errors.Is(err, errBrokenWire) {
+		t.Fatalf("Do error = %v, want errors.Is %v", err, errBrokenWire)
+	}
+	if _, ok := errors.AsType[*url.Error](err); !ok {
+		t.Errorf("Do error type = %T, want *url.Error", err)
+	}
+	want := `Get "https://PROJECT_ID.supabase.co/rest/v1/players": broken wire`
+	if err.Error() != want {
+		t.Errorf("Do error = %q, want %q", err, want)
+	}
+}
+
 func recordingServer(t *testing.T) (*httptest.Server, *http.Header) {
 	t.Helper()
 	var received http.Header
@@ -140,9 +185,9 @@ func recordingServer(t *testing.T) (*httptest.Server, *http.Header) {
 	return server, &received
 }
 
-func sendGet(t *testing.T, doer configuration.HTTPClient, url string, mutate func(*http.Request)) {
+func sendGet(t *testing.T, doer configuration.HTTPClient, requestURL string, mutate func(*http.Request)) {
 	t.Helper()
-	request, err := http.NewRequest(http.MethodGet, url, nil)
+	request, err := http.NewRequest(http.MethodGet, requestURL, nil)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
