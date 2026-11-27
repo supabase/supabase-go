@@ -141,11 +141,7 @@ for consumer_module in $(enumerate_consumer_shaped_modules); do
   (cd "${consumer_module}" && GOWORK=off go mod tidy)
 done
 
-candidate_paths="${module_dir}/go.mod ${changelog}"
-for consumer_module in $(enumerate_consumer_shaped_modules); do
-  candidate_paths="${candidate_paths} ${consumer_module}/go.mod ${consumer_module}/go.sum"
-done
-changed_paths="$(git status --porcelain -- ${candidate_paths} | awk '{ print $NF }' | sort)"
+changed_paths="$(prepared_release_paths "${module_dir}")"
 
 echo
 echo "✅ Prepared ${module_dir} for ${version}. Nothing has been committed."
