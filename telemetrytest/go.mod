@@ -17,7 +17,7 @@ require (
 
 require (
 	github.com/supabase/supabase-go/auth v0.1.0-alpha.5 // indirect
-	github.com/supabase/supabase-go/core v0.1.0-alpha.4 // indirect
+	github.com/supabase/supabase-go/core v0.1.0-alpha.5 // indirect
 )
 
 replace (

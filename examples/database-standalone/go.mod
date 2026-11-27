@@ -9,7 +9,7 @@ go 1.26
 
 require github.com/supabase/supabase-go/postgrest v0.1.0-alpha.3
 
-require github.com/supabase/supabase-go/core v0.1.0-alpha.4 // indirect
+require github.com/supabase/supabase-go/core v0.1.0-alpha.5 // indirect
 
 replace (
 	github.com/supabase/supabase-go/core => ../../core

@@ -7,7 +7,7 @@ Refer to [GitHub `../DEVELOPMENT.md`](https://github.com/supabase/supabase-go/bl
 
 <!-- cSpell:ignore freebsd -->
 
-## Unreleased
+## `v0.1.0-alpha.5` (2026-11-27)
 
 ### Fixed
 
