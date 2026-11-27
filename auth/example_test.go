@@ -558,7 +558,19 @@ func ExampleClient_SessionFromStore() {
 // The secret key comes from the environment, never from source: it bypasses
 // Row Level Security, so it belongs to server configuration alone. Admin
 // creation sends no confirmation email - EmailConfirm marks the address
-// trusted, so the account is usable immediately.
+// trusted.
+//
+// The job could set Password too, and the user could then sign in at once.
+// Security practice keeps anyone but the user from choosing their password,
+// as the [OWASP Application Security Verification Standard] sets out, for
+// reasons such as:
+//   - a password the job sets is known to more than its user
+//   - it stays the account's password until the user thinks to change it
+//
+// So the job sets none, and the user chooses their own through a recovery
+// link, which GenerateLink mints.
+//
+// [OWASP Application Security Verification Standard]: https://github.com/OWASP/ASVS/blob/v5.0.0_release/5.0/en/0x15-V6-Authentication.md#v64-authentication-factor-lifecycle-and-recovery
 func ExampleClient_Admin() {
 	secretKey := os.Getenv("SUPABASE_SECRET_KEY")
 	client, err := auth.New("https://PROJECT_ID.supabase.co", secretKey)
@@ -570,7 +582,6 @@ func ExampleClient_Admin() {
 
 	result, err := admin.CreateUser(context.Background(), auth.UserAttributes{
 		Email:        "ada@example.com",
-		Password:     "correct horse battery staple",
 		EmailConfirm: true,
 		AppMetadata:  map[string]any{"team": "platform"},
 	})
